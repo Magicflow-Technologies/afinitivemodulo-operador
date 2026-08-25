@@ -2,6 +2,9 @@ import { Injectable, Logger, HttpException, HttpStatus } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
 import { Resend } from 'resend';
+import * as fs from 'fs';
+import * as path from 'path';
+import { google } from 'googleapis';
 
 // Catálogo de Firmas Corporativas Disponibles
 const SIGNATURES = {
@@ -169,9 +172,12 @@ export class EmailTrackingService {
     customSender?: string, 
     customSubject?: string, 
     customBody?: string,
-    signatureId?: string
+    signatureId?: string,
+    attachment?: { filename: string; content: string },
+    proposedTime?: string,
+    recipientName?: string
   ) {
-    this.logger.log(`Intentando enviar correo de prueba a: ${recipientEmail} desde: ${customSender || this.senderEmail} con firma: ${signatureId || 'default (irina)'}`);
+    this.logger.log(`Intentando enviar correo de prueba a: ${recipientEmail} desde: ${customSender || this.senderEmail} con firma: ${signatureId || 'default (irina)'}${attachment ? ` con adjunto: ${attachment.filename}` : ''}`);
 
     if (!this.resend) {
       throw new HttpException('El servicio de Resend no está configurado', HttpStatus.INTERNAL_SERVER_ERROR);
@@ -187,43 +193,125 @@ export class EmailTrackingService {
     // Formatear saltos de línea para el cuerpo del mensaje en caso de que sea texto plano
     const formattedBodyHtml = emailBody.replace(/\n/g, '<br />');
 
+    // Reemplazo dinámico del marcador de agendamiento
+    const agendaLink = signatureId === 'ricardo'
+      ? 'https://afinitive.dashbportal.com/invite/ricardo-opt'
+      : 'https://afinitive.dashbportal.com/invite/irina-opt';
+
+    const buttonHtml = `
+      <div style="text-align: center; margin: 25px 0;">
+        <a href="${agendaLink}" 
+           style="display: inline-block; background-color: #0D1B2A; color: #FFFFFF; padding: 12px 30px; font-weight: bold; font-size: 14px; text-decoration: none; border-radius: 6px; letter-spacing: 0.5px; box-shadow: 0 2px 5px rgba(0,0,0,0.15); font-family: Arial, sans-serif;">
+          📅 AGENDAR LA LLAMADA
+        </a>
+      </div>
+    `;
+
+    // Botón de confirmar cita dinámico (apunta al backend)
+    const host = 'localhost:3080';
+    const confirmLink = `http://${host}/api/test-email/confirm-meeting?calendarId=${signatureId === 'ricardo' ? 'rbertalmio@afinitive.com' : 'iportilla@afinitive.com.pe'}&time=${encodeURIComponent(proposedTime || '')}&email=${encodeURIComponent(recipientEmail)}&name=${encodeURIComponent(recipientName || '')}`;
+    
+    const confirmButtonHtml = `
+      <div style="text-align: center; margin: 25px 0;">
+        <a href="${confirmLink}" 
+           style="display: inline-block; background-color: #0D1B2A; color: #FFFFFF; padding: 12px 30px; font-weight: bold; font-size: 14px; text-decoration: none; border-radius: 6px; letter-spacing: 0.5px; box-shadow: 0 2px 5px rgba(0,0,0,0.15); font-family: Arial, sans-serif;">
+          📅 CONFIRMAR CITA
+        </a>
+      </div>
+    `;
+
+    let finalBodyHtml = formattedBodyHtml;
+    if (finalBodyHtml.includes('[CONFIRMAR_CITA]')) {
+      finalBodyHtml = finalBodyHtml.replace('[CONFIRMAR_CITA]', confirmButtonHtml);
+    } else if (finalBodyHtml.includes('[AGENDAR_LLAMADA]')) {
+      finalBodyHtml = finalBodyHtml.replace('[AGENDAR_LLAMADA]', buttonHtml);
+    } else {
+      // Si no contiene ningún marcador, agregamos el botón de agendamiento por defecto al final
+      finalBodyHtml = finalBodyHtml + buttonHtml;
+    }
+
     // Obtener la firma correspondiente del catálogo
     const activeSignatureHtml = (signatureId && signatureId in SIGNATURES)
       ? SIGNATURES[signatureId as keyof typeof SIGNATURES]
       : SIGNATURES['irina'];
 
     try {
-      // Enviamos el correo usando el SDK de Resend.
-      // Encapsulamos el mensaje dinámico del usuario dentro de la plantilla corporativa premium.
-      const response = await this.resend.emails.send({
+      // Opciones de envío de correo
+      const mailOptions: any = {
         from: sender,
         to: [recipientEmail],
         subject: subject,
         html: `
-          <div style="font-family: Arial, sans-serif; max-width: 650px; margin: 0 auto; border: 1px solid rgba(201, 168, 76, 0.3); border-radius: 12px; overflow: hidden; box-shadow: 0 4px 15px rgba(0,0,0,0.15);">
-            <!-- Contenido del Correo: Fondo Oscuro Corporativo -->
-            <div style="padding: 30px 30px 40px 30px; background-color: #0D1B2A; color: #FFFFFF;">
-              <div style="text-align: center; border-bottom: 1px solid rgba(201, 168, 76, 0.3); padding-bottom: 15px; margin-bottom: 25px;">
-                <h2 style="color: #C9A84C; margin: 0; font-size: 24px; font-weight: bold; letter-spacing: 1px;">AFINITIVE</h2>
-                <span style="font-size: 10px; color: #C9A84C; letter-spacing: 2px; text-transform: uppercase;">Invitación Exclusiva</span>
+          <div style="background-color: #F0F4F8; padding: 40px 20px; font-family: Arial, sans-serif;">
+            <div style="max-width: 600px; margin: 0 auto; background-color: #FFFFFF; border-radius: 8px; overflow: hidden; box-shadow: 0 4px 10px rgba(0,0,0,0.05); border: 1px solid #E2E8F0;">
+              
+              <!-- Cabecera Premium en Fondo Blanco -->
+              <div style="padding: 30px 40px 25px 40px; border-bottom: 1px solid #F1F5F9; background-color: #FFFFFF;">
+                <table cellpadding="0" cellspacing="0" border="0" style="background-color: #FFFFFF;">
+                  <tr>
+                    <td valign="middle" style="padding-right: 15px; line-height: 0;">
+                      <!-- Logo del Árbol Azul de Afinitive -->
+                      <img src="cid:afinitive_logo" alt="Afinitive Logo" width="65" style="display: block; border: none;">
+                    </td>
+                    <td valign="middle" style="line-height: 1.15;">
+                      <div style="font-family: Arial, sans-serif;">
+                        <span style="font-size: 10px; color: #5B728A; letter-spacing: 2px; text-transform: uppercase; font-weight: normal; display: block; margin-bottom: 1px;">AFINITIVE</span>
+                        <span style="font-size: 17px; color: #0F2942; font-weight: bold; letter-spacing: 0.5px; text-transform: uppercase; display: block;">WEALTH MANAGEMENT</span>
+                      </div>
+                    </td>
+                  </tr>
+                </table>
               </div>
-              <div style="font-size: 15px; line-height: 1.6; color: #E2E8F0; min-height: 100px;">
-                ${formattedBodyHtml}
+
+              <!-- Cuerpo del Correo -->
+              <div style="padding: 30px 40px 20px 40px; font-size: 15px; line-height: 1.6; color: #334155; min-height: 100px;">
+                ${finalBodyHtml}
               </div>
-            </div>
-            
-            <!-- Firma del Operador: Fondo Blanco (HTML Dinámico de Firma) -->
-            <div style="background-color: #ffffff; padding: 25px; border-top: 1px solid rgba(201, 168, 76, 0.2);">
-              ${activeSignatureHtml}
-            </div>
-            
-            <!-- Pie de Monitoreo -->
-            <div style="background-color: #F8FAFC; padding: 12px; text-align: center; font-size: 10px; color: #64748B; border-top: 1px solid #E2E8F0;">
-              Este correo de invitación contiene elementos de monitoreo de recepción. Afinitive Inc.
+              
+              <!-- Firma del Operador: Fondo Blanco (HTML Dinámico de Firma) -->
+              <div style="background-color: #ffffff; padding: 20px 40px 30px 40px; border-top: 1px solid #F1F5F9;">
+                ${activeSignatureHtml}
+              </div>
+              
+              <!-- Pie de Monitoreo -->
+              <div style="background-color: #F8FAFC; padding: 15px; text-align: center; font-size: 10px; color: #64748B; border-top: 1px solid #E2E8F0;">
+                Este correo de invitación contiene elementos de monitoreo de recepción. Afinitive Inc.
+              </div>
             </div>
           </div>
         `,
-      });
+      };
+
+      // Cargar e inyectar el logo corporativo como inline attachment de forma dinámica
+      const attachments: any[] = [];
+      try {
+        const logoPath = path.resolve(__dirname, '..', 'afinitive_logo.png');
+        if (fs.existsSync(logoPath)) {
+          attachments.push({
+            filename: 'afinitive_logo.png',
+            content: fs.readFileSync(logoPath).toString('base64'),
+            contentId: 'afinitive_logo',
+            disposition: 'inline'
+          });
+        }
+      } catch (err) {
+        this.logger.error('Error al cargar afinitive_logo.png para inline attachment:', err);
+      }
+
+      // Si existe un archivo adjunto del usuario, agregarlo también
+      if (attachment && attachment.content) {
+        attachments.push({
+          filename: attachment.filename,
+          content: Buffer.from(attachment.content, 'base64'),
+        });
+      }
+
+      if (attachments.length > 0) {
+        mailOptions.attachments = attachments;
+      }
+
+      // Enviamos el correo usando el SDK de Resend.
+      const response = await this.resend.emails.send(mailOptions);
 
       if (response.error) {
         this.logger.error(`Error de Resend: ${JSON.stringify(response.error)}`);
@@ -323,6 +411,569 @@ export class EmailTrackingService {
         throw error;
       }
       throw new HttpException(`Error inesperado en webhook: ${error.message}`, HttpStatus.INTERNAL_SERVER_ERROR);
+    }
+  }
+
+  async testGoogleCalendarConnection(calendarId?: string) {
+    const id = calendarId || 'rbertalmio@afinitive.com.pe';
+    this.logger.log(`Iniciando prueba de conexión a Google Calendar para el ID: ${id}`);
+
+    try {
+      const keyFilePath = path.resolve(__dirname, '..', '..', 'afinitive-calendar-sync-bddfdbc9e9de.json');
+      
+      if (!fs.existsSync(keyFilePath)) {
+        this.logger.error(`No se encontró el archivo de credenciales de Google Calendar en la ruta: ${keyFilePath}`);
+        throw new HttpException(`Archivo de credenciales no encontrado en: ${keyFilePath}`, HttpStatus.NOT_FOUND);
+      }
+
+      this.logger.log(`Leyendo archivo de credenciales desde: ${keyFilePath}`);
+      const auth = new google.auth.GoogleAuth({
+        keyFile: keyFilePath,
+        scopes: ['https://www.googleapis.com/auth/calendar.readonly'],
+      });
+
+      const calendar = google.calendar({ version: 'v3', auth });
+
+      this.logger.log(`Haciendo petición a la API de Google Calendar para listar eventos...`);
+      const response = await calendar.events.list({
+        calendarId: id,
+        timeMin: new Date().toISOString(),
+        maxResults: 10,
+        singleEvents: true,
+        orderBy: 'startTime',
+      });
+
+      const events = response.data.items;
+      this.logger.log(`¡Conexión validada exitosamente! Se obtuvieron ${events?.length || 0} eventos.`);
+
+      if (events && events.length > 0) {
+        this.logger.log('--- Horarios de Eventos Encontrados ---');
+        events.forEach((event, index) => {
+          const start = event.start?.dateTime || event.start?.date || 'N/A';
+          const end = event.end?.dateTime || event.end?.date || 'N/A';
+          this.logger.log(`Evento ${index + 1}: [${event.summary}] | Inicio: ${start} | Fin: ${end}`);
+        });
+        this.logger.log('---------------------------------------');
+      } else {
+        this.logger.log('No se encontraron eventos próximos en este calendario.');
+      }
+
+      return {
+        success: true,
+        message: 'Conexión a Google Calendar validada correctamente.',
+        eventCount: events?.length || 0,
+        events: events?.map(e => ({
+          summary: e.summary,
+          start: e.start?.dateTime || e.start?.date,
+          end: e.end?.dateTime || e.end?.date,
+        })) || [],
+      };
+    } catch (error) {
+      this.logger.error(`Error de conexión con Google Calendar: ${error.message}`);
+      if (error instanceof HttpException) {
+        throw error;
+      }
+      throw new HttpException(`Error en Google Calendar: ${error.message}`, HttpStatus.INTERNAL_SERVER_ERROR);
+    }
+  }
+
+  async getCalendarSettings() {
+    if (!this.supabase) {
+      throw new HttpException('El servicio de Supabase no está configurado', HttpStatus.INTERNAL_SERVER_ERROR);
+    }
+
+    const { data, error } = await this.supabase
+      .from('calendar_settings')
+      .select('*')
+      .eq('id', 1)
+      .single();
+
+    if (error || !data) {
+      // Valores por defecto
+      return {
+        id: 1,
+        slot_duration: 60,
+        morning_start: '09:00',
+        morning_end: '12:00',
+        afternoon_start: '14:00',
+        afternoon_end: '17:00',
+        send_interval: 5,
+        send_interval_unit: 'minutes',
+      };
+    }
+
+    return data;
+  }
+
+  async saveCalendarSettings(settings: {
+    slot_duration: number;
+    morning_start: string;
+    morning_end: string;
+    afternoon_start: string;
+    afternoon_end: string;
+    send_interval: number;
+    send_interval_unit: string;
+  }) {
+    if (!this.supabase) {
+      throw new HttpException('El servicio de Supabase no está configurado', HttpStatus.INTERNAL_SERVER_ERROR);
+    }
+
+    const { data, error } = await this.supabase
+      .from('calendar_settings')
+      .upsert({
+        id: 1,
+        ...settings,
+        updated_at: new Date().toISOString(),
+      })
+      .select();
+
+    if (error) {
+      throw new HttpException(`Error al guardar configuraciones: ${error.message}`, HttpStatus.INTERNAL_SERVER_ERROR);
+    }
+
+    return data[0];
+  }
+
+  async findNextAvailableSlot(
+    calendarId: string,
+    durationMinutes: number,
+    morningStart: string,
+    morningEnd: string,
+    afternoonStart: string,
+    afternoonEnd: string,
+    occupiedEvents: any[],
+    reservedSlots: Date[]
+  ): Promise<Date> {
+    // Empezamos la búsqueda a partir del día de mañana
+    let searchDate = new Date();
+    searchDate.setDate(searchDate.getDate() + 1);
+    searchDate.setHours(0, 0, 0, 0);
+
+    const parseTime = (timeStr: string) => {
+      const [h, m] = timeStr.split(':').map(Number);
+      return { hours: h, minutes: m };
+    };
+
+    const morningS = parseTime(morningStart);
+    const morningE = parseTime(morningEnd);
+    const afternoonS = parseTime(afternoonStart);
+    const afternoonE = parseTime(afternoonEnd);
+
+    // Buscaremos durante un máximo de 14 días
+    for (let day = 0; day < 14; day++) {
+      // Saltar fines de semana (Sábado = 6, Domingo = 0)
+      const dayOfWeek = searchDate.getDay();
+      if (dayOfWeek === 0 || dayOfWeek === 6) {
+        searchDate.setDate(searchDate.getDate() + 1);
+        continue;
+      }
+
+      // Candidatos de mañana
+      const slots: { start: Date; end: Date }[] = [];
+      
+      const addSlotsForBlock = (startHour: number, startMin: number, endHour: number, endMin: number) => {
+        let current = new Date(searchDate);
+        current.setHours(startHour, startMin, 0, 0);
+
+        const limit = new Date(searchDate);
+        limit.setHours(endHour, endMin, 0, 0);
+
+        while (current.getTime() + durationMinutes * 60000 <= limit.getTime()) {
+          const slotStart = new Date(current);
+          const slotEnd = new Date(current.getTime() + durationMinutes * 60000);
+          slots.push({ start: slotStart, end: slotEnd });
+          current = new Date(current.getTime() + durationMinutes * 60000);
+        }
+      };
+
+      // Bloque de Mañana
+      addSlotsForBlock(morningS.hours, morningS.minutes, morningE.hours, morningE.minutes);
+      // Bloque de Tarde
+      addSlotsForBlock(afternoonS.hours, afternoonS.minutes, afternoonE.hours, afternoonE.minutes);
+
+      // Evaluar cada slot candidato
+      for (const slot of slots) {
+        // 1. Verificar si ya fue reservado en esta misma sesión
+        const isReservedInSession = reservedSlots.some(res => 
+          res.getTime() < slot.end.getTime() && res.getTime() + durationMinutes * 60000 > slot.start.getTime()
+        );
+        if (isReservedInSession) continue;
+
+        // 2. Verificar si se cruza con algún evento ocupado de Google Calendar
+        const isOccupied = occupiedEvents.some(event => {
+          const eventStart = new Date(event.start?.dateTime || event.start?.date);
+          const eventEnd = new Date(event.end?.dateTime || event.end?.date);
+          return slot.start.getTime() < eventEnd.getTime() && slot.end.getTime() > eventStart.getTime();
+        });
+
+        if (!isOccupied) {
+          return slot.start;
+        }
+      }
+
+      searchDate.setDate(searchDate.getDate() + 1);
+    }
+
+    const fallbackDate = new Date();
+    fallbackDate.setDate(fallbackDate.getDate() + 1);
+    fallbackDate.setHours(10, 0, 0, 0);
+    return fallbackDate;
+  }
+
+  async loadContactsIntoQueue(contacts: { name: string; email: string }[]) {
+    if (!this.supabase) {
+      throw new HttpException('El servicio de Supabase no está configurado', HttpStatus.INTERNAL_SERVER_ERROR);
+    }
+
+    // 1. Limpiar cola pendiente previa
+    await this.supabase
+      .from('email_queue')
+      .delete()
+      .eq('status', 'pending');
+
+    // 2. Obtener configuraciones de agenda
+    const settings = await this.getCalendarSettings();
+    const calendarId = 'rbertalmio@afinitive.com';
+
+    // 3. Consultar todos los eventos de Ricardo en Google Calendar para los próximos 14 días
+    let occupiedEvents: any[] = [];
+    try {
+      const keyFilePath = path.resolve(__dirname, '..', '..', 'afinitive-calendar-sync-bddfdbc9e9de.json');
+      if (fs.existsSync(keyFilePath)) {
+        const auth = new google.auth.GoogleAuth({
+          keyFile: keyFilePath,
+          scopes: ['https://www.googleapis.com/auth/calendar.readonly'],
+        });
+        const calendar = google.calendar({ version: 'v3', auth });
+        const response = await calendar.events.list({
+          calendarId: calendarId,
+          timeMin: new Date().toISOString(),
+          timeMax: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString(),
+          singleEvents: true,
+          orderBy: 'startTime',
+        });
+        occupiedEvents = response.data.items || [];
+      }
+    } catch (err) {
+      this.logger.error(`Error consultando calendario de Ricardo para asignación de cola: ${err.message}`);
+    }
+
+    const reservedSlots: Date[] = [];
+    const queueItems: any[] = [];
+
+    // 4. Calcular slot y armar records
+    for (const contact of contacts) {
+      const slotTime = await this.findNextAvailableSlot(
+        calendarId,
+        settings.slot_duration,
+        settings.morning_start,
+        settings.morning_end,
+        settings.afternoon_start,
+        settings.afternoon_end,
+        occupiedEvents,
+        reservedSlots
+      );
+
+      reservedSlots.push(slotTime);
+
+      queueItems.push({
+        recipient_name: contact.name,
+        recipient_email: contact.email,
+        proposed_time: slotTime.toISOString(),
+        status: 'pending'
+      });
+    }
+
+    // 5. Guardar en base de datos
+    if (queueItems.length > 0) {
+      const { data, error } = await this.supabase
+        .from('email_queue')
+        .insert(queueItems)
+        .select();
+
+      if (error) {
+        throw new HttpException(`Error al guardar contactos en cola: ${error.message}`, HttpStatus.INTERNAL_SERVER_ERROR);
+      }
+      return data;
+    }
+
+    return [];
+  }
+
+  async getPendingQueue() {
+    if (!this.supabase) {
+      throw new HttpException('El servicio de Supabase no está configurado', HttpStatus.INTERNAL_SERVER_ERROR);
+    }
+
+    const { data, error } = await this.supabase
+      .from('email_queue')
+      .select('*')
+      .eq('status', 'pending')
+      .order('created_at', { ascending: true });
+
+    if (error) {
+      throw new HttpException(`Error al obtener cola pendiente: ${error.message}`, HttpStatus.INTERNAL_SERVER_ERROR);
+    }
+
+    return data || [];
+  }
+
+  async updateQueueItem(id: string, proposedTime?: string, status?: string) {
+    if (!this.supabase) {
+      throw new HttpException('El servicio de Supabase no está configurado', HttpStatus.INTERNAL_SERVER_ERROR);
+    }
+
+    const updateData: any = {};
+    if (proposedTime) updateData.proposed_time = proposedTime;
+    if (status) updateData.status = status;
+
+    const { data, error } = await this.supabase
+      .from('email_queue')
+      .update(updateData)
+      .eq('id', id)
+      .select();
+
+    if (error) {
+      throw new HttpException(`Error al actualizar elemento de la cola: ${error.message}`, HttpStatus.INTERNAL_SERVER_ERROR);
+    }
+
+    return data[0];
+  }
+
+  async clearQueue() {
+    if (!this.supabase) {
+      throw new HttpException('El servicio de Supabase no está configurado', HttpStatus.INTERNAL_SERVER_ERROR);
+    }
+
+    const { error } = await this.supabase
+      .from('email_queue')
+      .delete()
+      .neq('status', 'processing_completed_dummy_value'); // Borrar todo
+
+    if (error) {
+      throw new HttpException(`Error al limpiar la cola: ${error.message}`, HttpStatus.INTERNAL_SERVER_ERROR);
+    }
+
+    this.queueProgress.isProcessing = false;
+    this.queueProgress.total = 0;
+    this.queueProgress.sent = 0;
+    this.queueProgress.failed = 0;
+    this.queueProgress.currentId = null;
+
+    return { success: true, message: 'Cola limpiada correctamente.' };
+  }
+
+  private queueProgress = {
+    isProcessing: false,
+    total: 0,
+    sent: 0,
+    failed: 0,
+    currentId: null as string | null,
+  };
+
+  getQueueStatus() {
+    return this.queueProgress;
+  }
+
+  async processEmailQueue() {
+    if (this.queueProgress.isProcessing) {
+      return { success: true, message: 'La cola ya se está procesando actualmente.' };
+    }
+
+    const { count, error: countErr } = await this.supabase
+      .from('email_queue')
+      .select('*', { count: 'exact', head: true })
+      .eq('status', 'pending');
+
+    if (countErr) {
+      throw new HttpException(`Error al contar pendientes: ${countErr.message}`, HttpStatus.INTERNAL_SERVER_ERROR);
+    }
+
+    if (!count || count === 0) {
+      throw new HttpException('No hay correos pendientes en la cola para enviar.', HttpStatus.BAD_REQUEST);
+    }
+
+    this.queueProgress.isProcessing = true;
+    this.queueProgress.total = count;
+    this.queueProgress.sent = 0;
+    this.queueProgress.failed = 0;
+    this.queueProgress.currentId = null;
+
+    const settings = await this.getCalendarSettings();
+    let intervalMs = settings.send_interval * 1000;
+    if (settings.send_interval_unit === 'minutes') {
+      intervalMs = settings.send_interval * 60000;
+    } else if (settings.send_interval_unit === 'hours') {
+      intervalMs = settings.send_interval * 3600000;
+    }
+
+    this.runQueueWorker(intervalMs).catch(err => {
+      this.logger.error(`Error crítico en la ejecución del worker de la cola: ${err.message}`);
+      this.queueProgress.isProcessing = false;
+    });
+
+    return { success: true, message: 'Procesamiento de cola iniciado.', total: count };
+  }
+
+  async runQueueWorker(intervalMs: number) {
+    if (!this.queueProgress.isProcessing) return;
+
+    const { data: pendingItems, error } = await this.supabase
+      .from('email_queue')
+      .select('*')
+      .eq('status', 'pending')
+      .order('created_at', { ascending: true })
+      .limit(1);
+
+    if (error || !pendingItems || pendingItems.length === 0) {
+      this.queueProgress.isProcessing = false;
+      this.logger.log('Procesamiento de cola de correos completado.');
+      return;
+    }
+
+    const item = pendingItems[0];
+    this.queueProgress.currentId = item.id;
+
+    await this.supabase
+      .from('email_queue')
+      .update({ status: 'processing' })
+      .eq('id', item.id);
+
+    try {
+      const date = new Date(item.proposed_time);
+      const formattedDate = date.toLocaleDateString('es-ES', {
+        weekday: 'long',
+        day: 'numeric',
+        month: 'long',
+        hour: '2-digit',
+        minute: '2-digit',
+      });
+
+      const personalizedBody = `Estimada ${item.recipient_name}:
+
+Le escribo porque encontré su perfil en LinkedIn. Compartimos varios contactos en común, y me pareció oportuno tomar la iniciativa de escribirle.
+
+Mi nombre es <strong>Ricardo Bertalmio Ruibal</strong>. Soy economista de la Universidad del Pacífico y dirijo Afinitive Wealth Management, una boutique de asesoría patrimonial. Le escribo porque sé perfectamente lo frustrante que es para perfiles como el suyo lidiar con la banca tradicional en Lima, donde casi siempre le intentan colocar sus propios productos financieros masivos, <strong>en lugar de ofrecer asesoría integral, objetiva y profesional</strong>.
+
+Nosotros operamos al revés: no tenemos productos propios. Trabajamos con arquitectura abierta para optimizar la estructura de ingresos y el capital de un grupo muy selecto de personas:
+
+• Morgan Stanley
+• BNY Mellon
+• Coril
+
+Le adjunto una presentación muy ejecutiva (<em>Afinitive Wealth | Tailor Made</em>) que detalla cómo estructuramos los balances y flujos, y maximizamos ingresos a partir de una inversión más eficiente que la que la oferta masiva puede lograr. Si nos busca en Google o LinkedIn, verá que mi trayectoria y la de mi equipo es transparente y de largo aliento.
+
+Entendiendo que sus tiempos son ajustados, le acomodaría una reunión virtual vía Meet o una llamada telefónica de 20 minutos el día <strong>${formattedDate}</strong>?
+
+[CONFIRMAR_CITA]
+
+Me avisa para agendar,`;
+
+      await this.sendEmail(
+        item.recipient_email,
+        undefined,
+        'Invitación Exclusiva - Afinitive Wealth Management',
+        personalizedBody,
+        'ricardo',
+        undefined,
+        item.proposed_time,
+        item.recipient_name
+      );
+
+      await this.supabase
+        .from('email_queue')
+        .update({ status: 'sent', sent_at: new Date().toISOString() })
+        .eq('id', item.id);
+
+      this.queueProgress.sent++;
+    } catch (err) {
+      this.logger.error(`Error enviando correo de la cola para ${item.recipient_email}: ${err.message}`);
+      await this.supabase
+        .from('email_queue')
+        .update({ status: 'failed', error_message: err.message })
+        .eq('id', item.id);
+
+      this.queueProgress.failed++;
+    }
+
+    setTimeout(() => {
+      this.runQueueWorker(intervalMs);
+    }, intervalMs);
+  }
+
+  async confirmMeeting(calendarId: string, time: string, email: string, name: string) {
+    this.logger.log(`Intentando confirmar cita en Google Calendar para: ${email} a las ${time}`);
+
+    try {
+      const keyFilePath = path.resolve(__dirname, '..', '..', 'afinitive-calendar-sync-bddfdbc9e9de.json');
+      if (!fs.existsSync(keyFilePath)) {
+        throw new HttpException('Archivo de credenciales de Google Calendar no encontrado.', HttpStatus.INTERNAL_SERVER_ERROR);
+      }
+
+      const auth = new google.auth.GoogleAuth({
+        keyFile: keyFilePath,
+        scopes: ['https://www.googleapis.com/auth/calendar'],
+      });
+
+      const calendar = google.calendar({ version: 'v3', auth });
+      const settings = await this.getCalendarSettings();
+      const startTime = new Date(time);
+      const endTime = new Date(startTime.getTime() + settings.slot_duration * 60000);
+
+      const event = {
+        summary: `Reunión Afinitive - ${name || email}`,
+        description: `Llamada de asesoría patrimonial confirmada en la campaña masiva por el cliente ${name || ''} (${email})`,
+        start: {
+          dateTime: startTime.toISOString(),
+          timeZone: 'America/Lima',
+        },
+        end: {
+          dateTime: endTime.toISOString(),
+          timeZone: 'America/Lima',
+        },
+        attendees: [
+          { email: email },
+          { email: calendarId }
+        ],
+      };
+
+      await calendar.events.insert({
+        calendarId: calendarId,
+        requestBody: event,
+      });
+
+      this.logger.log(`¡Cita registrada con éxito en el calendario de ${calendarId}!`);
+
+      return `
+        <html>
+          <head>
+            <meta charset="UTF-8">
+            <title>Cita Confirmada | Afinitive</title>
+            <style>
+              body { font-family: Arial, sans-serif; background-color: #F8FAFC; color: #0F2942; text-align: center; padding: 50px 20px; }
+              .card { max-width: 500px; margin: 0 auto; background: #FFFFFF; padding: 40px; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.05); border: 1px solid #E2E8F0; }
+              .icon { font-size: 50px; color: #10B981; margin-bottom: 20px; }
+              h1 { font-size: 24px; font-weight: bold; margin-bottom: 10px; color: #0D1B2A; }
+              p { font-size: 15px; color: #64748B; line-height: 1.6; margin-bottom: 30px; }
+              .logo { margin-bottom: 30px; }
+            </style>
+          </head>
+          <body>
+            <div class="card">
+              <div class="logo">
+                <img src="https://dashbportal.com/afinitive/afi.jpeg" alt="Afinitive Logo" width="100">
+              </div>
+              <div class="icon">📅</div>
+              <h1>¡Reunión Confirmada!</h1>
+              <p>Hola <strong>${name || email}</strong>, tu cita ha sido registrada con éxito en el calendario de Ricardo Bertalmio.<br>Hemos enviado la invitación a tu correo electrónico <strong>${email}</strong>.</p>
+              <div style="font-size: 13px; color: #94A3B8;">Afinitive Wealth Management</div>
+            </div>
+          </body>
+        </html>
+      `;
+    } catch (err) {
+      this.logger.error(`Error confirmando reunión: ${err.message}`);
+      throw new HttpException(`Error al programar la reunión en Google Calendar: ${err.message}`, HttpStatus.INTERNAL_SERVER_ERROR);
     }
   }
 }

@@ -13,6 +13,18 @@
 **/.env.test.local
 **/.env.production.local
 **/.env.local
+**/.env.development
+**/.env.production
+frontend/.env.*
+backend/.env.*
+
+# Google Credentials & Private Keys
+backend/*.json
+!backend/package.json
+!backend/package-lock.json
+!backend/tsconfig.json
+!backend/tsconfig.build.json
+!backend/nest-cli.json
 
 # IDEs and editors
 .vscode/
