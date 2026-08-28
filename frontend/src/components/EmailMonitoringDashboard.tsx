@@ -259,7 +259,6 @@ export default function EmailMonitoringDashboard() {
 
   // Obtener Slots Libres
   const fetchFreeSlots = useCallback(async (sigId?: string) => {
-    setFreeSlotsLoading(true);
     try {
       const activeSig = sigId || signatureId;
       const response = await fetch(`${BACKEND_URL}/api/test-email/free-slots?signatureId=${activeSig}`);
@@ -269,8 +268,6 @@ export default function EmailMonitoringDashboard() {
       }
     } catch (err) {
       console.error('Error al obtener slots libres:', err);
-    } finally {
-      setFreeSlotsLoading(false);
     }
   }, [BACKEND_URL, signatureId]);
 
