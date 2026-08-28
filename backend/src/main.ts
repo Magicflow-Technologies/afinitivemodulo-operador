@@ -11,7 +11,10 @@ async function bootstrap() {
   
   // Habilitar CORS para permitir peticiones desde el frontend
   app.enableCors({
-    origin: '*', // En producción, restringir al origen del frontend
+    origin: [
+      'http://localhost:5173',
+      'https://operador.afinitive.com.pe'
+    ],
     methods: 'GET,HEAD,PUT,PATCH,POST,DELETE,OPTIONS',
     credentials: true,
   });
