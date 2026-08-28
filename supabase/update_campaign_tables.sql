@@ -24,6 +24,7 @@ CREATE TABLE IF NOT EXISTS afinitivebd.email_queue (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     recipient_name VARCHAR(255) NOT NULL,
     recipient_email VARCHAR(255) NOT NULL,
+    recipient_phone VARCHAR(50), -- columna para guardar el número de celular
     proposed_time TIMESTAMPTZ NOT NULL,
     status VARCHAR(50) NOT NULL DEFAULT 'pending', -- 'pending' | 'processing' | 'sent' | 'failed' | 'excluded'
     error_message TEXT,
@@ -31,6 +32,16 @@ CREATE TABLE IF NOT EXISTS afinitivebd.email_queue (
     created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
+-- Sentencia de migración rápida si la tabla ya existe
+ALTER TABLE afinitivebd.email_queue ADD COLUMN IF NOT EXISTS recipient_phone VARCHAR(50);
+
 -- Habilitar permisos públicos para lectura/escritura simples en el Sandbox de pruebas
 ALTER TABLE afinitivebd.calendar_settings DISABLE ROW LEVEL SECURITY;
 ALTER TABLE afinitivebd.email_queue DISABLE ROW LEVEL SECURITY;
+
+-- Concesión de permisos para evitar el error 'permission denied' en el esquema afinitivebd
+GRANT USAGE ON SCHEMA afinitivebd TO anon, authenticated, service_role;
+GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA afinitivebd TO anon, authenticated, service_role;
+GRANT ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA afinitivebd TO anon, authenticated, service_role;
+ALTER DEFAULT PRIVILEGES IN SCHEMA afinitivebd GRANT ALL ON TABLES TO anon, authenticated, service_role;
+GRANT ALL PRIVILEGES ON TABLE afinitivebd.email_queue TO anon, authenticated, service_role;

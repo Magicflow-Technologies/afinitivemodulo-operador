@@ -37,6 +37,7 @@ interface QueueItem {
   id: string;
   recipient_name: string;
   recipient_email: string;
+  recipient_phone?: string | null;
   proposed_time: string;
   status: string;
   error_message: string | null;
@@ -71,9 +72,9 @@ const DEFAULT_BODIES = {
 
 export default function EmailMonitoringDashboard() {
   const [recipientEmail, setRecipientEmail] = useState('');
-  const [signatureId, setSignatureId] = useState('irina');
-  const [senderName, setSenderName] = useState('Irina Portilla');
-  const [senderEmail, setSenderEmail] = useState('iportilla@afinitive.com.pe');
+  const [signatureId, setSignatureId] = useState('ricardo');
+  const [senderName, setSenderName] = useState('Ricardo Bertalmio');
+  const [senderEmail, setSenderEmail] = useState('rbertalmio@afinitive.com.pe');
   
   const handleSignatureChange = (id: string) => {
     setSignatureId(id);
@@ -86,10 +87,11 @@ export default function EmailMonitoringDashboard() {
       setSenderEmail('rbertalmio@afinitive.com.pe');
       setEmailBody(DEFAULT_BODIES.ricardo);
     }
+    fetchFreeSlots(id);
   };
 
   const [subject, setSubject] = useState('Invitación Exclusiva - Afinitive');
-  const [emailBody, setEmailBody] = useState(DEFAULT_BODIES.irina);
+  const [emailBody, setEmailBody] = useState(DEFAULT_BODIES.ricardo);
   const [loading, setLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [emails, setEmails] = useState<EmailRecord[]>([]);
@@ -110,6 +112,10 @@ export default function EmailMonitoringDashboard() {
 
   const [queueItems, setQueueItems] = useState<QueueItem[]>([]);
   const [queueLoading, setQueueLoading] = useState(false);
+  const [freeSlots, setFreeSlots] = useState<Record<string, string[]>>({});
+  const [freeSlotsLoading, setFreeSlotsLoading] = useState(false);
+  const [activePickerId, setActivePickerId] = useState<string | null>(null);
+  const [selectedDayForPicker, setSelectedDayForPicker] = useState<string | null>(null);
   const [queueStatus, setQueueStatus] = useState({
     isProcessing: false,
     total: 0,
@@ -254,6 +260,39 @@ export default function EmailMonitoringDashboard() {
     }
   }, [BACKEND_URL]);
 
+  // Obtener Slots Libres
+  const fetchFreeSlots = useCallback(async (sigId?: string) => {
+    setFreeSlotsLoading(true);
+    try {
+      const activeSig = sigId || signatureId;
+      const response = await fetch(`${BACKEND_URL}/api/test-email/free-slots?signatureId=${activeSig}`);
+      if (response.ok) {
+        const data = await response.json();
+        setFreeSlots(data || {});
+      }
+    } catch (err) {
+      console.error('Error al obtener slots libres:', err);
+    } finally {
+      setFreeSlotsLoading(false);
+    }
+  }, [BACKEND_URL, signatureId]);
+
+  // Generar próximos 14 días laborables
+  const getNext14Days = () => {
+    const days = [];
+    const current = new Date();
+    current.setDate(current.getDate() + 1);
+    
+    for (let i = 0; i < 14; i++) {
+      const dayOfWeek = current.getDay();
+      if (dayOfWeek !== 0 && dayOfWeek !== 6) {
+        days.push(new Date(current));
+      }
+      current.setDate(current.getDate() + 1);
+    }
+    return days;
+  };
+
   // Obtener el estado del Worker de la Cola
   const fetchQueueStatus = useCallback(async () => {
     try {
@@ -281,13 +320,13 @@ export default function EmailMonitoringDashboard() {
       try {
         const text = evt.target?.result as string;
         const lines = text.split(/\r?\n/);
-        const contacts: { name: string; email: string }[] = [];
+        const contacts: { name: string; email: string; phone?: string }[] = [];
 
         // Ignorar cabecera
         let startIndex = 0;
         if (lines.length > 0) {
           const firstLine = lines[0].toLowerCase();
-          if (firstLine.includes('nombre') || firstLine.includes('correo') || firstLine.includes('email') || firstLine.includes('name')) {
+          if (firstLine.includes('nombre') || firstLine.includes('correo') || firstLine.includes('email') || firstLine.includes('name') || firstLine.includes('telefono') || firstLine.includes('celular') || firstLine.includes('phone')) {
             startIndex = 1;
           }
         }
@@ -295,18 +334,19 @@ export default function EmailMonitoringDashboard() {
         for (let i = startIndex; i < lines.length; i++) {
           const line = lines[i].trim();
           if (!line) continue;
-          const cols = line.split(',');
+          const cols = line.includes(';') ? line.split(';') : line.split(',');
           if (cols.length >= 2) {
             const name = cols[0].replace(/"/g, '').trim();
             const email = cols[1].replace(/"/g, '').trim();
+            const phone = cols.length >= 3 ? cols[2].replace(/"/g, '').trim() : '';
             if (email && email.includes('@')) {
-              contacts.push({ name, email });
+              contacts.push({ name, email, phone });
             }
           }
         }
 
         if (contacts.length === 0) {
-          throw new Error('No se encontraron contactos válidos en el archivo CSV. Asegúrate de tener las columnas: Nombre, Correo');
+          throw new Error('No se encontraron contactos válidos en el archivo CSV. Asegúrate de tener las columnas: Nombre, Correo, Celular (opcional)');
         }
 
         const response = await fetch(`${BACKEND_URL}/api/test-email/queue/load`, {
@@ -354,8 +394,22 @@ export default function EmailMonitoringDashboard() {
     setErrorMsg(null);
     setSuccessMsg(null);
     try {
+      let attachmentData = undefined;
+      if (selectedFile) {
+        const base64Content = await toBase64(selectedFile);
+        attachmentData = {
+          filename: selectedFile.name,
+          content: base64Content,
+        };
+      }
+
       const response = await fetch(`${BACKEND_URL}/api/test-email/queue/process`, {
         method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          signatureId,
+          attachment: attachmentData
+        }),
       });
       if (response.ok) {
         setSuccessMsg('Campaña de correos iniciada. El despacho secuencial se procesa en segundo plano.');
@@ -394,7 +448,8 @@ export default function EmailMonitoringDashboard() {
     fetchSettings();
     fetchPendingQueue();
     fetchQueueStatus();
-  }, [fetchSettings, fetchPendingQueue, fetchQueueStatus]);
+    fetchFreeSlots();
+  }, [fetchSettings, fetchPendingQueue, fetchQueueStatus, fetchFreeSlots]);
 
   // Polling del progreso del worker
   useEffect(() => {
@@ -945,8 +1000,8 @@ export default function EmailMonitoringDashboard() {
                 <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
                   <div className="space-y-1">
                     <h2 className="text-xl font-semibold text-brand-gold">Carga de Campaña Masiva</h2>
-                    <p className="text-sm text-slate-400">
-                      Sube un archivo CSV con columnas "Nombre, Correo". El sistema calculará la disponibilidad en Google Calendar automáticamente.
+                    <p className="text-xs text-slate-400">
+                      Sube un archivo CSV con columnas "Nombre, Correo, Celular". El sistema calculará la disponibilidad en Google Calendar automáticamente.
                     </p>
                   </div>
                   
@@ -973,7 +1028,7 @@ export default function EmailMonitoringDashboard() {
                     />
                     <Upload className="w-10 h-10 text-brand-gold/60 group-hover:text-brand-gold mx-auto mb-3 transition-colors duration-205" />
                     <p className="text-sm font-medium text-slate-300">Arrastra tu archivo CSV o haz clic aquí</p>
-                    <p className="text-xs text-slate-500 mt-1">Formato admitido: .csv (Nombre, Correo)</p>
+                    <p className="text-xs text-slate-500 mt-1">Formato admitido: .csv (Nombre, Correo, Celular)</p>
                   </div>
 
                   {/* Panel de Estado / Progreso del Envió */}
@@ -1022,14 +1077,24 @@ export default function EmailMonitoringDashboard() {
                           }
                         </p>
                         {queueItems.length > 0 && (
-                          <button
-                            onClick={handleProcessQueue}
-                            disabled={queueLoading}
-                            className="w-full py-3 bg-gradient-to-r from-brand-gold-dark to-brand-gold hover:from-brand-gold hover:to-brand-gold-light text-brand-navy font-bold rounded-xl shadow-lg shadow-brand-gold/10 hover:shadow-brand-gold/20 transition-all duration-200 flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
-                          >
-                            <Play className="w-4 h-4 fill-current animate-pulse" />
-                            <span>Comenzar Envíos en Cola</span>
-                          </button>
+                          <div className="space-y-3">
+                            <p className="text-xs text-brand-gold/85 italic bg-brand-gold/5 border border-brand-gold/15 rounded-lg px-3 py-2 text-center">
+                              Los correos se enviarán con la firma de: <strong>{signatureId === 'irina' ? 'Irina Portilla Farfán' : 'Ricardo Bertalmio Ruibal'}</strong>. (Puedes cambiarla en el selector en la parte superior).
+                            </p>
+                            {selectedFile && (
+                              <p className="text-xs text-emerald-400/90 italic bg-emerald-500/5 border border-emerald-500/15 rounded-lg px-3 py-2 text-center">
+                                📎 Se adjuntará el archivo: <strong>{selectedFile.name}</strong> a todos los correos.
+                              </p>
+                            )}
+                            <button
+                              onClick={handleProcessQueue}
+                              disabled={queueLoading}
+                              className="w-full py-3 bg-gradient-to-r from-brand-gold-dark to-brand-gold hover:from-brand-gold hover:to-brand-gold-light text-brand-navy font-bold rounded-xl shadow-lg shadow-brand-gold/10 hover:shadow-brand-gold/20 transition-all duration-200 flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
+                            >
+                              <Play className="w-4 h-4 fill-current animate-pulse" />
+                              <span>Comenzar Envíos en Cola</span>
+                            </button>
+                          </div>
                         )}
                       </div>
                     )}
@@ -1051,12 +1116,13 @@ export default function EmailMonitoringDashboard() {
                   </span>
                 </div>
 
-                <div className="overflow-x-auto">
+                <div className="overflow-x-auto min-h-[450px]">
                   <table className="w-full text-left border-collapse">
                     <thead>
                       <tr className="bg-slate-950/40 text-slate-400 text-xs font-semibold tracking-wider uppercase border-b border-slate-800">
                         <th className="py-4 px-6">Cliente</th>
                         <th className="py-4 px-6">Correo</th>
+                        <th className="py-4 px-6">Teléfono</th>
                         <th className="py-4 px-6">Cita Sugerida (Edición Libre)</th>
                         <th className="py-4 px-6">Estado</th>
                         <th className="py-4 px-6 text-center">Acciones</th>
@@ -1074,20 +1140,138 @@ export default function EmailMonitoringDashboard() {
                           <td className="py-4 px-6 text-slate-400">
                             {item.recipient_email}
                           </td>
-                          <td className="py-4 px-6">
-                            <input
-                              type="datetime-local"
+                          <td className="py-4 px-6 text-slate-400">
+                            {item.recipient_phone || <span className="text-slate-600 italic text-xs">No disponible</span>}
+                          </td>
+                          <td className="py-4 px-6 relative">
+                            {activePickerId === item.id ? (
+                              <div className="absolute z-50 top-full mt-1 left-0 w-[285px] bg-[#0b1420] border border-brand-gold/30 rounded-xl p-4 shadow-2xl space-y-3 text-slate-100">
+                                <div className="flex justify-between items-center border-b border-slate-800 pb-2">
+                                  <span className="text-xs font-bold text-brand-gold">Seleccionar Fecha Libre</span>
+                                  <button 
+                                    type="button"
+                                    onClick={() => {
+                                      setActivePickerId(null);
+                                      setSelectedDayForPicker(null);
+                                    }}
+                                    className="text-slate-400 hover:text-slate-200 text-xs font-bold cursor-pointer"
+                                  >
+                                    Cerrar
+                                  </button>
+                                </div>
+
+                                {/* Listado de Días Disponibles */}
+                                <div className="grid grid-cols-5 gap-1">
+                                  {getNext14Days().map((date) => {
+                                    const yyyy = date.getFullYear();
+                                    const mm = String(date.getMonth() + 1).padStart(2, '0');
+                                    const dd = String(date.getDate()).padStart(2, '0');
+                                    const yyyymmdd = `${yyyy}-${mm}-${dd}`;
+                                    const hasSlots = freeSlots[yyyymmdd] && freeSlots[yyyymmdd].length > 0;
+                                    const isSelected = selectedDayForPicker === yyyymmdd;
+                                    
+                                    const dayName = date.toLocaleDateString('es-ES', { weekday: 'short' });
+                                    const dayNum = date.getDate();
+
+                                    return (
+                                      <button
+                                        key={yyyymmdd}
+                                        type="button"
+                                        disabled={!hasSlots}
+                                        onClick={() => setSelectedDayForPicker(yyyymmdd)}
+                                        className={`flex flex-col items-center justify-center p-1 rounded-lg text-[10px] font-semibold transition-all duration-150 cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed ${
+                                          isSelected 
+                                            ? 'bg-brand-gold text-[#070F1E] border border-brand-gold shadow-md'
+                                            : hasSlots
+                                              ? 'bg-blue-500/20 text-blue-400 border border-blue-500/30 hover:bg-blue-500/35 hover:text-blue-300'
+                                              : 'bg-slate-900/40 text-slate-600 border border-slate-800/40'
+                                        }`}
+                                        title={hasSlots ? `${freeSlots[yyyymmdd].length} horarios libres` : 'Sin turnos libres'}
+                                      >
+                                        <span className="uppercase text-[8px] opacity-75">{dayName}</span>
+                                        <span className="text-xs font-bold mt-0.5">{dayNum}</span>
+                                      </button>
+                                    );
+                                  })}
+                                </div>
+
+                                {/* Listado de Horarios del Día Seleccionado */}
+                                {selectedDayForPicker && freeSlots[selectedDayForPicker] && (
+                                  <div className="space-y-1.5 border-t border-slate-800/60 pt-2">
+                                    <p className="text-[9px] text-slate-400 uppercase font-semibold">Horarios Libres:</p>
+                                    <div className="grid grid-cols-3 gap-1 max-h-[100px] overflow-y-auto pr-1">
+                                      {freeSlots[selectedDayForPicker].map((time) => (
+                                        <button
+                                          key={time}
+                                          type="button"
+                                          onClick={() => {
+                                            const [hours, minutes] = time.split(':').map(Number);
+                                            const [year, month, day] = selectedDayForPicker.split('-').map(Number);
+                                            const localDate = new Date(year, month - 1, day, hours, minutes, 0, 0);
+                                            handleUpdateQueueItem(item.id, localDate.toISOString(), undefined);
+                                            setActivePickerId(null);
+                                            setSelectedDayForPicker(null);
+                                          }}
+                                          className="py-1 px-1.5 text-[9px] font-mono bg-slate-950/60 hover:bg-brand-gold hover:text-[#070F1E] rounded text-slate-300 text-center transition-colors duration-150 cursor-pointer"
+                                        >
+                                          {time}
+                                        </button>
+                                      ))}
+                                    </div>
+                                  </div>
+                                )}
+
+                                {/* Entrada Manual de Fecha y Hora */}
+                                <div className="border-t border-slate-800/60 pt-2 flex flex-col gap-1">
+                                  <span className="text-[9px] text-slate-500">¿Fecha libre manual?</span>
+                                  <input
+                                    type="datetime-local"
+                                    defaultValue={item.proposed_time ? item.proposed_time.slice(0, 16) : ''}
+                                    onChange={(e) => {
+                                      const localTime = e.target.value;
+                                      if (localTime) {
+                                        const isoTime = new Date(localTime).toISOString();
+                                        handleUpdateQueueItem(item.id, isoTime, undefined);
+                                        setActivePickerId(null);
+                                        setSelectedDayForPicker(null);
+                                      }
+                                    }}
+                                    className="w-full px-2 py-1 bg-[#08101A] border border-slate-800 focus:border-brand-gold rounded text-[10px] font-mono text-slate-300 outline-none"
+                                  />
+                                </div>
+                              </div>
+                            ) : null}
+
+                            <button
+                              type="button"
                               disabled={queueStatus.isProcessing || item.status === 'excluded'}
-                              value={item.proposed_time ? item.proposed_time.slice(0, 16) : ''}
-                              onChange={(e) => {
-                                const localTime = e.target.value;
-                                if (localTime) {
-                                  const isoTime = new Date(localTime).toISOString();
-                                  handleUpdateQueueItem(item.id, isoTime, undefined);
+                              onClick={() => {
+                                setActivePickerId(item.id);
+                                if (item.proposed_time) {
+                                  const dateObj = new Date(item.proposed_time);
+                                  if (!isNaN(dateObj.getTime())) {
+                                    const yyyy = dateObj.getFullYear();
+                                    const mm = String(dateObj.getMonth() + 1).padStart(2, '0');
+                                    const dd = String(dateObj.getDate()).padStart(2, '0');
+                                    setSelectedDayForPicker(`${yyyy}-${mm}-${dd}`);
+                                  }
                                 }
                               }}
-                              className="px-3 py-1.5 bg-[#08101A] border border-brand-gold/25 focus:border-brand-gold/90 rounded-lg text-slate-100 placeholder-slate-500 outline-none transition-all duration-200 text-xs font-mono disabled:opacity-40 disabled:cursor-not-allowed"
-                            />
+                              className="px-3 py-1.5 w-full bg-[#08101A] border border-brand-gold/25 focus:border-brand-gold/90 hover:border-brand-gold/60 rounded-lg text-slate-100 text-xs font-mono text-left disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-between gap-1 group/btn cursor-pointer transition-colors duration-150"
+                            >
+                              <span>
+                                {item.proposed_time 
+                                  ? new Date(item.proposed_time).toLocaleDateString('es-ES', {
+                                      day: '2-digit',
+                                      month: '2-digit',
+                                      hour: '2-digit',
+                                      minute: '2-digit',
+                                      hour12: false
+                                    })
+                                  : 'Sin fecha'}
+                              </span>
+                              <Calendar className="w-3.5 h-3.5 text-brand-gold/60 group-hover/btn:text-brand-gold transition-colors duration-150" />
+                            </button>
                           </td>
                           <td className="py-4 px-6">
                             {item.status === 'pending' && (

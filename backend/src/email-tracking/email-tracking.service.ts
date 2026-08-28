@@ -285,14 +285,20 @@ export class EmailTrackingService {
       // Cargar e inyectar el logo corporativo como inline attachment de forma dinámica
       const attachments: any[] = [];
       try {
-        const logoPath = path.resolve(__dirname, '..', 'afinitive_logo.png');
+        let logoPath = path.resolve(process.cwd(), 'src', 'afinitive_logo.png');
+        if (!fs.existsSync(logoPath)) {
+          logoPath = path.resolve(process.cwd(), 'afinitive_logo.png');
+        }
+
         if (fs.existsSync(logoPath)) {
           attachments.push({
             filename: 'afinitive_logo.png',
             content: fs.readFileSync(logoPath).toString('base64'),
-            contentId: 'afinitive_logo',
+            content_id: 'afinitive_logo', // Corrección del parámetro para la API de Resend
             disposition: 'inline'
           });
+        } else {
+          this.logger.warn(`No se encontró afinitive_logo.png en: ${logoPath}`);
         }
       } catch (err) {
         this.logger.error('Error al cargar afinitive_logo.png para inline attachment:', err);
@@ -620,7 +626,7 @@ export class EmailTrackingService {
     return fallbackDate;
   }
 
-  async loadContactsIntoQueue(contacts: { name: string; email: string }[]) {
+  async loadContactsIntoQueue(contacts: { name: string; email: string; phone?: string }[]) {
     if (!this.supabase) {
       throw new HttpException('El servicio de Supabase no está configurado', HttpStatus.INTERNAL_SERVER_ERROR);
     }
@@ -679,6 +685,7 @@ export class EmailTrackingService {
       queueItems.push({
         recipient_name: contact.name,
         recipient_email: contact.email,
+        recipient_phone: contact.phone || null,
         proposed_time: slotTime.toISOString(),
         status: 'pending'
       });
@@ -769,13 +776,15 @@ export class EmailTrackingService {
     sent: 0,
     failed: 0,
     currentId: null as string | null,
+    signatureId: 'irina',
+    attachment: null as { filename: string; content: string } | null,
   };
 
   getQueueStatus() {
     return this.queueProgress;
   }
 
-  async processEmailQueue() {
+  async processEmailQueue(signatureId?: string, attachment?: { filename: string; content: string }) {
     if (this.queueProgress.isProcessing) {
       return { success: true, message: 'La cola ya se está procesando actualmente.' };
     }
@@ -794,6 +803,8 @@ export class EmailTrackingService {
     }
 
     this.queueProgress.isProcessing = true;
+    this.queueProgress.signatureId = signatureId || 'irina';
+    this.queueProgress.attachment = attachment || null;
     this.queueProgress.total = count;
     this.queueProgress.sent = 0;
     this.queueProgress.failed = 0;
@@ -849,11 +860,24 @@ export class EmailTrackingService {
         minute: '2-digit',
       });
 
-      const personalizedBody = `Estimada ${item.recipient_name}:
+      const SENDERS = {
+        irina: 'Irina Portilla <iportilla@afinitive.com.pe>',
+        ricardo: 'Ricardo Bertalmio <rbertalmio@afinitive.com.pe>'
+      };
+      const signature = this.queueProgress.signatureId || 'irina';
+      const activeSender = SENDERS[signature as keyof typeof SENDERS] || undefined;
+
+      const nameInBody = signature === 'ricardo' ? 'Ricardo Bertalmio Ruibal' : 'Irina Portilla Farfán';
+      const roleInBody = signature === 'ricardo'
+        ? 'Soy economista de la Universidad del Pacífico y dirijo Afinitive Wealth Management'
+        : 'Soy Client Experience Manager en Afinitive Wealth Management';
+
+      const greeting = this.getGreeting(item.recipient_name);
+      const personalizedBody = `${greeting} ${item.recipient_name}:
 
 Le escribo porque encontré su perfil en LinkedIn. Compartimos varios contactos en común, y me pareció oportuno tomar la iniciativa de escribirle.
 
-Mi nombre es <strong>Ricardo Bertalmio Ruibal</strong>. Soy economista de la Universidad del Pacífico y dirijo Afinitive Wealth Management, una boutique de asesoría patrimonial. Le escribo porque sé perfectamente lo frustrante que es para perfiles como el suyo lidiar con la banca tradicional en Lima, donde casi siempre le intentan colocar sus propios productos financieros masivos, <strong>en lugar de ofrecer asesoría integral, objetiva y profesional</strong>.
+Mi nombre es <strong>${nameInBody}</strong>. ${roleInBody}, una boutique de asesoría patrimonial. Le escribo porque sé perfectamente lo frustrante que es para perfiles como el suyo lidiar con la banca tradicional en Lima, donde casi siempre le intentan colocar sus propios productos financieros masivos, <strong>en lugar de ofrecer asesoría integral, objetiva y profesional</strong>.
 
 Nosotros operamos al revés: no tenemos productos propios. Trabajamos con arquitectura abierta para optimizar la estructura de ingresos y el capital de un grupo muy selecto de personas:
 
@@ -871,11 +895,11 @@ Me avisa para agendar,`;
 
       await this.sendEmail(
         item.recipient_email,
-        undefined,
+        activeSender,
         'Invitación Exclusiva - Afinitive Wealth Management',
         personalizedBody,
-        'ricardo',
-        undefined,
+        signature,
+        this.queueProgress.attachment || undefined,
         item.proposed_time,
         item.recipient_name
       );
@@ -931,10 +955,6 @@ Me avisa para agendar,`;
           dateTime: endTime.toISOString(),
           timeZone: 'America/Lima',
         },
-        attendees: [
-          { email: email },
-          { email: calendarId }
-        ],
       };
 
       await calendar.events.insert({
@@ -975,5 +995,146 @@ Me avisa para agendar,`;
       this.logger.error(`Error confirmando reunión: ${err.message}`);
       throw new HttpException(`Error al programar la reunión en Google Calendar: ${err.message}`, HttpStatus.INTERNAL_SERVER_ERROR);
     }
+  }
+
+  async getAvailableSlots(signatureId?: string) {
+    if (!this.supabase) {
+      throw new HttpException('El servicio de Supabase no está configurado', HttpStatus.INTERNAL_SERVER_ERROR);
+    }
+
+    const settings = await this.getCalendarSettings();
+    const signature = signatureId || 'irina';
+    const calendarId = signature === 'ricardo' ? 'rbertalmio@afinitive.com' : 'iportilla@afinitive.com.pe';
+
+    // 1. Consultar eventos ocupados en Google Calendar para los próximos 14 días
+    let occupiedEvents: any[] = [];
+    try {
+      const keyFilePath = path.resolve(__dirname, '..', '..', 'afinitive-calendar-sync-bddfdbc9e9de.json');
+      if (fs.existsSync(keyFilePath)) {
+        const auth = new google.auth.GoogleAuth({
+          keyFile: keyFilePath,
+          scopes: ['https://www.googleapis.com/auth/calendar.readonly'],
+        });
+        const calendar = google.calendar({ version: 'v3', auth });
+        const response = await calendar.events.list({
+          calendarId: calendarId,
+          timeMin: new Date().toISOString(),
+          timeMax: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString(),
+          singleEvents: true,
+          orderBy: 'startTime',
+        });
+        occupiedEvents = response.data.items || [];
+      }
+    } catch (err) {
+      this.logger.error(`Error consultando calendario para obtener slots libres: ${err.message}`);
+    }
+
+    // 2. Obtener slots ya reservados en la base de datos (Omitido para permitir reasignación libre del operador)
+
+    const parseTime = (timeStr: string) => {
+      const [h, m] = timeStr.split(':').map(Number);
+      return { hours: h, minutes: m };
+    };
+
+    const morningS = parseTime(settings.morning_start);
+    const morningE = parseTime(settings.morning_end);
+    const afternoonS = parseTime(settings.afternoon_start);
+    const afternoonE = parseTime(settings.afternoon_end);
+
+    const availableSlotsByDay: { [key: string]: string[] } = {};
+
+    let searchDate = new Date();
+    // Empezamos desde mañana
+    searchDate.setDate(searchDate.getDate() + 1);
+    searchDate.setHours(0, 0, 0, 0);
+
+    for (let day = 0; day < 14; day++) {
+      const dayOfWeek = searchDate.getDay();
+      if (dayOfWeek === 0 || dayOfWeek === 6) {
+        searchDate.setDate(searchDate.getDate() + 1);
+        continue;
+      }
+
+      const slots: { start: Date; end: Date }[] = [];
+
+      const addSlotsForBlock = (startHour: number, startMin: number, endHour: number, endMin: number) => {
+        let current = new Date(searchDate);
+        current.setHours(startHour, startMin, 0, 0);
+
+        const limit = new Date(searchDate);
+        limit.setHours(endHour, endMin, 0, 0);
+
+        while (current.getTime() + settings.slot_duration * 60000 <= limit.getTime()) {
+          const slotStart = new Date(current);
+          const slotEnd = new Date(current.getTime() + settings.slot_duration * 60000);
+          slots.push({ start: slotStart, end: slotEnd });
+          current = new Date(current.getTime() + settings.slot_duration * 60000);
+        }
+      };
+
+      // Agregar mañana y tarde
+      addSlotsForBlock(morningS.hours, morningS.minutes, morningE.hours, morningE.minutes);
+      addSlotsForBlock(afternoonS.hours, afternoonS.minutes, afternoonE.hours, afternoonE.minutes);
+
+      const yyyy = searchDate.getFullYear();
+      const mm = String(searchDate.getMonth() + 1).padStart(2, '0');
+      const dd = String(searchDate.getDate()).padStart(2, '0');
+      const dayKey = `${yyyy}-${mm}-${dd}`;
+      const dayFreeSlots: string[] = [];
+
+      for (const slot of slots) {
+        // Verificar si colisiona con eventos de Google Calendar
+        const isOccupiedInGoogle = occupiedEvents.some(event => {
+          const eventStart = new Date(event.start?.dateTime || event.start?.date);
+          const eventEnd = new Date(event.end?.dateTime || event.end?.date);
+          return slot.start.getTime() < eventEnd.getTime() && slot.end.getTime() > eventStart.getTime();
+        });
+
+        if (isOccupiedInGoogle) continue;
+
+        // (Verificación de slots en base de datos omitida para permitir libre edición)
+
+        // Formatear la hora en HH:MM
+        const hours = slot.start.getHours().toString().padStart(2, '0');
+        const minutes = slot.start.getMinutes().toString().padStart(2, '0');
+        dayFreeSlots.push(`${hours}:${minutes}`);
+      }
+
+      if (dayFreeSlots.length > 0) {
+        availableSlotsByDay[dayKey] = dayFreeSlots;
+      }
+
+      searchDate.setDate(searchDate.getDate() + 1);
+    }
+
+    return availableSlotsByDay;
+  }
+
+  getGreeting(fullName: string): string {
+    if (!fullName) return 'Estimado(a)';
+    
+    const firstName = fullName.trim().split(' ')[0].toLowerCase();
+    
+    const maleExceptions = ['luca', 'andrea', 'bautista', 'borja', 'jozef', 'mustafa'];
+    
+    const femaleExceptions = [
+      'isabel', 'carmen', 'raquel', 'beatriz', 'pilar', 'lourdes', 
+      'ines', 'belen', 'irene', 'abigail', 'judith', 'esther', 
+      'miriam', 'wendy', 'shirley', 'rut', 'ruth'
+    ];
+    
+    if (femaleExceptions.includes(firstName)) {
+      return 'Estimada';
+    }
+    
+    if (maleExceptions.includes(firstName)) {
+      return 'Estimado';
+    }
+    
+    if (firstName.endsWith('a') || firstName.endsWith('y')) {
+      return 'Estimada';
+    }
+    
+    return 'Estimado';
   }
 }

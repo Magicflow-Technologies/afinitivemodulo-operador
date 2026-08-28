@@ -61,7 +61,7 @@ export class EmailTrackingController {
 
   // --- Endpoints de Gestión de la Cola ---
   @Post('queue/load')
-  async loadQueue(@Body() body: { contacts: { name: string; email: string }[] }) {
+  async loadQueue(@Body() body: { contacts: { name: string; email: string; phone?: string }[] }) {
     return await this.emailTrackingService.loadContactsIntoQueue(body.contacts);
   }
 
@@ -79,8 +79,13 @@ export class EmailTrackingController {
   }
 
   @Post('queue/process')
-  async processQueue() {
-    return await this.emailTrackingService.processEmailQueue();
+  async processQueue(
+    @Body() body: { 
+      signatureId?: string; 
+      attachment?: { filename: string; content: string } 
+    }
+  ) {
+    return await this.emailTrackingService.processEmailQueue(body.signatureId, body.attachment);
   }
 
   @Get('queue/status')
@@ -102,5 +107,10 @@ export class EmailTrackingController {
     @Query('name') name: string
   ) {
     return await this.emailTrackingService.confirmMeeting(calendarId, time, email, name);
+  }
+
+  @Get('free-slots')
+  async getFreeSlots(@Query('signatureId') signatureId?: string) {
+    return await this.emailTrackingService.getAvailableSlots(signatureId);
   }
 }
