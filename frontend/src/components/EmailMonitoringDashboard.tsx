@@ -15,12 +15,10 @@ import {
   X,
   Upload,
   Sliders,
-  Database,
   Users,
   Play,
   Trash2,
-  Settings,
-  AlertTriangle
+  Settings
 } from 'lucide-react';
 
 interface EmailRecord {
@@ -113,7 +111,6 @@ export default function EmailMonitoringDashboard() {
   const [queueItems, setQueueItems] = useState<QueueItem[]>([]);
   const [queueLoading, setQueueLoading] = useState(false);
   const [freeSlots, setFreeSlots] = useState<Record<string, string[]>>({});
-  const [freeSlotsLoading, setFreeSlotsLoading] = useState(false);
   const [activePickerId, setActivePickerId] = useState<string | null>(null);
   const [selectedDayForPicker, setSelectedDayForPicker] = useState<string | null>(null);
   const [queueStatus, setQueueStatus] = useState({
@@ -453,7 +450,7 @@ export default function EmailMonitoringDashboard() {
 
   // Polling del progreso del worker
   useEffect(() => {
-    let interval: NodeJS.Timeout;
+    let interval: any;
     if (queueStatus.isProcessing) {
       interval = setInterval(() => {
         fetchQueueStatus();
