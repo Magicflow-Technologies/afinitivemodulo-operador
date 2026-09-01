@@ -221,6 +221,8 @@ export class EmailTrackingService {
       ? SIGNATURES[signatureId as keyof typeof SIGNATURES]
       : SIGNATURES['irina'];
 
+    const logoUrl = this.configService.get<string>('EMAIL_LOGO_URL') || process.env.EMAIL_LOGO_URL || 'https://operador.afinitive.com.pe/afinitive_logo.png';
+
     try {
       // Opciones de envío de correo
       const mailOptions: any = {
@@ -237,7 +239,7 @@ export class EmailTrackingService {
                   <tr>
                     <td valign="middle" style="padding-right: 15px; line-height: 0;">
                       <!-- Logo del Árbol Azul de Afinitive -->
-                      <img src="cid:afinitive_logo" alt="Afinitive Logo" width="65" style="display: block; border: none;">
+                      <img src="${logoUrl}" alt="Afinitive Logo" width="65" style="display: block; border: none;">
                     </td>
                     <td valign="middle" style="line-height: 1.15;">
                       <div style="font-family: Arial, sans-serif;">
@@ -268,34 +270,17 @@ export class EmailTrackingService {
         `,
       };
 
-      // Cargar e inyectar el logo corporativo como inline attachment de forma dinámica
+      // Si existe un archivo adjunto del usuario, agregarlo
       const attachments: any[] = [];
-      try {
-        let logoPath = path.resolve(process.cwd(), 'src', 'afinitive_logo.png');
-        if (!fs.existsSync(logoPath)) {
-          logoPath = path.resolve(process.cwd(), 'afinitive_logo.png');
-        }
-
-        if (fs.existsSync(logoPath)) {
-          attachments.push({
-            filename: 'afinitive_logo.png',
-            content: fs.readFileSync(logoPath).toString('base64'),
-            content_id: 'afinitive_logo', // Corrección del parámetro para la API de Resend
-            disposition: 'inline'
-          });
-        } else {
-          this.logger.warn(`No se encontró afinitive_logo.png en: ${logoPath}`);
-        }
-      } catch (err) {
-        this.logger.error('Error al cargar afinitive_logo.png para inline attachment:', err);
-      }
-
-      // Si existe un archivo adjunto del usuario, agregarlo también
       if (attachment && attachment.content) {
         attachments.push({
           filename: attachment.filename,
           content: Buffer.from(attachment.content, 'base64'),
         });
+      }
+
+      if (attachments.length > 0) {
+        mailOptions.attachments = attachments;
       }
 
       if (attachments.length > 0) {
