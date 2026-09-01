@@ -221,7 +221,7 @@ export class EmailTrackingService {
       ? SIGNATURES[signatureId as keyof typeof SIGNATURES]
       : SIGNATURES['irina'];
 
-    const logoUrl = this.configService.get<string>('EMAIL_LOGO_URL') || process.env.EMAIL_LOGO_URL || 'https://raw.githubusercontent.com/Magicflow-Technologies/afinitivemodulo-operador/main/frontend/public/afinitive_logo.png';
+    const logoUrl = this.configService.get<string>('EMAIL_LOGO_URL') || process.env.EMAIL_LOGO_URL || 'https://links.afinitive.com.pe/img/afinitive_logo.png';
 
     try {
       // Opciones de envío de correo
