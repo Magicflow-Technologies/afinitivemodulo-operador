@@ -406,24 +406,49 @@ export class EmailTrackingService {
     }
   }
 
+  private getGoogleAuth(scopes: string[]): any {
+    // 1. Variable de entorno directa (si se configura en .env como JSON string)
+    const envCreds = this.configService.get<string>('GOOGLE_CALENDAR_CREDENTIALS') || process.env.GOOGLE_CALENDAR_CREDENTIALS;
+    if (envCreds) {
+      try {
+        const credentials = typeof envCreds === 'string' ? JSON.parse(envCreds) : envCreds;
+        return new google.auth.GoogleAuth({
+          credentials,
+          scopes,
+        });
+      } catch (err) {
+        this.logger.warn(`Error al parsear GOOGLE_CALENDAR_CREDENTIALS: ${err.message}`);
+      }
+    }
+
+    // 2. Buscar archivo en múltiples rutas relativas y absolutas
+    const possiblePaths = [
+      path.resolve(__dirname, '..', '..', 'afinitive-calendar-sync-bddfdbc9e9de.json'),
+      path.resolve(process.cwd(), 'afinitive-calendar-sync-bddfdbc9e9de.json'),
+      path.resolve(process.cwd(), 'backend', 'afinitive-calendar-sync-bddfdbc9e9de.json'),
+      path.resolve(process.cwd(), 'dist', 'afinitive-calendar-sync-bddfdbc9e9de.json'),
+      path.resolve(__dirname, '..', 'afinitive-calendar-sync-bddfdbc9e9de.json'),
+    ];
+
+    const keyFilePath = possiblePaths.find((p) => fs.existsSync(p));
+    if (!keyFilePath) {
+      this.logger.error(`No se encontró el archivo afinitive-calendar-sync-bddfdbc9e9de.json en ninguna de las rutas esperadas: ${possiblePaths.join(', ')}`);
+      throw new HttpException('Archivo de credenciales de Google Calendar no encontrado.', HttpStatus.INTERNAL_SERVER_ERROR);
+    }
+
+    this.logger.log(`Cargando credenciales de Google Calendar desde: ${keyFilePath}`);
+    return new google.auth.GoogleAuth({
+      keyFile: keyFilePath,
+      scopes,
+    });
+  }
+
   async testGoogleCalendarConnection(calendarId?: string) {
     const id = calendarId || 'rbertalmio@afinitive.com.pe';
     this.logger.log(`Iniciando prueba de conexión a Google Calendar para el ID: ${id}`);
 
     try {
-      const keyFilePath = path.resolve(__dirname, '..', '..', 'afinitive-calendar-sync-bddfdbc9e9de.json');
-      
-      if (!fs.existsSync(keyFilePath)) {
-        this.logger.error(`No se encontró el archivo de credenciales de Google Calendar en la ruta: ${keyFilePath}`);
-        throw new HttpException(`Archivo de credenciales no encontrado en: ${keyFilePath}`, HttpStatus.NOT_FOUND);
-      }
-
-      this.logger.log(`Leyendo archivo de credenciales desde: ${keyFilePath}`);
-      const auth = new google.auth.GoogleAuth({
-        keyFile: keyFilePath,
-        scopes: ['https://www.googleapis.com/auth/calendar.readonly'],
-      });
-
+      const auth = this.getGoogleAuth(['https://www.googleapis.com/auth/calendar.readonly']);
       const calendar = google.calendar({ version: 'v3', auth });
 
       this.logger.log(`Haciendo petición a la API de Google Calendar para listar eventos...`);
@@ -630,22 +655,16 @@ export class EmailTrackingService {
     // 3. Consultar todos los eventos de Ricardo en Google Calendar para los próximos 14 días
     let occupiedEvents: any[] = [];
     try {
-      const keyFilePath = path.resolve(__dirname, '..', '..', 'afinitive-calendar-sync-bddfdbc9e9de.json');
-      if (fs.existsSync(keyFilePath)) {
-        const auth = new google.auth.GoogleAuth({
-          keyFile: keyFilePath,
-          scopes: ['https://www.googleapis.com/auth/calendar.readonly'],
-        });
-        const calendar = google.calendar({ version: 'v3', auth });
-        const response = await calendar.events.list({
-          calendarId: calendarId,
-          timeMin: new Date().toISOString(),
-          timeMax: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString(),
-          singleEvents: true,
-          orderBy: 'startTime',
-        });
-        occupiedEvents = response.data.items || [];
-      }
+      const auth = this.getGoogleAuth(['https://www.googleapis.com/auth/calendar.readonly']);
+      const calendar = google.calendar({ version: 'v3', auth });
+      const response = await calendar.events.list({
+        calendarId: calendarId,
+        timeMin: new Date().toISOString(),
+        timeMax: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString(),
+        singleEvents: true,
+        orderBy: 'startTime',
+      });
+      occupiedEvents = response.data.items || [];
     } catch (err) {
       this.logger.error(`Error consultando calendario de Ricardo para asignación de cola: ${err.message}`);
     }
@@ -915,16 +934,7 @@ Me avisa para agendar,`;
     this.logger.log(`Intentando confirmar cita en Google Calendar para: ${email} a las ${time}`);
 
     try {
-      const keyFilePath = path.resolve(__dirname, '..', '..', 'afinitive-calendar-sync-bddfdbc9e9de.json');
-      if (!fs.existsSync(keyFilePath)) {
-        throw new HttpException('Archivo de credenciales de Google Calendar no encontrado.', HttpStatus.INTERNAL_SERVER_ERROR);
-      }
-
-      const auth = new google.auth.GoogleAuth({
-        keyFile: keyFilePath,
-        scopes: ['https://www.googleapis.com/auth/calendar'],
-      });
-
+      const auth = this.getGoogleAuth(['https://www.googleapis.com/auth/calendar']);
       const calendar = google.calendar({ version: 'v3', auth });
       const settings = await this.getCalendarSettings();
       const startTime = new Date(time);
@@ -995,22 +1005,16 @@ Me avisa para agendar,`;
     // 1. Consultar eventos ocupados en Google Calendar para los próximos 14 días
     let occupiedEvents: any[] = [];
     try {
-      const keyFilePath = path.resolve(__dirname, '..', '..', 'afinitive-calendar-sync-bddfdbc9e9de.json');
-      if (fs.existsSync(keyFilePath)) {
-        const auth = new google.auth.GoogleAuth({
-          keyFile: keyFilePath,
-          scopes: ['https://www.googleapis.com/auth/calendar.readonly'],
-        });
-        const calendar = google.calendar({ version: 'v3', auth });
-        const response = await calendar.events.list({
-          calendarId: calendarId,
-          timeMin: new Date().toISOString(),
-          timeMax: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString(),
-          singleEvents: true,
-          orderBy: 'startTime',
-        });
-        occupiedEvents = response.data.items || [];
-      }
+      const auth = this.getGoogleAuth(['https://www.googleapis.com/auth/calendar.readonly']);
+      const calendar = google.calendar({ version: 'v3', auth });
+      const response = await calendar.events.list({
+        calendarId: calendarId,
+        timeMin: new Date().toISOString(),
+        timeMax: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString(),
+        singleEvents: true,
+        orderBy: 'startTime',
+      });
+      occupiedEvents = response.data.items || [];
     } catch (err) {
       this.logger.error(`Error consultando calendario para obtener slots libres: ${err.message}`);
     }
