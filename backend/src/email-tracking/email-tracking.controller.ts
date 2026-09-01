@@ -15,6 +15,8 @@ export class EmailTrackingController {
       body?: string; 
       signatureId?: string;
       attachment?: { filename: string; content: string };
+      proposedTime?: string;
+      recipientName?: string;
     }
   ) {
     return await this.emailTrackingService.sendEmail(
@@ -23,7 +25,9 @@ export class EmailTrackingController {
       body.subject,
       body.body,
       body.signatureId,
-      body.attachment
+      body.attachment,
+      body.proposedTime,
+      body.recipientName
     );
   }
 

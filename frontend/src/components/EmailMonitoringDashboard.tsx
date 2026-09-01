@@ -41,35 +41,49 @@ interface QueueItem {
   error_message: string | null;
 }
 
-const DEFAULT_BODIES = {
-  irina: 
-    'Estimada Marielisa:\n\n' +
+const buildEmailTemplate = (sigId: string, name: string, dateStr: string) => {
+  let formattedDate = 'miércoles, 3 de septiembre a las 10:00';
+  if (dateStr) {
+    const d = new Date(dateStr);
+    if (!isNaN(d.getTime())) {
+      formattedDate = d.toLocaleDateString('es-ES', {
+        weekday: 'long',
+        day: 'numeric',
+        month: 'long',
+        hour: '2-digit',
+        minute: '2-digit',
+      });
+    }
+  }
+  const cleanName = name.trim() || 'Marielisa';
+  const isFemale = cleanName.toLowerCase().endsWith('a') || cleanName.toLowerCase().includes('mari');
+  const greeting = isFemale ? 'Estimada' : 'Estimado';
+
+  const nameInBody = sigId === 'ricardo' ? 'Ricardo Bertalmio Ruibal' : 'Irina Portilla Farfán';
+  const roleInBody = sigId === 'ricardo'
+    ? 'Soy economista de la Universidad del Pacífico y dirijo Afinitive Wealth Management'
+    : 'Soy Client Experience Manager en Afinitive Wealth Management';
+
+  return `${greeting} ${cleanName}:\n\n` +
     'Le escribo porque encontré su perfil en LinkedIn. Compartimos varios contactos en común, y me pareció oportuno tomar la iniciativa de escribirle.\n\n' +
-    'Mi nombre es <strong>Irina Portilla Farfán</strong>. Soy Client Experience Manager en Afinitive Wealth Management, una boutique de asesoría patrimonial. Le escribo porque sé perfectamente lo frustrante que es para perfiles como el suyo lidiar con la banca tradicional en Lima, donde casi siempre le intentan colocar sus propios productos financieros masivos, <strong>en lugar de ofrecer asesoría integral, objetiva y profesional</strong>.\n\n' +
+    `Mi nombre es <strong>${nameInBody}</strong>. ${roleInBody}, una boutique de asesoría patrimonial. Le escribo porque sé perfectamente lo frustrante que es para perfiles como el suyo lidiar con la banca tradicional en Lima, donde casi siempre le intentan colocar sus propios productos financieros masivos, <strong>en lugar de ofrecer asesoría integral, objetiva y profesional</strong>.\n\n` +
     'Nosotros operamos al revés: no tenemos productos propios. Trabajamos con arquitectura abierta para optimizar la estructura de ingresos y el capital de un grupo muy selecto de personas:\n\n' +
     '• Morgan Stanley\n' +
     '• BNY Mellon\n' +
     '• Coril\n\n' +
     'Le adjunto una presentación muy ejecutiva (<em>Afinitive Wealth | Tailor Made</em>) que detalla cómo estructuramos los balances y flujos, y maximizamos ingresos a partir de una inversión más eficiente que la que la oferta masiva puede lograr. Si nos busca en Google o LinkedIn, verá que mi trayectoria y la de mi equipo es transparente y de largo aliento.\n\n' +
-    'Entendiendo que sus tiempos son ajustados, le acomodaría una reunión virtual vía Meet o una llamada telefónica de 20 minutos el día <strong>miércoles 22 de julio a las 11:00 am</strong>?\n\n' +
+    `Entendiendo que sus tiempos son ajustados, le acomodaría una reunión virtual vía Meet o una llamada telefónica de 20 minutos el día <strong>${formattedDate}</strong>?\n\n` +
     '[CONFIRMAR_CITA]\n\n' +
-    'Me avisa para agendar,',
-  ricardo: 
-    'Estimada Marielisa:\n\n' +
-    'Le escribo porque encontré su perfil en LinkedIn. Compartimos varios contactos en común, y me pareció oportuno tomar la iniciativa de escribirle.\n\n' +
-    'Mi nombre es <strong>Ricardo Bertalmio Ruibal</strong>. Soy economista de la Universidad del Pacífico y dirijo Afinitive Wealth Management, una boutique de asesoría patrimonial. Le escribo porque sé perfectamente lo frustrante que es para perfiles como el suyo lidiar con la banca tradicional en Lima, donde casi siempre le intentan colocar sus propios productos financieros masivos, <strong>en lugar de ofrecer asesoría integral, objetiva y profesional</strong>.\n\n' +
-    'Nosotros operamos al revés: no tenemos productos propios. Trabajamos con arquitectura abierta para optimizar la estructura de ingresos y el capital de un grupo muy selecto de personas:\n\n' +
-    '• Morgan Stanley\n' +
-    '• BNY Mellon\n' +
-    '• Coril\n\n' +
-    'Le adjunto una presentación muy ejecutiva (<em>Afinitive Wealth | Tailor Made</em>) que detalla cómo estructuramos los balances y flujos, y maximizamos ingresos a partir de una inversión más eficiente que la que la oferta masiva puede lograr. Si nos busca en Google o LinkedIn, verá que mi trayectoria y la de mi equipo es transparente y de largo aliento.\n\n' +
-    'Entendiendo que sus tiempos son ajustados, le acomodaría una reunión virtual vía Meet o una llamada telefónica de 20 minutos el día <strong>miércoles 22 de julio a las 11:00 am</strong>?\n\n' +
-    '[CONFIRMAR_CITA]\n\n' +
-    'Me avisa para agendar,'
+    'Me avisa para agendar,';
 };
 
 export default function EmailMonitoringDashboard() {
   const [recipientEmail, setRecipientEmail] = useState('');
+  const [recipientName, setRecipientName] = useState('Marielisa');
+  const [proposedTime, setProposedTime] = useState('');
+  const [showIndividualSlotPicker, setShowIndividualSlotPicker] = useState(false);
+  const [selectedDayIndividual, setSelectedDayIndividual] = useState<string | null>(null);
+
   const [signatureId, setSignatureId] = useState('ricardo');
   const [senderName, setSenderName] = useState('Ricardo Bertalmio');
   const [senderEmail, setSenderEmail] = useState('rbertalmio@afinitive.com.pe');
@@ -79,17 +93,17 @@ export default function EmailMonitoringDashboard() {
     if (id === 'irina') {
       setSenderName('Irina Portilla');
       setSenderEmail('iportilla@afinitive.com.pe');
-      setEmailBody(DEFAULT_BODIES.irina);
+      setEmailBody(buildEmailTemplate('irina', recipientName, proposedTime));
     } else if (id === 'ricardo') {
       setSenderName('Ricardo Bertalmio');
       setSenderEmail('rbertalmio@afinitive.com.pe');
-      setEmailBody(DEFAULT_BODIES.ricardo);
+      setEmailBody(buildEmailTemplate('ricardo', recipientName, proposedTime));
     }
     fetchFreeSlots(id);
   };
 
   const [subject, setSubject] = useState('Invitación Exclusiva - Afinitive');
-  const [emailBody, setEmailBody] = useState(DEFAULT_BODIES.ricardo);
+  const [emailBody, setEmailBody] = useState(buildEmailTemplate('ricardo', 'Marielisa', ''));
   const [loading, setLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [emails, setEmails] = useState<EmailRecord[]>([]);
@@ -489,6 +503,8 @@ export default function EmailMonitoringDashboard() {
         },
         body: JSON.stringify({ 
           recipientEmail, 
+          recipientName: recipientName.trim() || undefined,
+          proposedTime: proposedTime ? new Date(proposedTime).toISOString() : undefined,
           senderEmail: fullSender,
           subject, 
           body: emailBody,
@@ -726,8 +742,21 @@ export default function EmailMonitoringDashboard() {
                     </div>
                   </div>
 
-                  {/* Fila 2: Datos del Destinatario y Asunto */}
+                  {/* Fila 2: Datos del Destinatario */}
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="space-y-1.5">
+                      <label className="text-xs text-brand-gold font-medium uppercase tracking-wider">Nombre del Contacto (Para)</label>
+                      <input
+                        type="text"
+                        placeholder="Ej: Marielisa o Maycol"
+                        value={recipientName}
+                        onChange={(e) => {
+                          setRecipientName(e.target.value);
+                        }}
+                        className="w-full px-4 py-3 bg-brand-navy-dark border border-brand-gold/20 hover:border-brand-gold/40 focus:border-brand-gold/90 focus:ring-1 focus:ring-brand-gold/50 rounded-xl text-slate-100 placeholder-slate-500 outline-none transition-all duration-200 text-sm font-sans"
+                      />
+                    </div>
+
                     <div className="space-y-1.5">
                       <label className="text-xs text-brand-gold font-medium uppercase tracking-wider">Correo del Cliente (Para)</label>
                       <div className="relative">
@@ -743,6 +772,110 @@ export default function EmailMonitoringDashboard() {
                           className="w-full pl-11 pr-4 py-3 bg-brand-navy-dark border border-brand-gold/20 hover:border-brand-gold/40 focus:border-brand-gold/90 focus:ring-1 focus:ring-brand-gold/50 rounded-xl text-slate-100 placeholder-slate-500 outline-none transition-all duration-200 text-sm font-sans"
                         />
                       </div>
+                    </div>
+                  </div>
+
+                  {/* Fila 3: Fecha/Hora Sugerida & Asunto */}
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="space-y-1.5 relative">
+                      <div className="flex items-center justify-between">
+                        <label className="text-xs text-brand-gold font-medium uppercase tracking-wider">Fecha y Hora Propuesta</label>
+                        <button
+                          type="button"
+                          onClick={() => setShowIndividualSlotPicker(!showIndividualSlotPicker)}
+                          className="text-[11px] text-blue-400 hover:text-blue-300 font-medium flex items-center gap-1 cursor-pointer"
+                        >
+                          <Calendar className="w-3 h-3" />
+                          {showIndividualSlotPicker ? 'Ocultar turnos' : 'Ver turnos libres Calendar'}
+                        </button>
+                      </div>
+                      
+                      <div className="relative">
+                        <input
+                          type="datetime-local"
+                          value={proposedTime}
+                          onChange={(e) => {
+                            setProposedTime(e.target.value);
+                            if (e.target.value) {
+                              setEmailBody(buildEmailTemplate(signatureId, recipientName, e.target.value));
+                            }
+                          }}
+                          className="w-full px-4 py-3 bg-brand-navy-dark border border-brand-gold/20 hover:border-brand-gold/40 focus:border-brand-gold/90 focus:ring-1 focus:ring-brand-gold/50 rounded-xl text-slate-100 placeholder-slate-500 outline-none transition-all duration-200 text-sm font-sans [color-scheme:dark]"
+                        />
+                      </div>
+
+                      {/* Popover de Slots Libres de Google Calendar */}
+                      {showIndividualSlotPicker && (
+                        <div className="absolute top-full left-0 right-0 z-50 mt-2 bg-[#0A1420] border border-brand-gold/40 rounded-xl p-4 shadow-2xl space-y-3">
+                          <div className="flex items-center justify-between border-b border-brand-gold/15 pb-2">
+                            <span className="text-xs font-semibold text-brand-gold">Seleccionar Turno Libre (Google Calendar)</span>
+                            <button
+                              type="button"
+                              onClick={() => setShowIndividualSlotPicker(false)}
+                              className="text-slate-400 hover:text-slate-200 text-xs"
+                            >
+                              <X className="w-4 h-4" />
+                            </button>
+                          </div>
+
+                          {/* Días */}
+                          <div className="grid grid-cols-5 gap-1.5">
+                            {getNext14Days().map((date) => {
+                              const yyyy = date.getFullYear();
+                              const mm = String(date.getMonth() + 1).padStart(2, '0');
+                              const dd = String(date.getDate()).padStart(2, '0');
+                              const yyyymmdd = `${yyyy}-${mm}-${dd}`;
+                              const hasSlots = freeSlots[yyyymmdd] && freeSlots[yyyymmdd].length > 0;
+                              const isSelected = selectedDayIndividual === yyyymmdd;
+                              const dayName = date.toLocaleDateString('es-ES', { weekday: 'short' });
+                              const dayNum = date.getDate();
+
+                              return (
+                                <button
+                                  key={yyyymmdd}
+                                  type="button"
+                                  disabled={!hasSlots}
+                                  onClick={() => setSelectedDayIndividual(yyyymmdd)}
+                                  className={`flex flex-col items-center justify-center p-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer disabled:opacity-25 disabled:cursor-not-allowed ${
+                                    isSelected
+                                      ? 'bg-brand-gold text-[#070F1E] font-bold shadow-md'
+                                      : hasSlots
+                                        ? 'bg-blue-500/20 text-blue-300 border border-blue-500/30 hover:bg-blue-500/30'
+                                        : 'bg-slate-900/40 text-slate-600 border border-slate-800/40'
+                                  }`}
+                                >
+                                  <span className="uppercase text-[9px] opacity-75">{dayName}</span>
+                                  <span className="text-xs font-bold">{dayNum}</span>
+                                </button>
+                              );
+                            })}
+                          </div>
+
+                          {/* Horarios del día */}
+                          {selectedDayIndividual && freeSlots[selectedDayIndividual] && (
+                            <div className="space-y-1.5 border-t border-brand-gold/15 pt-2">
+                              <p className="text-[10px] text-slate-400 uppercase font-semibold">Horarios disponibles ({selectedDayIndividual}):</p>
+                              <div className="grid grid-cols-3 gap-1.5 max-h-[120px] overflow-y-auto pr-1">
+                                {freeSlots[selectedDayIndividual].map((time) => (
+                                  <button
+                                    key={time}
+                                    type="button"
+                                    onClick={() => {
+                                      const formattedValue = `${selectedDayIndividual}T${time}`;
+                                      setProposedTime(formattedValue);
+                                      setEmailBody(buildEmailTemplate(signatureId, recipientName, formattedValue));
+                                      setShowIndividualSlotPicker(false);
+                                    }}
+                                    className="py-1.5 px-2 text-xs font-mono bg-brand-navy-dark hover:bg-brand-gold hover:text-[#070F1E] border border-brand-gold/20 rounded-lg text-slate-200 text-center transition-all cursor-pointer font-semibold"
+                                  >
+                                    {time}
+                                  </button>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      )}
                     </div>
 
                     <div className="space-y-1.5">
@@ -760,10 +893,21 @@ export default function EmailMonitoringDashboard() {
 
                   {/* Cuerpo del Mensaje */}
                   <div className="space-y-1.5">
-                    <label className="text-xs text-brand-gold font-medium uppercase tracking-wider">Cuerpo del Mensaje (Invitación)</label>
+                    <div className="flex items-center justify-between">
+                      <label className="text-xs text-brand-gold font-medium uppercase tracking-wider">Cuerpo del Mensaje (Invitación)</label>
+                      <button
+                        type="button"
+                        onClick={() => setEmailBody(buildEmailTemplate(signatureId, recipientName, proposedTime))}
+                        className="text-[11px] text-brand-gold/80 hover:text-brand-gold font-medium flex items-center gap-1 cursor-pointer transition-colors"
+                        title="Regenerar mensaje con el nombre y fecha seleccionados"
+                      >
+                        <RefreshCw className="w-3 h-3" />
+                        <span>Actualizar texto con fecha/nombre</span>
+                      </button>
+                    </div>
                     <textarea
                       required
-                      rows={5}
+                      rows={6}
                       placeholder="Escribe el mensaje de invitación para el cliente de alto patrimonio..."
                       value={emailBody}
                       onChange={(e) => setEmailBody(e.target.value)}
