@@ -568,13 +568,13 @@ export default function EmailMonitoringDashboard() {
           
           <div className="flex items-center gap-4 flex-wrap justify-center md:justify-end">
             <a
-              href="https://operador.afinitive.com.pe/formEvento/index.html"
+              href="https://operador.afinitive.com.pe/formEvento/index2.html"
               target="_blank"
               rel="noopener noreferrer"
               onClick={(e) => {
                 e.preventDefault();
                 e.stopPropagation();
-                window.open("https://operador.afinitive.com.pe/formEvento/index.html", "_blank");
+                window.open("https://operador.afinitive.com.pe/formEvento/index2.html", "_blank");
               }}
               className="flex items-center gap-2 px-4 py-2 bg-brand-gold/10 hover:bg-brand-gold/25 active:bg-brand-gold/30 border border-brand-gold/40 hover:border-brand-gold/60 text-sm font-semibold text-brand-gold rounded-lg transition-all duration-200 shadow-md shadow-brand-gold/5"
             >
