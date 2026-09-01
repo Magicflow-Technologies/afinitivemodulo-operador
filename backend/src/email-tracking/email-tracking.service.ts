@@ -193,23 +193,9 @@ export class EmailTrackingService {
     // Formatear saltos de línea para el cuerpo del mensaje en caso de que sea texto plano
     const formattedBodyHtml = emailBody.replace(/\n/g, '<br />');
 
-    // Reemplazo dinámico del marcador de agendamiento
-    const agendaLink = signatureId === 'ricardo'
-      ? 'https://afinitive.dashbportal.com/invite/ricardo-opt'
-      : 'https://afinitive.dashbportal.com/invite/irina-opt';
-
-    const buttonHtml = `
-      <div style="text-align: center; margin: 25px 0;">
-        <a href="${agendaLink}" 
-           style="display: inline-block; background-color: #0D1B2A; color: #FFFFFF; padding: 12px 30px; font-weight: bold; font-size: 14px; text-decoration: none; border-radius: 6px; letter-spacing: 0.5px; box-shadow: 0 2px 5px rgba(0,0,0,0.15); font-family: Arial, sans-serif;">
-          📅 AGENDAR LA LLAMADA
-        </a>
-      </div>
-    `;
-
-    // Botón de confirmar cita dinámico (apunta al backend)
-    const host = 'localhost:3080';
-    const confirmLink = `http://${host}/api/test-email/confirm-meeting?calendarId=${signatureId === 'ricardo' ? 'rbertalmio@afinitive.com' : 'iportilla@afinitive.com.pe'}&time=${encodeURIComponent(proposedTime || '')}&email=${encodeURIComponent(recipientEmail)}&name=${encodeURIComponent(recipientName || '')}`;
+    // Botón de confirmar cita dinámico (apunta al backend usando URL pública en producción o localhost en desarrollo)
+    const backendBaseUrl = (this.configService.get<string>('BACKEND_PUBLIC_URL') || process.env.BACKEND_PUBLIC_URL || process.env.APP_URL || `http://localhost:${process.env.PORT || 3080}`).replace(/\/+$/, '');
+    const confirmLink = `${backendBaseUrl}/api/test-email/confirm-meeting?calendarId=${signatureId === 'ricardo' ? 'rbertalmio@afinitive.com' : 'iportilla@afinitive.com.pe'}&time=${encodeURIComponent(proposedTime || '')}&email=${encodeURIComponent(recipientEmail)}&name=${encodeURIComponent(recipientName || '')}`;
     
     const confirmButtonHtml = `
       <div style="text-align: center; margin: 25px 0;">
@@ -224,10 +210,10 @@ export class EmailTrackingService {
     if (finalBodyHtml.includes('[CONFIRMAR_CITA]')) {
       finalBodyHtml = finalBodyHtml.replace('[CONFIRMAR_CITA]', confirmButtonHtml);
     } else if (finalBodyHtml.includes('[AGENDAR_LLAMADA]')) {
-      finalBodyHtml = finalBodyHtml.replace('[AGENDAR_LLAMADA]', buttonHtml);
+      finalBodyHtml = finalBodyHtml.replace('[AGENDAR_LLAMADA]', confirmButtonHtml);
     } else {
-      // Si no contiene ningún marcador, agregamos el botón de agendamiento por defecto al final
-      finalBodyHtml = finalBodyHtml + buttonHtml;
+      // Si no contiene ningún marcador, agregamos el botón de confirmación de cita por defecto al final
+      finalBodyHtml = finalBodyHtml + confirmButtonHtml;
     }
 
     // Obtener la firma correspondiente del catálogo

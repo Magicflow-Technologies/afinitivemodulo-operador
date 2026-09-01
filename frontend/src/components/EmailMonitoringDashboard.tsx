@@ -52,7 +52,7 @@ const DEFAULT_BODIES = {
     '• Coril\n\n' +
     'Le adjunto una presentación muy ejecutiva (<em>Afinitive Wealth | Tailor Made</em>) que detalla cómo estructuramos los balances y flujos, y maximizamos ingresos a partir de una inversión más eficiente que la que la oferta masiva puede lograr. Si nos busca en Google o LinkedIn, verá que mi trayectoria y la de mi equipo es transparente y de largo aliento.\n\n' +
     'Entendiendo que sus tiempos son ajustados, le acomodaría una reunión virtual vía Meet o una llamada telefónica de 20 minutos el día <strong>miércoles 22 de julio a las 11:00 am</strong>?\n\n' +
-    '[AGENDAR_LLAMADA]\n\n' +
+    '[CONFIRMAR_CITA]\n\n' +
     'Me avisa para agendar,',
   ricardo: 
     'Estimada Marielisa:\n\n' +
@@ -64,7 +64,7 @@ const DEFAULT_BODIES = {
     '• Coril\n\n' +
     'Le adjunto una presentación muy ejecutiva (<em>Afinitive Wealth | Tailor Made</em>) que detalla cómo estructuramos los balances y flujos, y maximizamos ingresos a partir de una inversión más eficiente que la que la oferta masiva puede lograr. Si nos busca en Google o LinkedIn, verá que mi trayectoria y la de mi equipo es transparente y de largo aliento.\n\n' +
     'Entendiendo que sus tiempos son ajustados, le acomodaría una reunión virtual vía Meet o una llamada telefónica de 20 minutos el día <strong>miércoles 22 de julio a las 11:00 am</strong>?\n\n' +
-    '[AGENDAR_LLAMADA]\n\n' +
+    '[CONFIRMAR_CITA]\n\n' +
     'Me avisa para agendar,'
 };
 
