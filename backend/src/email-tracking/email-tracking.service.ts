@@ -193,27 +193,42 @@ export class EmailTrackingService {
     // Formatear saltos de línea para el cuerpo del mensaje en caso de que sea texto plano
     const formattedBodyHtml = emailBody.replace(/\n/g, '<br />');
 
-    // Botón de confirmar cita dinámico (apunta al backend usando URL pública en producción o localhost en desarrollo)
+    // Botones de acción dinámicos (Confirmar cita y WhatsApp)
     const backendBaseUrl = (this.configService.get<string>('BACKEND_PUBLIC_URL') || process.env.BACKEND_PUBLIC_URL || process.env.APP_URL || `http://localhost:${process.env.PORT || 3080}`).replace(/\/+$/, '');
     const confirmLink = `${backendBaseUrl}/api/test-email/confirm-meeting?calendarId=${signatureId === 'ricardo' ? 'rbertalmio@afinitive.com' : 'iportilla@afinitive.com.pe'}&time=${encodeURIComponent(proposedTime || '')}&email=${encodeURIComponent(recipientEmail)}&name=${encodeURIComponent(recipientName || '')}`;
+    const whatsappLink = `https://wa.me/51902821992?text=${encodeURIComponent('Hola, me gustaría más información o coordinar un cambio de horario para mi reunión con Afinitive.')}`;
     
-    const confirmButtonHtml = `
-      <div style="text-align: center; margin: 25px 0;">
-        <a href="${confirmLink}" 
-           style="display: inline-block; background-color: #0D1B2A; color: #FFFFFF; padding: 12px 30px; font-weight: bold; font-size: 14px; text-decoration: none; border-radius: 6px; letter-spacing: 0.5px; box-shadow: 0 2px 5px rgba(0,0,0,0.15); font-family: Arial, sans-serif;">
-          📅 CONFIRMAR CITA
-        </a>
+    const actionButtonsHtml = `
+      <div style="text-align: center; margin: 30px 0 25px 0;">
+        <!-- Botón 1: Confirmar Cita -->
+        <div style="margin-bottom: 20px;">
+          <a href="${confirmLink}" 
+             style="display: inline-block; background-color: #0D1B2A; color: #FFFFFF; padding: 13px 32px; font-weight: bold; font-size: 14px; text-decoration: none; border-radius: 6px; letter-spacing: 0.5px; box-shadow: 0 2px 6px rgba(0,0,0,0.18); font-family: Arial, sans-serif;">
+            📅 CONFIRMAR CITA
+          </a>
+        </div>
+        <!-- Botón 2: WhatsApp con texto explicativo -->
+        <div style="margin-top: 15px; padding-top: 15px; border-top: 1px dashed #E2E8F0;">
+          <p style="font-size: 13px; color: #64748B; margin: 0 0 10px 0; text-align: center; font-family: Arial, sans-serif;">
+            Si deseas más información o cambiar la cita contáctanos aquí:
+          </p>
+          <a href="${whatsappLink}" 
+             target="_blank"
+             style="display: inline-block; background-color: #25D366; color: #FFFFFF; padding: 11px 26px; font-weight: bold; font-size: 13px; text-decoration: none; border-radius: 6px; letter-spacing: 0.5px; box-shadow: 0 2px 6px rgba(37, 211, 102, 0.25); font-family: Arial, sans-serif;">
+            💬 Chatear por WhatsApp
+          </a>
+        </div>
       </div>
     `;
 
     let finalBodyHtml = formattedBodyHtml;
     if (finalBodyHtml.includes('[CONFIRMAR_CITA]')) {
-      finalBodyHtml = finalBodyHtml.replace('[CONFIRMAR_CITA]', confirmButtonHtml);
+      finalBodyHtml = finalBodyHtml.replace('[CONFIRMAR_CITA]', actionButtonsHtml);
     } else if (finalBodyHtml.includes('[AGENDAR_LLAMADA]')) {
-      finalBodyHtml = finalBodyHtml.replace('[AGENDAR_LLAMADA]', confirmButtonHtml);
+      finalBodyHtml = finalBodyHtml.replace('[AGENDAR_LLAMADA]', actionButtonsHtml);
     } else {
-      // Si no contiene ningún marcador, agregamos el botón de confirmación de cita por defecto al final
-      finalBodyHtml = finalBodyHtml + confirmButtonHtml;
+      // Si no contiene ningún marcador, agregamos los botones de acción por defecto al final
+      finalBodyHtml = finalBodyHtml + actionButtonsHtml;
     }
 
     // Obtener la firma correspondiente del catálogo
@@ -251,8 +266,8 @@ export class EmailTrackingService {
                 </table>
               </div>
 
-              <!-- Cuerpo del Correo -->
-              <div style="padding: 30px 40px 20px 40px; font-size: 15px; line-height: 1.6; color: #334155; min-height: 100px;">
+              <!-- Cuerpo del Correo Justificado -->
+              <div style="padding: 30px 40px 20px 40px; font-size: 15px; line-height: 1.6; color: #334155; min-height: 100px; text-align: justify;">
                 ${finalBodyHtml}
               </div>
               
