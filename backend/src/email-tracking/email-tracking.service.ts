@@ -707,7 +707,74 @@ export class EmailTrackingService {
     const settings = await this.getCalendarSettings();
     const calendarId = 'rbertalmio@afinitive.com';
 
-    // 3. Consultar todos los eventos de Ricardo en Google Calendar para los próximos 14 días
+    // 3. Consultar histórico de envíos de Supabase (email_tracking_test) para validar duplicidad y regla de enfriamiento (60 días)
+    const { data: trackingHistory, error: historyErr } = await this.supabase
+      .from('email_tracking_test')
+      .select('recipient_email, sent_at, status');
+
+    if (historyErr) {
+      this.logger.warn(`No se pudo consultar email_tracking_test para validación de duplicados: ${historyErr.message}`);
+    }
+
+    // Mapa de último envío por correo electrónico
+    const historyMap = new Map<string, { sent_at: string; status: string }>();
+    if (trackingHistory) {
+      for (const record of trackingHistory) {
+        if (!record.recipient_email) continue;
+        const emailKey = record.recipient_email.trim().toLowerCase();
+        const existing = historyMap.get(emailKey);
+        if (!existing || new Date(record.sent_at).getTime() > new Date(existing.sent_at).getTime()) {
+          historyMap.set(emailKey, { sent_at: record.sent_at, status: record.status });
+        }
+      }
+    }
+
+    // 4. Filtrar duplicados internos del CSV y verificar regla de enfriamiento (Cool-down) de 60 días
+    const COOLDOWN_DAYS = 60;
+    const now = new Date();
+    const seenInCsv = new Set<string>();
+    const validContacts: { name: string; email: string; phone?: string }[] = [];
+    const skippedContacts: { name: string; email: string; reason: string; lastSentAt?: string; daysAgo?: number }[] = [];
+
+    for (const contact of contacts) {
+      const emailClean = contact.email.trim().toLowerCase();
+
+      // Caso A: Duplicado dentro del mismo CSV
+      if (seenInCsv.has(emailClean)) {
+        skippedContacts.push({
+          name: contact.name,
+          email: contact.email,
+          reason: 'Duplicado dentro del mismo archivo CSV.',
+        });
+        continue;
+      }
+      seenInCsv.add(emailClean);
+
+      // Caso B: Verificación contra histórico de envíos previos
+      const lastContact = historyMap.get(emailClean);
+      if (lastContact && lastContact.sent_at) {
+        const sentDate = new Date(lastContact.sent_at);
+        const diffMs = now.getTime() - sentDate.getTime();
+        const daysAgo = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+
+        if (daysAgo < COOLDOWN_DAYS) {
+          const timeText = daysAgo === 0 ? 'hoy' : `hace ${daysAgo} día(s)`;
+          skippedContacts.push({
+            name: contact.name,
+            email: contact.email,
+            reason: `Contactado recientemente (${timeText} - Estado: ${lastContact.status || 'Enviado'}). Regla de enfriamiento: ${COOLDOWN_DAYS} días.`,
+            lastSentAt: lastContact.sent_at,
+            daysAgo: daysAgo,
+          });
+          continue;
+        }
+      }
+
+      // Contacto nuevo o fuera de enfriamiento
+      validContacts.push(contact);
+    }
+
+    // 5. Consultar eventos de Ricardo en Google Calendar para los próximos 14 días
     let occupiedEvents: any[] = [];
     try {
       const auth = this.getGoogleAuth(['https://www.googleapis.com/auth/calendar.readonly']);
@@ -727,8 +794,8 @@ export class EmailTrackingService {
     const reservedSlots: Date[] = [];
     const queueItems: any[] = [];
 
-    // 4. Calcular slot y armar records
-    for (const contact of contacts) {
+    // 6. Calcular slot y armar records ÚNICAMENTE para los contactos válidos
+    for (const contact of validContacts) {
       const slotTime = await this.findNextAvailableSlot(
         calendarId,
         settings.slot_duration,
@@ -751,7 +818,8 @@ export class EmailTrackingService {
       });
     }
 
-    // 5. Guardar en base de datos
+    // 7. Guardar en base de datos
+    let insertedData: any[] = [];
     if (queueItems.length > 0) {
       const { data, error } = await this.supabase
         .from('email_queue')
@@ -761,10 +829,17 @@ export class EmailTrackingService {
       if (error) {
         throw new HttpException(`Error al guardar contactos en cola: ${error.message}`, HttpStatus.INTERNAL_SERVER_ERROR);
       }
-      return data;
+      insertedData = data || [];
     }
 
-    return [];
+    return {
+      success: true,
+      totalUploaded: contacts.length,
+      validCount: queueItems.length,
+      skippedCount: skippedContacts.length,
+      skippedContacts,
+      data: insertedData,
+    };
   }
 
   async getPendingQueue() {

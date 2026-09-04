@@ -43,6 +43,21 @@ interface QueueItem {
   error_message: string | null;
 }
 
+interface SkippedContact {
+  name: string;
+  email: string;
+  reason: string;
+  lastSentAt?: string;
+  daysAgo?: number;
+}
+
+interface UploadSummary {
+  totalUploaded: number;
+  validCount: number;
+  skippedCount: number;
+  skippedContacts: SkippedContact[];
+}
+
 const buildEmailTemplate = (sigId: string, name: string, dateStr: string) => {
   let formattedDate = 'miércoles, 3 de septiembre a las 10:00';
   if (dateStr) {
@@ -130,6 +145,8 @@ export default function EmailMonitoringDashboard() {
   const [freeSlots, setFreeSlots] = useState<Record<string, string[]>>({});
   const [activePickerId, setActivePickerId] = useState<string | null>(null);
   const [selectedDayForPicker, setSelectedDayForPicker] = useState<string | null>(null);
+  const [uploadSummary, setUploadSummary] = useState<UploadSummary | null>(null);
+  const [showSkippedModal, setShowSkippedModal] = useState(false);
   const [queueStatus, setQueueStatus] = useState({
     isProcessing: false,
     total: 0,
@@ -398,7 +415,20 @@ export default function EmailMonitoringDashboard() {
           throw new Error(errData.message || 'Error al procesar el archivo CSV');
         }
 
-        setSuccessMsg(`¡CSV cargado con éxito! Se procesaron ${contacts.length} contactos y se asignaron horarios de Google Calendar.`);
+        const result = await response.json();
+
+        if (result.skippedCount > 0) {
+          setUploadSummary({
+            totalUploaded: result.totalUploaded,
+            validCount: result.validCount,
+            skippedCount: result.skippedCount,
+            skippedContacts: result.skippedContacts || [],
+          });
+          setSuccessMsg(`¡Campaña procesada! ${result.validCount} contactos válidos agendados en Google Calendar. Se omitieron ${result.skippedCount} contactos duplicados o enviados en los últimos 60 días.`);
+        } else {
+          setUploadSummary(null);
+          setSuccessMsg(`¡CSV cargado con éxito! Se procesaron ${result.validCount || contacts.length} contactos y se asignaron horarios de Google Calendar.`);
+        }
         await fetchPendingQueue();
       } catch (err: any) {
         setErrorMsg(err.message || 'Error al parsear el archivo CSV');
@@ -474,6 +504,7 @@ export default function EmailMonitoringDashboard() {
       if (response.ok) {
         setSuccessMsg('Cola de envíos limpiada y reseteada.');
         setQueueItems([]);
+        setUploadSummary(null);
         await fetchQueueStatus();
       }
     } catch (err) {
@@ -1303,6 +1334,75 @@ export default function EmailMonitoringDashboard() {
                 </div>
               </div>
             </section>
+
+            {/* Banner de Resumen de Duplicados / Enfriamiento */}
+            {uploadSummary && uploadSummary.skippedCount > 0 && (
+              <div className="bg-amber-500/10 border border-amber-500/30 rounded-xl p-4 text-sm text-amber-200 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
+                <div className="flex items-center gap-3">
+                  <AlertCircle className="w-5 h-5 text-amber-400 shrink-0" />
+                  <div>
+                    <p className="font-semibold text-amber-300">
+                      Control de Duplicados y Enfriamiento: {uploadSummary.skippedCount} contacto(s) omitido(s)
+                    </p>
+                    <p className="text-xs text-amber-200/80">
+                      De los {uploadSummary.totalUploaded} contactos del CSV, se asignó turno a {uploadSummary.validCount} contactos nuevos. Se descartaron {uploadSummary.skippedCount} por contacto reciente (&lt; 60 días) o duplicidad en el archivo.
+                    </p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setShowSkippedModal(true)}
+                  className="px-3.5 py-1.5 bg-amber-500/20 hover:bg-amber-500/30 border border-amber-500/40 text-amber-300 rounded-lg text-xs font-semibold whitespace-nowrap cursor-pointer transition-colors"
+                >
+                  Ver {uploadSummary.skippedCount} Omitidos
+                </button>
+              </div>
+            )}
+
+            {/* Modal de Contactos Omitidos */}
+            {showSkippedModal && uploadSummary && (
+              <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4">
+                <div className="bg-[#0D1B2A] border border-brand-gold/40 rounded-2xl max-w-2xl w-full p-6 space-y-4 shadow-2xl animate-fade-in max-h-[80vh] flex flex-col">
+                  <div className="flex justify-between items-center border-b border-slate-800 pb-3">
+                    <div>
+                      <h3 className="text-lg font-bold text-brand-gold">Contactos Omitidos por Duplicidad / Enfriamiento</h3>
+                      <p className="text-xs text-slate-400">Estos prospectos no consumieron horarios de agenda para proteger la exclusividad de Afinitive.</p>
+                    </div>
+                    <button
+                      onClick={() => setShowSkippedModal(false)}
+                      className="p-1 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-slate-200"
+                    >
+                      <X className="w-5 h-5" />
+                    </button>
+                  </div>
+
+                  <div className="overflow-y-auto flex-1 space-y-2 pr-1">
+                    {uploadSummary.skippedContacts.map((c, idx) => (
+                      <div key={idx} className="bg-slate-950/50 border border-slate-800/80 rounded-xl p-3 flex flex-col sm:flex-row justify-between sm:items-center gap-2 text-xs">
+                        <div>
+                          <p className="font-semibold text-slate-200">{c.name} <span className="font-normal text-slate-400">({c.email})</span></p>
+                          <p className="text-amber-400/90 text-[11px] mt-0.5">{c.reason}</p>
+                        </div>
+                        {c.daysAgo !== undefined && (
+                          <span className="px-2 py-0.5 bg-slate-800 border border-slate-700 text-slate-300 rounded text-[10px] whitespace-nowrap shrink-0">
+                            {c.daysAgo === 0 ? 'Hoy' : `Hace ${c.daysAgo} días`}
+                          </span>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+
+                  <div className="flex justify-end pt-2 border-t border-slate-800">
+                    <button
+                      onClick={() => setShowSkippedModal(false)}
+                      className="px-5 py-2 bg-brand-gold text-brand-navy font-bold rounded-xl text-xs hover:bg-brand-gold-light cursor-pointer"
+                    >
+                      Cerrar
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
 
             {/* Tabla de Previsualización y Edición de Citas */}
             {queueItems.length > 0 && (
