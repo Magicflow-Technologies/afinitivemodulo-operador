@@ -24,11 +24,13 @@ import {
 interface EmailRecord {
   id: string;
   recipient_email: string;
+  recipient_name?: string | null;
   subject: string;
   status: string;
   resend_email_id: string;
   sent_at: string;
   opened_at: string | null;
+  proposed_time?: string | null;
 }
 
 interface QueueItem {
@@ -47,6 +49,7 @@ const buildEmailTemplate = (sigId: string, name: string, dateStr: string) => {
     const d = new Date(dateStr);
     if (!isNaN(d.getTime())) {
       formattedDate = d.toLocaleDateString('es-ES', {
+        timeZone: 'America/Lima',
         weekday: 'long',
         day: 'numeric',
         month: 'long',
@@ -178,16 +181,42 @@ export default function EmailMonitoringDashboard() {
   const fetchEmails = useCallback(async (isSilent = false) => {
     if (!isSilent) setRefreshing(true);
     try {
-      const { data, error } = await supabase
+      const { data: trackingData, error: trackingError } = await supabase
         .from('email_tracking_test')
         .select('*')
         .order('sent_at', { ascending: false });
 
-      if (error) {
-        throw error;
+      if (trackingError) {
+        throw trackingError;
       }
 
-      setEmails(data || []);
+      // Enriquecer con datos de la cola (proposed_time / recipient_name) para compatibilidad inmediata
+      const { data: queueData } = await supabase
+        .from('email_queue')
+        .select('recipient_email, recipient_name, proposed_time');
+
+      const queueMap = new Map<string, { recipient_name?: string; proposed_time?: string }>();
+      if (queueData) {
+        queueData.forEach((q: any) => {
+          if (q.recipient_email) {
+            queueMap.set(q.recipient_email.toLowerCase(), {
+              recipient_name: q.recipient_name,
+              proposed_time: q.proposed_time,
+            });
+          }
+        });
+      }
+
+      const mergedEmails: EmailRecord[] = (trackingData || []).map((item: any) => {
+        const queueMatch = queueMap.get(item.recipient_email?.toLowerCase());
+        return {
+          ...item,
+          recipient_name: item.recipient_name || queueMatch?.recipient_name || null,
+          proposed_time: item.proposed_time || queueMatch?.proposed_time || null,
+        };
+      });
+
+      setEmails(mergedEmails);
       setErrorMsg(null);
     } catch (error: any) {
       console.error('Error cargando historial de correos:', error);
@@ -285,10 +314,11 @@ export default function EmailMonitoringDashboard() {
     }
   }, [BACKEND_URL, signatureId]);
 
-  // Generar próximos 14 días laborables
+  // Generar próximos 14 días laborables según la zona horaria de Lima (UTC-5)
   const getNext14Days = () => {
     const days = [];
-    const current = new Date();
+    const nowInLimaStr = new Date().toLocaleString('en-US', { timeZone: 'America/Lima' });
+    const current = new Date(nowInLimaStr);
     current.setDate(current.getDate() + 1);
     
     for (let i = 0; i < 14; i++) {
@@ -532,11 +562,12 @@ export default function EmailMonitoringDashboard() {
     }
   };
 
-  // Formatear fechas de manera elegante
+  // Formatear fechas de manera elegante en zona horaria Lima
   const formatDate = (dateString: string | null) => {
     if (!dateString) return '-';
     const date = new Date(dateString);
     return date.toLocaleString('es-ES', {
+      timeZone: 'America/Lima',
       day: '2-digit',
       month: '2-digit',
       year: 'numeric',
@@ -544,6 +575,24 @@ export default function EmailMonitoringDashboard() {
       minute: '2-digit',
       second: '2-digit',
     });
+  };
+
+  // Formatear fechas de agenda propuesta para validación rápida en zona horaria Lima
+  const formatProposedDate = (dateString?: string | null) => {
+    if (!dateString) return '—';
+    const date = new Date(dateString);
+    if (isNaN(date.getTime())) return dateString;
+    const str = date.toLocaleDateString('es-ES', {
+      timeZone: 'America/Lima',
+      weekday: 'short',
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: false,
+    });
+    return str.charAt(0).toUpperCase() + str.slice(1);
   };
 
   return (
@@ -861,7 +910,7 @@ export default function EmailMonitoringDashboard() {
                                     key={time}
                                     type="button"
                                     onClick={() => {
-                                      const formattedValue = `${selectedDayIndividual}T${time}`;
+                                      const formattedValue = `${selectedDayIndividual}T${time}:00-05:00`;
                                       setProposedTime(formattedValue);
                                       setEmailBody(buildEmailTemplate(signatureId, recipientName, formattedValue));
                                       setShowIndividualSlotPicker(false);
@@ -1072,6 +1121,7 @@ export default function EmailMonitoringDashboard() {
                         <th className="py-4 px-6">Destinatario</th>
                         <th className="py-4 px-6">Asunto</th>
                         <th className="py-4 px-6">Fecha de Envío</th>
+                        <th className="py-4 px-6">Agenda Propuesta (Calendar)</th>
                         <th className="py-4 px-6">Estado</th>
                         <th className="py-4 px-6">Fecha de Lectura</th>
                       </tr>
@@ -1083,7 +1133,10 @@ export default function EmailMonitoringDashboard() {
                           className="hover:bg-slate-900/40 transition-colors duration-150 group"
                         >
                           <td className="py-4 px-6 font-medium text-slate-200">
-                            {email.recipient_email}
+                            <div>{email.recipient_email}</div>
+                            {email.recipient_name && (
+                              <div className="text-xs text-brand-gold/80 font-normal mt-0.5">{email.recipient_name}</div>
+                            )}
                           </td>
                           <td className="py-4 px-6 text-slate-400 max-w-[200px] truncate">
                             {email.subject}
@@ -1093,6 +1146,16 @@ export default function EmailMonitoringDashboard() {
                               <Clock className="w-3.5 h-3.5 text-slate-500" />
                               <span>{formatDate(email.sent_at)}</span>
                             </div>
+                          </td>
+                          <td className="py-4 px-6 whitespace-nowrap">
+                            {email.proposed_time ? (
+                              <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg bg-brand-gold/10 border border-brand-gold/30 text-brand-gold text-xs font-semibold" title="Horario propuesto para validar en Google Calendar">
+                                <Calendar className="w-3.5 h-3.5 text-brand-gold shrink-0" />
+                                <span>{formatProposedDate(email.proposed_time)}</span>
+                              </div>
+                            ) : (
+                              <span className="text-slate-600 font-mono text-xs">—</span>
+                            )}
                           </td>
                           <td className="py-4 px-6 whitespace-nowrap">
                             {email.status === 'Leído' ? (
@@ -1336,7 +1399,7 @@ export default function EmailMonitoringDashboard() {
                                 {/* Listado de Horarios del Día Seleccionado */}
                                 {selectedDayForPicker && freeSlots[selectedDayForPicker] && (
                                   <div className="space-y-1.5 border-t border-slate-800/60 pt-2">
-                                    <p className="text-[9px] text-slate-400 uppercase font-semibold">Horarios Libres:</p>
+                                    <p className="text-[9px] text-slate-400 uppercase font-semibold">Horarios Libres ({selectedDayForPicker}):</p>
                                     <div className="grid grid-cols-3 gap-1 max-h-[100px] overflow-y-auto pr-1">
                                       {freeSlots[selectedDayForPicker].map((time) => (
                                         <button
@@ -1345,8 +1408,9 @@ export default function EmailMonitoringDashboard() {
                                           onClick={() => {
                                             const [hours, minutes] = time.split(':').map(Number);
                                             const [year, month, day] = selectedDayForPicker.split('-').map(Number);
-                                            const localDate = new Date(year, month - 1, day, hours, minutes, 0, 0);
-                                            handleUpdateQueueItem(item.id, localDate.toISOString(), undefined);
+                                            const pad = (n: number) => String(n).padStart(2, '0');
+                                            const isoTime = `${year}-${pad(month)}-${pad(day)}T${pad(hours)}:${pad(minutes)}:00-05:00`;
+                                            handleUpdateQueueItem(item.id, isoTime, undefined);
                                             setActivePickerId(null);
                                             setSelectedDayForPicker(null);
                                           }}
@@ -1368,7 +1432,7 @@ export default function EmailMonitoringDashboard() {
                                     onChange={(e) => {
                                       const localTime = e.target.value;
                                       if (localTime) {
-                                        const isoTime = new Date(localTime).toISOString();
+                                        const isoTime = `${localTime}:00-05:00`;
                                         handleUpdateQueueItem(item.id, isoTime, undefined);
                                         setActivePickerId(null);
                                         setSelectedDayForPicker(null);
@@ -1388,9 +1452,10 @@ export default function EmailMonitoringDashboard() {
                                 if (item.proposed_time) {
                                   const dateObj = new Date(item.proposed_time);
                                   if (!isNaN(dateObj.getTime())) {
-                                    const yyyy = dateObj.getFullYear();
-                                    const mm = String(dateObj.getMonth() + 1).padStart(2, '0');
-                                    const dd = String(dateObj.getDate()).padStart(2, '0');
+                                    const dateInLima = new Date(dateObj.toLocaleString('en-US', { timeZone: 'America/Lima' }));
+                                    const yyyy = dateInLima.getFullYear();
+                                    const mm = String(dateInLima.getMonth() + 1).padStart(2, '0');
+                                    const dd = String(dateInLima.getDate()).padStart(2, '0');
                                     setSelectedDayForPicker(`${yyyy}-${mm}-${dd}`);
                                   }
                                 }
@@ -1400,6 +1465,7 @@ export default function EmailMonitoringDashboard() {
                               <span>
                                 {item.proposed_time 
                                   ? new Date(item.proposed_time).toLocaleDateString('es-ES', {
+                                      timeZone: 'America/Lima',
                                       day: '2-digit',
                                       month: '2-digit',
                                       hour: '2-digit',

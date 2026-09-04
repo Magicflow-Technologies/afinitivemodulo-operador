@@ -303,18 +303,44 @@ export class EmailTrackingService {
       this.logger.log(`Correo enviado con éxito. Resend ID: ${emailId}`);
 
       // Registrar en Supabase
-      const { data, error } = await this.supabase
+      const insertRecord: any = {
+        recipient_email: recipientEmail,
+        subject: subject,
+        status: 'Enviado',
+        resend_email_id: emailId,
+        sent_at: new Date().toISOString(),
+      };
+
+      if (proposedTime) {
+        insertRecord.proposed_time = proposedTime;
+      }
+      if (recipientName) {
+        insertRecord.recipient_name = recipientName;
+      }
+
+      let { data, error } = await this.supabase
         .from('email_tracking_test')
-        .insert([
-          {
-            recipient_email: recipientEmail,
-            subject: subject,
-            status: 'Enviado',
-            resend_email_id: emailId,
-            sent_at: new Date().toISOString(),
-          },
-        ])
+        .insert([insertRecord])
         .select();
+
+      // En caso de que las nuevas columnas no existan todavía en Supabase, reintentar inserción básica
+      if (error && (insertRecord.proposed_time || insertRecord.recipient_name)) {
+        this.logger.warn(`Inserción enriquecida falló (${error.message}). Reintentando inserción básica...`);
+        const fallback = await this.supabase
+          .from('email_tracking_test')
+          .insert([
+            {
+              recipient_email: recipientEmail,
+              subject: subject,
+              status: 'Enviado',
+              resend_email_id: emailId,
+              sent_at: new Date().toISOString(),
+            },
+          ])
+          .select();
+        data = fallback.data;
+        error = fallback.error;
+      }
 
       if (error) {
         this.logger.error(`Error al insertar en Supabase: ${JSON.stringify(error)}`);
@@ -536,6 +562,36 @@ export class EmailTrackingService {
     return data[0];
   }
 
+  // Helper para construir fechas con la zona horaria fija de Lima, Perú (UTC-5)
+  private createLimaDate(year: number, month: number, day: number, hour: number, minute: number): Date {
+    const pad = (n: number) => String(n).padStart(2, '0');
+    return new Date(`${year}-${pad(month)}-${pad(day)}T${pad(hour)}:${pad(minute)}:00-05:00`);
+  }
+
+  // Helper para obtener el día actual según la zona horaria America/Lima
+  private getTodayInLima(): { year: number; month: number; day: number; dayOfWeek: number } {
+    const now = new Date();
+    const formatter = new Intl.DateTimeFormat('en-US', {
+      timeZone: 'America/Lima',
+      year: 'numeric',
+      month: 'numeric',
+      day: 'numeric',
+    });
+    const parts = formatter.formatToParts(now);
+    let year = now.getFullYear();
+    let month = now.getMonth() + 1;
+    let day = now.getDate();
+
+    for (const p of parts) {
+      if (p.type === 'year') year = parseInt(p.value, 10);
+      if (p.type === 'month') month = parseInt(p.value, 10);
+      if (p.type === 'day') day = parseInt(p.value, 10);
+    }
+
+    const d = new Date(`${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}T12:00:00-05:00`);
+    return { year, month, day, dayOfWeek: d.getDay() };
+  }
+
   async findNextAvailableSlot(
     calendarId: string,
     durationMinutes: number,
@@ -546,14 +602,9 @@ export class EmailTrackingService {
     occupiedEvents: any[],
     reservedSlots: Date[]
   ): Promise<Date> {
-    // Empezamos la búsqueda a partir del día de mañana
-    let searchDate = new Date();
-    searchDate.setDate(searchDate.getDate() + 1);
-    searchDate.setHours(0, 0, 0, 0);
-
     const parseTime = (timeStr: string) => {
-      const [h, m] = timeStr.split(':').map(Number);
-      return { hours: h, minutes: m };
+      const [h, m] = (timeStr || '09:00').split(':').map(Number);
+      return { hours: isNaN(h) ? 9 : h, minutes: isNaN(m) ? 0 : m };
     };
 
     const morningS = parseTime(morningStart);
@@ -561,30 +612,35 @@ export class EmailTrackingService {
     const afternoonS = parseTime(afternoonStart);
     const afternoonE = parseTime(afternoonEnd);
 
+    const todayLima = this.getTodayInLima();
+    // Empezamos la búsqueda a partir del día de mañana en Lima
+    let currentDayDate = new Date(`${todayLima.year}-${String(todayLima.month).padStart(2, '0')}-${String(todayLima.day).padStart(2, '0')}T12:00:00-05:00`);
+    currentDayDate.setDate(currentDayDate.getDate() + 1);
+
     // Buscaremos durante un máximo de 14 días
     for (let day = 0; day < 14; day++) {
       // Saltar fines de semana (Sábado = 6, Domingo = 0)
-      const dayOfWeek = searchDate.getDay();
+      const dayOfWeek = currentDayDate.getDay();
       if (dayOfWeek === 0 || dayOfWeek === 6) {
-        searchDate.setDate(searchDate.getDate() + 1);
+        currentDayDate.setDate(currentDayDate.getDate() + 1);
         continue;
       }
 
-      // Candidatos de mañana
+      const yyyy = currentDayDate.getFullYear();
+      const mm = currentDayDate.getMonth() + 1;
+      const dd = currentDayDate.getDate();
+
       const slots: { start: Date; end: Date }[] = [];
       
       const addSlotsForBlock = (startHour: number, startMin: number, endHour: number, endMin: number) => {
-        let current = new Date(searchDate);
-        current.setHours(startHour, startMin, 0, 0);
+        let currentSlotStart = this.createLimaDate(yyyy, mm, dd, startHour, startMin);
+        const limit = this.createLimaDate(yyyy, mm, dd, endHour, endMin);
 
-        const limit = new Date(searchDate);
-        limit.setHours(endHour, endMin, 0, 0);
-
-        while (current.getTime() + durationMinutes * 60000 <= limit.getTime()) {
-          const slotStart = new Date(current);
-          const slotEnd = new Date(current.getTime() + durationMinutes * 60000);
+        while (currentSlotStart.getTime() + durationMinutes * 60000 <= limit.getTime()) {
+          const slotStart = new Date(currentSlotStart);
+          const slotEnd = new Date(currentSlotStart.getTime() + durationMinutes * 60000);
           slots.push({ start: slotStart, end: slotEnd });
-          current = new Date(current.getTime() + durationMinutes * 60000);
+          currentSlotStart = new Date(currentSlotStart.getTime() + durationMinutes * 60000);
         }
       };
 
@@ -613,13 +669,12 @@ export class EmailTrackingService {
         }
       }
 
-      searchDate.setDate(searchDate.getDate() + 1);
+      currentDayDate.setDate(currentDayDate.getDate() + 1);
     }
 
-    const fallbackDate = new Date();
-    fallbackDate.setDate(fallbackDate.getDate() + 1);
-    fallbackDate.setHours(10, 0, 0, 0);
-    return fallbackDate;
+    // Fallback si no se encontró slot libre
+    const fallbackDay = this.getTodayInLima();
+    return this.createLimaDate(fallbackDay.year, fallbackDay.month, fallbackDay.day + 1, morningS.hours || 9, morningS.minutes || 0);
   }
 
   async loadContactsIntoQueue(contacts: { name: string; email: string; phone?: string }[]) {
@@ -843,6 +898,7 @@ export class EmailTrackingService {
     try {
       const date = new Date(item.proposed_time);
       const formattedDate = date.toLocaleDateString('es-ES', {
+        timeZone: 'America/Lima',
         weekday: 'long',
         day: 'numeric',
         month: 'long',
@@ -1007,8 +1063,8 @@ Me avisa para agendar,`;
     // 2. Obtener slots ya reservados en la base de datos (Omitido para permitir reasignación libre del operador)
 
     const parseTime = (timeStr: string) => {
-      const [h, m] = timeStr.split(':').map(Number);
-      return { hours: h, minutes: m };
+      const [h, m] = (timeStr || '09:00').split(':').map(Number);
+      return { hours: isNaN(h) ? 9 : h, minutes: isNaN(m) ? 0 : m };
     };
 
     const morningS = parseTime(settings.morning_start);
@@ -1018,32 +1074,38 @@ Me avisa para agendar,`;
 
     const availableSlotsByDay: { [key: string]: string[] } = {};
 
-    let searchDate = new Date();
-    // Empezamos desde mañana
-    searchDate.setDate(searchDate.getDate() + 1);
-    searchDate.setHours(0, 0, 0, 0);
+    const todayLima = this.getTodayInLima();
+    // Empezamos desde mañana en Lima
+    let currentDayDate = new Date(`${todayLima.year}-${String(todayLima.month).padStart(2, '0')}-${String(todayLima.day).padStart(2, '0')}T12:00:00-05:00`);
+    currentDayDate.setDate(currentDayDate.getDate() + 1);
 
     for (let day = 0; day < 14; day++) {
-      const dayOfWeek = searchDate.getDay();
+      const dayOfWeek = currentDayDate.getDay();
       if (dayOfWeek === 0 || dayOfWeek === 6) {
-        searchDate.setDate(searchDate.getDate() + 1);
+        currentDayDate.setDate(currentDayDate.getDate() + 1);
         continue;
       }
 
-      const slots: { start: Date; end: Date }[] = [];
+      const yyyy = currentDayDate.getFullYear();
+      const mm = currentDayDate.getMonth() + 1;
+      const dd = currentDayDate.getDate();
+      const pad = (n: number) => String(n).padStart(2, '0');
+      const dayKey = `${yyyy}-${pad(mm)}-${pad(dd)}`;
+
+      const slots: { start: Date; end: Date; timeLabel: string }[] = [];
 
       const addSlotsForBlock = (startHour: number, startMin: number, endHour: number, endMin: number) => {
-        let current = new Date(searchDate);
-        current.setHours(startHour, startMin, 0, 0);
+        let currentSlotStart = this.createLimaDate(yyyy, mm, dd, startHour, startMin);
+        const limit = this.createLimaDate(yyyy, mm, dd, endHour, endMin);
 
-        const limit = new Date(searchDate);
-        limit.setHours(endHour, endMin, 0, 0);
-
-        while (current.getTime() + settings.slot_duration * 60000 <= limit.getTime()) {
-          const slotStart = new Date(current);
-          const slotEnd = new Date(current.getTime() + settings.slot_duration * 60000);
-          slots.push({ start: slotStart, end: slotEnd });
-          current = new Date(current.getTime() + settings.slot_duration * 60000);
+        while (currentSlotStart.getTime() + settings.slot_duration * 60000 <= limit.getTime()) {
+          const slotStart = new Date(currentSlotStart);
+          const slotEnd = new Date(currentSlotStart.getTime() + settings.slot_duration * 60000);
+          
+          const hStr = slotStart.toLocaleTimeString('en-GB', { timeZone: 'America/Lima', hour: '2-digit', minute: '2-digit', hour12: false });
+          slots.push({ start: slotStart, end: slotEnd, timeLabel: hStr });
+          
+          currentSlotStart = new Date(currentSlotStart.getTime() + settings.slot_duration * 60000);
         }
       };
 
@@ -1051,10 +1113,6 @@ Me avisa para agendar,`;
       addSlotsForBlock(morningS.hours, morningS.minutes, morningE.hours, morningE.minutes);
       addSlotsForBlock(afternoonS.hours, afternoonS.minutes, afternoonE.hours, afternoonE.minutes);
 
-      const yyyy = searchDate.getFullYear();
-      const mm = String(searchDate.getMonth() + 1).padStart(2, '0');
-      const dd = String(searchDate.getDate()).padStart(2, '0');
-      const dayKey = `${yyyy}-${mm}-${dd}`;
       const dayFreeSlots: string[] = [];
 
       for (const slot of slots) {
@@ -1067,19 +1125,14 @@ Me avisa para agendar,`;
 
         if (isOccupiedInGoogle) continue;
 
-        // (Verificación de slots en base de datos omitida para permitir libre edición)
-
-        // Formatear la hora en HH:MM
-        const hours = slot.start.getHours().toString().padStart(2, '0');
-        const minutes = slot.start.getMinutes().toString().padStart(2, '0');
-        dayFreeSlots.push(`${hours}:${minutes}`);
+        dayFreeSlots.push(slot.timeLabel);
       }
 
       if (dayFreeSlots.length > 0) {
         availableSlotsByDay[dayKey] = dayFreeSlots;
       }
 
-      searchDate.setDate(searchDate.getDate() + 1);
+      currentDayDate.setDate(currentDayDate.getDate() + 1);
     }
 
     return availableSlotsByDay;
