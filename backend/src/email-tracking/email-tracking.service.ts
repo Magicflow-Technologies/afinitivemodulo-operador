@@ -532,6 +532,9 @@ export class EmailTrackingService {
       .single();
 
     if (error || !data) {
+      if (error) {
+        this.logger.warn(`Error al consultar calendar_settings de Supabase: ${error.message}. Usando valores predeterminados de contingencia.`);
+      }
       // Valores por defecto
       return {
         id: 1,
@@ -540,12 +543,17 @@ export class EmailTrackingService {
         morning_end: '12:00',
         afternoon_start: '14:00',
         afternoon_end: '17:00',
-        send_interval: 5,
+        send_interval: 2,
         send_interval_unit: 'minutes',
       };
     }
 
-    return data;
+    return {
+      ...data,
+      slot_duration: Number(data.slot_duration) || 60,
+      send_interval: Number(data.send_interval) || 2,
+      send_interval_unit: data.send_interval_unit || 'minutes',
+    };
   }
 
   async saveCalendarSettings(settings: {
@@ -561,19 +569,29 @@ export class EmailTrackingService {
       throw new HttpException('El servicio de Supabase no está configurado', HttpStatus.INTERNAL_SERVER_ERROR);
     }
 
+    const payload = {
+      id: 1,
+      slot_duration: Number(settings.slot_duration) || 60,
+      morning_start: settings.morning_start,
+      morning_end: settings.morning_end,
+      afternoon_start: settings.afternoon_start,
+      afternoon_end: settings.afternoon_end,
+      send_interval: Number(settings.send_interval) || 2,
+      send_interval_unit: settings.send_interval_unit || 'minutes',
+      updated_at: new Date().toISOString(),
+    };
+
     const { data, error } = await this.supabase
       .from('calendar_settings')
-      .upsert({
-        id: 1,
-        ...settings,
-        updated_at: new Date().toISOString(),
-      })
+      .upsert(payload)
       .select();
 
     if (error) {
+      this.logger.error(`Error al guardar configuraciones en Supabase: ${error.message}`);
       throw new HttpException(`Error al guardar configuraciones: ${error.message}`, HttpStatus.INTERNAL_SERVER_ERROR);
     }
 
+    this.logger.log(`Configuraciones guardadas con éxito: intervalo=${payload.send_interval} ${payload.send_interval_unit}, duración=${payload.slot_duration}min`);
     return data[0];
   }
 
@@ -882,9 +900,35 @@ export class EmailTrackingService {
     return data[0];
   }
 
+  private workerTimeout: NodeJS.Timeout | null = null;
+
+  async stopEmailQueue() {
+    this.queueProgress.isProcessing = false;
+    if (this.workerTimeout) {
+      clearTimeout(this.workerTimeout);
+      this.workerTimeout = null;
+    }
+
+    if (this.supabase) {
+      // Revertir cualquier correo que haya quedado en estado 'processing' de vuelta a 'pending'
+      await this.supabase
+        .from('email_queue')
+        .update({ status: 'pending' })
+        .eq('status', 'processing');
+    }
+
+    this.logger.log('Procesamiento de cola de correos detenido por el usuario.');
+    return { success: true, message: 'La cola de envíos ha sido detenida.' };
+  }
+
   async clearQueue() {
     if (!this.supabase) {
       throw new HttpException('El servicio de Supabase no está configurado', HttpStatus.INTERNAL_SERVER_ERROR);
+    }
+
+    if (this.workerTimeout) {
+      clearTimeout(this.workerTimeout);
+      this.workerTimeout = null;
     }
 
     const { error } = await this.supabase
@@ -919,7 +963,12 @@ export class EmailTrackingService {
     return this.queueProgress;
   }
 
-  async processEmailQueue(signatureId?: string, attachment?: { filename: string; content: string }) {
+  async processEmailQueue(
+    signatureId?: string, 
+    attachment?: { filename: string; content: string },
+    overrideInterval?: number,
+    overrideIntervalUnit?: string
+  ) {
     if (this.queueProgress.isProcessing) {
       return { success: true, message: 'La cola ya se está procesando actualmente.' };
     }
@@ -945,23 +994,46 @@ export class EmailTrackingService {
     this.queueProgress.failed = 0;
     this.queueProgress.currentId = null;
 
-    const settings = await this.getCalendarSettings();
-    let intervalMs = settings.send_interval * 1000;
-    if (settings.send_interval_unit === 'minutes') {
-      intervalMs = settings.send_interval * 60000;
-    } else if (settings.send_interval_unit === 'hours') {
-      intervalMs = settings.send_interval * 3600000;
+    // Si el usuario especificó intervalo directamente en la petición, sincronizarlo y usarlo de inmediato
+    if (overrideInterval && Number(overrideInterval) > 0) {
+      try {
+        const currentSettings = await this.getCalendarSettings();
+        await this.saveCalendarSettings({
+          slot_duration: currentSettings.slot_duration,
+          morning_start: currentSettings.morning_start,
+          morning_end: currentSettings.morning_end,
+          afternoon_start: currentSettings.afternoon_start,
+          afternoon_end: currentSettings.afternoon_end,
+          send_interval: Number(overrideInterval),
+          send_interval_unit: overrideIntervalUnit || 'minutes',
+        });
+      } catch (err) {
+        this.logger.warn(`No se pudo sincronizar overrideInterval: ${err.message}`);
+      }
     }
 
-    this.runQueueWorker(intervalMs).catch(err => {
+    const settings = await this.getCalendarSettings();
+    const intervalVal = Number(overrideInterval) > 0 ? Number(overrideInterval) : Number(settings.send_interval);
+    const intervalUnit = overrideIntervalUnit || settings.send_interval_unit;
+
+    let intervalMs = intervalVal * 1000;
+    if (intervalUnit === 'minutes') {
+      intervalMs = intervalVal * 60000;
+    } else if (intervalUnit === 'hours') {
+      intervalMs = intervalVal * 3600000;
+    }
+
+    this.logger.log(`Iniciando worker de cola (${count} correos). Intervalo configurado: ${intervalVal} ${intervalUnit} (${intervalMs}ms).`);
+
+    this.runQueueWorker().catch(err => {
       this.logger.error(`Error crítico en la ejecución del worker de la cola: ${err.message}`);
       this.queueProgress.isProcessing = false;
     });
 
-    return { success: true, message: 'Procesamiento de cola iniciado.', total: count };
+    return { success: true, message: 'Procesamiento de cola iniciado.', total: count, interval: `${intervalVal} ${intervalUnit}` };
   }
 
-  async runQueueWorker(intervalMs: number) {
+  async runQueueWorker() {
     if (!this.queueProgress.isProcessing) return;
 
     const { data: pendingItems, error } = await this.supabase
@@ -1046,6 +1118,7 @@ Me avisa para agendar,`;
         .eq('id', item.id);
 
       this.queueProgress.sent++;
+      this.logger.log(`Correo enviado a ${item.recipient_email} (${this.queueProgress.sent}/${this.queueProgress.total})`);
     } catch (err) {
       this.logger.error(`Error enviando correo de la cola para ${item.recipient_email}: ${err.message}`);
       await this.supabase
@@ -1056,9 +1129,26 @@ Me avisa para agendar,`;
       this.queueProgress.failed++;
     }
 
-    setTimeout(() => {
-      this.runQueueWorker(intervalMs);
-    }, intervalMs);
+    // Consultar dinámicamente el intervalo activo más reciente de Supabase
+    let nextIntervalMs = 120000;
+    try {
+      const activeSettings = await this.getCalendarSettings();
+      let calculatedMs = Number(activeSettings.send_interval) * 1000;
+      if (activeSettings.send_interval_unit === 'minutes') {
+        calculatedMs = Number(activeSettings.send_interval) * 60000;
+      } else if (activeSettings.send_interval_unit === 'hours') {
+        calculatedMs = Number(activeSettings.send_interval) * 3600000;
+      }
+      nextIntervalMs = calculatedMs;
+    } catch (e) {
+      this.logger.warn(`No se pudo refrescar intervalo activo para el siguiente ciclo: ${e.message}`);
+    }
+
+    this.logger.log(`Esperando ${nextIntervalMs / 1000}s (${nextIntervalMs / 60000} min) antes del próximo envío...`);
+
+    this.workerTimeout = setTimeout(() => {
+      this.runQueueWorker();
+    }, nextIntervalMs);
   }
 
   async confirmMeeting(calendarId: string, time: string, email: string, name: string) {
@@ -1091,6 +1181,49 @@ Me avisa para agendar,`;
 
       this.logger.log(`¡Cita registrada con éxito en el calendario de ${calendarId}!`);
 
+      // Actualizar estado en Supabase para reflejar que el cliente agendó la cita
+      if (this.supabase && email) {
+        try {
+          const emailClean = email.trim().toLowerCase();
+          const nowIso = new Date().toISOString();
+
+          // 1. Actualizar en email_tracking_test (Tracking de correos enviados)
+          const { error: trackErr } = await this.supabase
+            .from('email_tracking_test')
+            .update({
+              status: 'Agendado',
+              opened_at: nowIso,
+            })
+            .ilike('recipient_email', emailClean);
+
+          if (trackErr) {
+            this.logger.warn(`No se pudo actualizar status en email_tracking_test para ${emailClean}: ${trackErr.message}`);
+          } else {
+            this.logger.log(`Cliente ${emailClean} actualizado a 'Agendado' en email_tracking_test.`);
+          }
+
+          // 2. Actualizar en email_queue (Cola de envíos)
+          const { error: queueErr } = await this.supabase
+            .from('email_queue')
+            .update({
+              status: 'agendado',
+            })
+            .ilike('recipient_email', emailClean);
+
+          if (queueErr) {
+            this.logger.warn(`No se pudo actualizar status en email_queue para ${emailClean}: ${queueErr.message}`);
+          } else {
+            this.logger.log(`Cliente ${emailClean} actualizado a 'agendado' en email_queue.`);
+          }
+        } catch (dbErr) {
+          this.logger.warn(`Error al actualizar estado 'Agendado' en base de datos: ${dbErr.message}`);
+        }
+      }
+
+      const advisorName = (calendarId.includes('ricardo') || calendarId.includes('rbertalmio')) 
+        ? 'Ricardo Bertalmio Ruibal' 
+        : 'Irina Portilla Farfán';
+
       return `
         <html>
           <head>
@@ -1112,7 +1245,7 @@ Me avisa para agendar,`;
               </div>
               <div class="icon">📅</div>
               <h1>¡Reunión Confirmada!</h1>
-              <p>Hola <strong>${name || email}</strong>, tu cita ha sido registrada con éxito en el calendario de Ricardo Bertalmio.<br>Hemos enviado la invitación a tu correo electrónico <strong>${email}</strong>.</p>
+              <p>Hola <strong>${name || email}</strong>, tu cita ha sido registrada con éxito en el calendario de ${advisorName}.<br>Hemos enviado la invitación a tu correo electrónico <strong>${email}</strong>.</p>
               <div style="font-size: 13px; color: #94A3B8;">Afinitive Wealth Management</div>
             </div>
           </body>

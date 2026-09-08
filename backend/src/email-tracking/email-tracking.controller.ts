@@ -86,15 +86,27 @@ export class EmailTrackingController {
   async processQueue(
     @Body() body: { 
       signatureId?: string; 
-      attachment?: { filename: string; content: string } 
+      attachment?: { filename: string; content: string };
+      sendInterval?: number;
+      sendIntervalUnit?: string;
     }
   ) {
-    return await this.emailTrackingService.processEmailQueue(body.signatureId, body.attachment);
+    return await this.emailTrackingService.processEmailQueue(
+      body.signatureId, 
+      body.attachment,
+      body.sendInterval,
+      body.sendIntervalUnit
+    );
   }
 
   @Get('queue/status')
   async getStatus() {
     return this.emailTrackingService.getQueueStatus();
+  }
+
+  @Post('queue/stop')
+  async stop() {
+    return await this.emailTrackingService.stopEmailQueue();
   }
 
   @Post('queue/clear')

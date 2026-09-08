@@ -18,7 +18,8 @@ import {
   Users,
   Play,
   Trash2,
-  Settings
+  Settings,
+  PauseCircle
 } from 'lucide-react';
 
 interface EmailRecord {
@@ -272,7 +273,7 @@ export default function EmailMonitoringDashboard() {
     }
   }, [BACKEND_URL]);
 
-  // Guardar Configuraciones de Agenda
+  // Guardar Configuraciones de Agenda y Envíos
   const handleSaveSettings = async (e: React.FormEvent) => {
     e.preventDefault();
     setSettingsLoading(true);
@@ -283,19 +284,22 @@ export default function EmailMonitoringDashboard() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          slot_duration: slotDuration,
+          slot_duration: Number(slotDuration),
           morning_start: morningStart,
           morning_end: morningEnd,
           afternoon_start: afternoonStart,
           afternoon_end: afternoonEnd,
-          send_interval: sendInterval,
+          send_interval: Number(sendInterval),
           send_interval_unit: sendIntervalUnit,
         }),
       });
       if (response.ok) {
-        setSuccessMsg('¡Configuración de agenda guardada con éxito!');
+        const unitLabel = sendIntervalUnit === 'minutes' ? 'minuto(s)' : sendIntervalUnit === 'seconds' ? 'segundo(s)' : 'hora(s)';
+        setSuccessMsg(`¡Configuraciones guardadas con éxito! Intervalo de envío establecido en ${sendInterval} ${unitLabel}.`);
+        await fetchSettings();
       } else {
-        throw new Error('No se pudo guardar la configuración');
+        const errData = await response.json();
+        throw new Error(errData.message || 'No se pudo guardar la configuración');
       }
     } catch (err: any) {
       setErrorMsg(`Error al guardar configuración: ${err.message}`);
@@ -476,7 +480,9 @@ export default function EmailMonitoringDashboard() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ 
           signatureId,
-          attachment: attachmentData
+          attachment: attachmentData,
+          sendInterval: Number(sendInterval),
+          sendIntervalUnit: sendIntervalUnit
         }),
       });
       if (response.ok) {
@@ -489,6 +495,31 @@ export default function EmailMonitoringDashboard() {
       }
     } catch (err: any) {
       setErrorMsg(err.message);
+    } finally {
+      setQueueLoading(false);
+    }
+  };
+
+  // Detener / Pausar la cola de envíos activa
+  const handleStopQueue = async () => {
+    if (!window.confirm('¿Estás seguro de que deseas detener el envío de la cola? Los correos pendientes se mantendrán guardados.')) return;
+    setQueueLoading(true);
+    setErrorMsg(null);
+    setSuccessMsg(null);
+    try {
+      const response = await fetch(`${BACKEND_URL}/api/test-email/queue/stop`, {
+        method: 'POST',
+      });
+      if (response.ok) {
+        setSuccessMsg('Cola de envíos detenida. Los correos pendientes se mantienen listos en la cola.');
+        await fetchQueueStatus();
+        await fetchPendingQueue();
+      } else {
+        const errData = await response.json();
+        throw new Error(errData.message || 'Error al detener la cola');
+      }
+    } catch (err: any) {
+      setErrorMsg(`Error al detener envíos: ${err.message}`);
     } finally {
       setQueueLoading(false);
     }
@@ -697,7 +728,10 @@ export default function EmailMonitoringDashboard() {
           </button>
           
           <button
-            onClick={() => setActiveTab('campanas')}
+            onClick={() => {
+              setActiveTab('campanas');
+              fetchSettings();
+            }}
             className={`flex items-center gap-2 px-6 py-3.5 font-semibold text-sm transition-all duration-200 border-b-2 cursor-pointer whitespace-nowrap ${
               activeTab === 'campanas'
                 ? 'border-brand-gold text-brand-gold bg-brand-gold/5'
@@ -709,7 +743,10 @@ export default function EmailMonitoringDashboard() {
           </button>
 
           <button
-            onClick={() => setActiveTab('agenda')}
+            onClick={() => {
+              setActiveTab('agenda');
+              fetchSettings();
+            }}
             className={`flex items-center gap-2 px-6 py-3.5 font-semibold text-sm transition-all duration-200 border-b-2 cursor-pointer whitespace-nowrap ${
               activeTab === 'agenda'
                 ? 'border-brand-gold text-brand-gold bg-brand-gold/5'
@@ -717,7 +754,7 @@ export default function EmailMonitoringDashboard() {
             }`}
           >
             <Sliders className="w-4 h-4" />
-            <span>Configuración de Agenda</span>
+            <span>Configuración y Tiempos de Envío</span>
           </button>
         </div>
 
@@ -1074,6 +1111,53 @@ export default function EmailMonitoringDashboard() {
                 </span>
               </div>
 
+              {/* Tarjetas de Métricas Resumen (Funnel: Enviado -> Leído -> Agendado) */}
+              <div className="p-6 pb-2 grid grid-cols-1 sm:grid-cols-3 gap-4 border-b border-brand-gold/10">
+                <div className="bg-[#08101A] border border-brand-gold/15 rounded-xl p-4 flex items-center justify-between">
+                  <div>
+                    <p className="text-xs text-slate-400 font-medium uppercase">Total Enviados</p>
+                    <p className="text-2xl font-bold text-slate-100 font-mono mt-1">{emails.length}</p>
+                  </div>
+                  <div className="p-2.5 bg-blue-500/10 border border-blue-500/20 rounded-lg text-blue-400">
+                    <Mail className="w-5 h-5" />
+                  </div>
+                </div>
+
+                <div className="bg-[#08101A] border border-brand-gold/15 rounded-xl p-4 flex items-center justify-between">
+                  <div>
+                    <p className="text-xs text-slate-400 font-medium uppercase">Correos Leídos</p>
+                    <div className="flex items-baseline gap-2 mt-1">
+                      <p className="text-2xl font-bold text-emerald-400 font-mono">
+                        {emails.filter(e => e.status === 'Leído' || e.status === 'Agendado').length}
+                      </p>
+                      <span className="text-xs font-semibold text-emerald-400/80 font-mono">
+                        ({emails.length > 0 ? Math.round((emails.filter(e => e.status === 'Leído' || e.status === 'Agendado').length / emails.length) * 100) : 0}%)
+                      </span>
+                    </div>
+                  </div>
+                  <div className="p-2.5 bg-emerald-500/10 border border-emerald-500/20 rounded-lg text-emerald-400">
+                    <Eye className="w-5 h-5" />
+                  </div>
+                </div>
+
+                <div className="bg-[#08101A] border border-purple-500/30 rounded-xl p-4 flex items-center justify-between shadow-lg shadow-purple-950/20">
+                  <div>
+                    <p className="text-xs text-purple-300 font-medium uppercase">Citas Agendadas</p>
+                    <div className="flex items-baseline gap-2 mt-1">
+                      <p className="text-2xl font-bold text-purple-400 font-mono">
+                        {emails.filter(e => e.status === 'Agendado').length}
+                      </p>
+                      <span className="text-xs font-semibold text-purple-300/80 font-mono">
+                        ({emails.length > 0 ? Math.round((emails.filter(e => e.status === 'Agendado').length / emails.length) * 100) : 0}% conv.)
+                      </span>
+                    </div>
+                  </div>
+                  <div className="p-2.5 bg-purple-500/20 border border-purple-500/40 rounded-lg text-purple-300">
+                    <CheckCircle className="w-5 h-5" />
+                  </div>
+                </div>
+              </div>
+
               {/* Barra de Filtros */}
               <div className="p-6 bg-slate-950/20 border-b border-brand-gold/10 flex flex-col md:flex-row gap-4 items-end">
                 <div className="w-full md:w-1/4 space-y-1.5">
@@ -1086,6 +1170,7 @@ export default function EmailMonitoringDashboard() {
                     <option value="Todos">Todos los Estados</option>
                     <option value="Enviado">Enviado</option>
                     <option value="Leído">Leído</option>
+                    <option value="Agendado">📅 Agendado (Cita Confirmada)</option>
                   </select>
                 </div>
 
@@ -1189,7 +1274,12 @@ export default function EmailMonitoringDashboard() {
                             )}
                           </td>
                           <td className="py-4 px-6 whitespace-nowrap">
-                            {email.status === 'Leído' ? (
+                            {email.status === 'Agendado' ? (
+                              <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-purple-500/20 border border-purple-500/50 text-purple-300 shadow-md shadow-purple-950/30">
+                                <CheckCircle className="w-3.5 h-3.5 text-purple-400" />
+                                Cita Agendada
+                              </span>
+                            ) : email.status === 'Leído' ? (
                               <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 shadow-sm shadow-emerald-500/5">
                                 <Eye className="w-3.5 h-3.5" />
                                 Leído
@@ -1237,10 +1327,21 @@ export default function EmailMonitoringDashboard() {
                     </p>
                   </div>
                   
-                  <div className="flex gap-3">
+                  <div className="flex items-center gap-3">
+                    {queueStatus.isProcessing && (
+                      <button
+                        onClick={handleStopQueue}
+                        disabled={queueLoading}
+                        className="px-4 py-2 border border-red-500/50 hover:border-red-400 bg-red-600/20 hover:bg-red-600/30 text-red-300 hover:text-red-200 rounded-xl text-sm font-semibold transition-all duration-200 flex items-center gap-2 cursor-pointer shadow-lg shadow-red-950/40 animate-pulse disabled:opacity-50"
+                      >
+                        <PauseCircle className="w-4 h-4 text-red-400" />
+                        <span>Detener Envíos</span>
+                      </button>
+                    )}
                     <button
                       onClick={handleClearQueue}
-                      className="px-4 py-2 border border-red-500/30 hover:border-red-500 bg-red-500/10 hover:bg-red-500/20 text-red-400 rounded-xl text-sm font-semibold transition-all duration-200 flex items-center gap-2 cursor-pointer"
+                      disabled={queueLoading}
+                      className="px-4 py-2 border border-red-500/30 hover:border-red-500 bg-red-500/10 hover:bg-red-500/20 text-red-400 rounded-xl text-sm font-semibold transition-all duration-200 flex items-center gap-2 cursor-pointer disabled:opacity-40"
                     >
                       <Trash2 className="w-4 h-4" />
                       <span>Limpiar Cola</span>
@@ -1299,6 +1400,18 @@ export default function EmailMonitoringDashboard() {
                             <p className="text-lg font-bold text-slate-300">{queueStatus.total - (queueStatus.sent + queueStatus.failed)}</p>
                           </div>
                         </div>
+
+                        {/* Botón directo para detener desde la tarjeta de progreso */}
+                        <div className="pt-2 border-t border-slate-800/60">
+                          <button
+                            onClick={handleStopQueue}
+                            disabled={queueLoading}
+                            className="w-full py-2.5 bg-red-500/15 hover:bg-red-500/25 border border-red-500/40 hover:border-red-500/70 text-red-300 hover:text-red-200 font-semibold rounded-xl text-xs transition-all duration-200 flex items-center justify-center gap-2 cursor-pointer shadow-md disabled:opacity-50"
+                          >
+                            <PauseCircle className="w-4 h-4 text-red-400" />
+                            <span>Pausar / Detener Envío de Cola</span>
+                          </button>
+                        </div>
                       </div>
                     ) : (
                       <div className="py-2 space-y-4">
@@ -1318,6 +1431,40 @@ export default function EmailMonitoringDashboard() {
                                 📎 Se adjuntará el archivo: <strong>{selectedFile.name}</strong> a todos los correos.
                               </p>
                             )}
+                            {/* Control directo del Intervalo de Envío */}
+                            <div className="bg-slate-950/70 border border-brand-gold/25 rounded-xl p-3.5 space-y-2 text-xs">
+                              <div className="flex items-center justify-between">
+                                <label className="text-brand-gold font-semibold uppercase tracking-wider flex items-center gap-1.5">
+                                  <Clock className="w-3.5 h-3.5 text-brand-gold" />
+                                  Intervalo entre Envíos:
+                                </label>
+                                <span className="text-[10px] text-slate-400">Control directo</span>
+                              </div>
+                              <div className="flex gap-2">
+                                <input
+                                  type="number"
+                                  min="1"
+                                  required
+                                  value={sendInterval}
+                                  onChange={(e) => setSendInterval(Number(e.target.value))}
+                                  disabled={queueLoading || queueStatus.isProcessing}
+                                  className="w-1/2 px-3 py-2 bg-[#08101A] border border-brand-gold/30 focus:border-brand-gold rounded-lg text-slate-100 font-mono text-xs outline-none"
+                                />
+                                <select
+                                  value={sendIntervalUnit}
+                                  onChange={(e) => setSendIntervalUnit(e.target.value)}
+                                  disabled={queueLoading || queueStatus.isProcessing}
+                                  className="w-1/2 px-3 py-2 bg-[#08101A] border border-brand-gold/30 focus:border-brand-gold rounded-lg text-slate-100 font-sans text-xs outline-none"
+                                >
+                                  <option value="seconds">Segundos</option>
+                                  <option value="minutes">Minutos</option>
+                                  <option value="hours">Horas</option>
+                                </select>
+                              </div>
+                              <p className="text-[11px] text-slate-400">
+                                ⏱️ Se esperará exactamente <strong className="text-brand-gold font-mono">{sendInterval} {sendIntervalUnit === 'minutes' ? 'minutos' : sendIntervalUnit === 'seconds' ? 'segundos' : 'horas'}</strong> entre cada correo despachado.
+                              </p>
+                            </div>
                             <button
                               onClick={handleProcessQueue}
                               disabled={queueLoading}
@@ -1598,6 +1745,12 @@ export default function EmailMonitoringDashboard() {
                                 Error
                               </span>
                             )}
+                            {item.status === 'agendado' && (
+                              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xxs font-semibold bg-purple-500/20 border border-purple-500/50 text-purple-300 shadow-sm">
+                                <CheckCircle className="w-3 h-3 text-purple-400" />
+                                Cita Agendada
+                              </span>
+                            )}
                             {item.status === 'excluded' && (
                               <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xxs font-semibold bg-slate-500/10 border border-slate-500/30 text-slate-400">
                                 Excluido
@@ -1768,7 +1921,7 @@ export default function EmailMonitoringDashboard() {
                     ) : (
                       <>
                         <Settings className="w-4 h-4" />
-                        <span>Guardar Cambios de Disponibilidad</span>
+                        <span>Guardar Cambios de Disponibilidad y Envíos</span>
                       </>
                     )}
                   </button>
