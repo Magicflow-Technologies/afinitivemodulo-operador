@@ -125,6 +125,16 @@ export class EmailTrackingController {
     return await this.emailTrackingService.confirmMeeting(calendarId, time, email, name);
   }
 
+  // --- Endpoint Público para Rastreo de Clic en WhatsApp (Redirección HTML) ---
+  @Get('whatsapp-click')
+  async handleWhatsAppClick(
+    @Query('email') email: string,
+    @Query('name') name: string,
+    @Query('signatureId') signatureId: string
+  ) {
+    return await this.emailTrackingService.trackWhatsAppClick(email, name, signatureId);
+  }
+
   @Get('free-slots')
   async getFreeSlots(@Query('signatureId') signatureId?: string) {
     return await this.emailTrackingService.getAvailableSlots(signatureId);

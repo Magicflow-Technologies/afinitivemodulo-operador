@@ -19,7 +19,8 @@ import {
   Play,
   Trash2,
   Settings,
-  PauseCircle
+  PauseCircle,
+  MessageCircle
 } from 'lucide-react';
 
 interface EmailRecord {
@@ -32,6 +33,7 @@ interface EmailRecord {
   sent_at: string;
   opened_at: string | null;
   proposed_time?: string | null;
+  whatsapp_clicked_at?: string | null;
 }
 
 interface QueueItem {
@@ -42,6 +44,7 @@ interface QueueItem {
   proposed_time: string;
   status: string;
   error_message: string | null;
+  whatsapp_clicked_at?: string | null;
 }
 
 interface SkippedContact {
@@ -177,8 +180,12 @@ export default function EmailMonitoringDashboard() {
 
   // Lógica de filtrado de correos
   const filteredEmails = emails.filter((email) => {
-    if (filterStatus !== 'Todos' && email.status !== filterStatus) {
-      return false;
+    if (filterStatus !== 'Todos') {
+      if (filterStatus === 'WhatsApp') {
+        if (!email.whatsapp_clicked_at) return false;
+      } else if (email.status !== filterStatus) {
+        return false;
+      }
     }
     if (filterStartDate) {
       const start = new Date(filterStartDate);
@@ -208,18 +215,19 @@ export default function EmailMonitoringDashboard() {
         throw trackingError;
       }
 
-      // Enriquecer con datos de la cola (proposed_time / recipient_name) para compatibilidad inmediata
+      // Enriquecer con datos de la cola (proposed_time / recipient_name / whatsapp_clicked_at) para compatibilidad inmediata
       const { data: queueData } = await supabase
         .from('email_queue')
-        .select('recipient_email, recipient_name, proposed_time');
+        .select('recipient_email, recipient_name, proposed_time, whatsapp_clicked_at');
 
-      const queueMap = new Map<string, { recipient_name?: string; proposed_time?: string }>();
+      const queueMap = new Map<string, { recipient_name?: string; proposed_time?: string; whatsapp_clicked_at?: string }>();
       if (queueData) {
         queueData.forEach((q: any) => {
           if (q.recipient_email) {
             queueMap.set(q.recipient_email.toLowerCase(), {
               recipient_name: q.recipient_name,
               proposed_time: q.proposed_time,
+              whatsapp_clicked_at: q.whatsapp_clicked_at,
             });
           }
         });
@@ -231,6 +239,7 @@ export default function EmailMonitoringDashboard() {
           ...item,
           recipient_name: item.recipient_name || queueMatch?.recipient_name || null,
           proposed_time: item.proposed_time || queueMatch?.proposed_time || null,
+          whatsapp_clicked_at: item.whatsapp_clicked_at || queueMatch?.whatsapp_clicked_at || null,
         };
       });
 
@@ -1111,8 +1120,8 @@ export default function EmailMonitoringDashboard() {
                 </span>
               </div>
 
-              {/* Tarjetas de Métricas Resumen (Funnel: Enviado -> Leído -> Agendado) */}
-              <div className="p-6 pb-2 grid grid-cols-1 sm:grid-cols-3 gap-4 border-b border-brand-gold/10">
+              {/* Tarjetas de Métricas Resumen (Funnel: Enviado -> Leído -> WhatsApp -> Agendado) */}
+              <div className="p-6 pb-2 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 border-b border-brand-gold/10">
                 <div className="bg-[#08101A] border border-brand-gold/15 rounded-xl p-4 flex items-center justify-between">
                   <div>
                     <p className="text-xs text-slate-400 font-medium uppercase">Total Enviados</p>
@@ -1128,15 +1137,32 @@ export default function EmailMonitoringDashboard() {
                     <p className="text-xs text-slate-400 font-medium uppercase">Correos Leídos</p>
                     <div className="flex items-baseline gap-2 mt-1">
                       <p className="text-2xl font-bold text-emerald-400 font-mono">
-                        {emails.filter(e => e.status === 'Leído' || e.status === 'Agendado').length}
+                        {emails.filter(e => e.status === 'Leído' || e.status === 'Agendado' || e.whatsapp_clicked_at).length}
                       </p>
                       <span className="text-xs font-semibold text-emerald-400/80 font-mono">
-                        ({emails.length > 0 ? Math.round((emails.filter(e => e.status === 'Leído' || e.status === 'Agendado').length / emails.length) * 100) : 0}%)
+                        ({emails.length > 0 ? Math.round((emails.filter(e => e.status === 'Leído' || e.status === 'Agendado' || e.whatsapp_clicked_at).length / emails.length) * 100) : 0}%)
                       </span>
                     </div>
                   </div>
                   <div className="p-2.5 bg-emerald-500/10 border border-emerald-500/20 rounded-lg text-emerald-400">
                     <Eye className="w-5 h-5" />
+                  </div>
+                </div>
+
+                <div className="bg-[#08101A] border border-[#25D366]/30 rounded-xl p-4 flex items-center justify-between shadow-lg shadow-emerald-950/20">
+                  <div>
+                    <p className="text-xs text-[#25D366] font-medium uppercase">Clicks WhatsApp</p>
+                    <div className="flex items-baseline gap-2 mt-1">
+                      <p className="text-2xl font-bold text-[#25D366] font-mono">
+                        {emails.filter(e => e.whatsapp_clicked_at).length}
+                      </p>
+                      <span className="text-xs font-semibold text-[#25D366]/80 font-mono">
+                        ({emails.length > 0 ? Math.round((emails.filter(e => e.whatsapp_clicked_at).length / emails.length) * 100) : 0}%)
+                      </span>
+                    </div>
+                  </div>
+                  <div className="p-2.5 bg-[#25D366]/20 border border-[#25D366]/40 rounded-lg text-[#25D366]">
+                    <MessageCircle className="w-5 h-5" />
                   </div>
                 </div>
 
@@ -1171,6 +1197,7 @@ export default function EmailMonitoringDashboard() {
                     <option value="Enviado">Enviado</option>
                     <option value="Leído">Leído</option>
                     <option value="Agendado">📅 Agendado (Cita Confirmada)</option>
+                    <option value="WhatsApp">💬 Contactó por WhatsApp</option>
                   </select>
                 </div>
 
@@ -1274,22 +1301,34 @@ export default function EmailMonitoringDashboard() {
                             )}
                           </td>
                           <td className="py-4 px-6 whitespace-nowrap">
-                            {email.status === 'Agendado' ? (
-                              <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-purple-500/20 border border-purple-500/50 text-purple-300 shadow-md shadow-purple-950/30">
-                                <CheckCircle className="w-3.5 h-3.5 text-purple-400" />
-                                Cita Agendada
-                              </span>
-                            ) : email.status === 'Leído' ? (
-                              <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 shadow-sm shadow-emerald-500/5">
-                                <Eye className="w-3.5 h-3.5" />
-                                Leído
-                              </span>
-                            ) : (
-                              <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-brand-navy-light border border-blue-500/30 text-blue-400 shadow-sm">
-                                <Clock className="w-3.5 h-3.5" />
-                                Enviado
-                              </span>
-                            )}
+                            <div className="flex flex-col gap-1.5 items-start">
+                              {email.status === 'Agendado' ? (
+                                <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-purple-500/20 border border-purple-500/50 text-purple-300 shadow-md shadow-purple-950/30">
+                                  <CheckCircle className="w-3.5 h-3.5 text-purple-400" />
+                                  Cita Agendada
+                                </span>
+                              ) : email.status === 'Leído' ? (
+                                <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 shadow-sm shadow-emerald-500/5">
+                                  <Eye className="w-3.5 h-3.5" />
+                                  Leído
+                                </span>
+                              ) : (
+                                <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-brand-navy-light border border-blue-500/30 text-blue-400 shadow-sm">
+                                  <Clock className="w-3.5 h-3.5" />
+                                  Enviado
+                                </span>
+                              )}
+
+                              {email.whatsapp_clicked_at && (
+                                <span 
+                                  className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xxs font-semibold bg-[#25D366]/20 border border-[#25D366]/50 text-[#25D366] shadow-sm shadow-emerald-950/30"
+                                  title={`Clic en WhatsApp: ${formatDate(email.whatsapp_clicked_at)}`}
+                                >
+                                  <MessageCircle className="w-3 h-3 text-[#25D366]" />
+                                  WhatsApp ({formatDate(email.whatsapp_clicked_at)})
+                                </span>
+                              )}
+                            </div>
                           </td>
                           <td className="py-4 px-6 text-slate-400 whitespace-nowrap">
                             {email.status === 'Leído' ? (
@@ -1754,6 +1793,16 @@ export default function EmailMonitoringDashboard() {
                             {item.status === 'excluded' && (
                               <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xxs font-semibold bg-slate-500/10 border border-slate-500/30 text-slate-400">
                                 Excluido
+                              </span>
+                            )}
+
+                            {item.whatsapp_clicked_at && (
+                              <span 
+                                className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xxs font-semibold bg-[#25D366]/20 border border-[#25D366]/50 text-[#25D366] shadow-sm ml-1.5"
+                                title={`Clic en WhatsApp: ${formatDate(item.whatsapp_clicked_at)}`}
+                              >
+                                <MessageCircle className="w-2.5 h-2.5 text-[#25D366]" />
+                                WhatsApp
                               </span>
                             )}
                           </td>

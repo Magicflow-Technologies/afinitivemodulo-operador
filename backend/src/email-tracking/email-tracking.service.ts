@@ -196,7 +196,7 @@ export class EmailTrackingService {
     // Botones de acción dinámicos (Confirmar cita y WhatsApp)
     const backendBaseUrl = (this.configService.get<string>('BACKEND_PUBLIC_URL') || process.env.BACKEND_PUBLIC_URL || process.env.APP_URL || `http://localhost:${process.env.PORT || 3080}`).replace(/\/+$/, '');
     const confirmLink = `${backendBaseUrl}/api/test-email/confirm-meeting?calendarId=${signatureId === 'ricardo' ? 'rbertalmio@afinitive.com' : 'iportilla@afinitive.com.pe'}&time=${encodeURIComponent(proposedTime || '')}&email=${encodeURIComponent(recipientEmail)}&name=${encodeURIComponent(recipientName || '')}`;
-    const whatsappLink = `https://wa.me/51902821992?text=${encodeURIComponent('Hola, me gustaría más información o coordinar un cambio de horario para mi reunión con Afinitive.')}`;
+    const whatsappTrackingLink = `${backendBaseUrl}/api/test-email/whatsapp-click?email=${encodeURIComponent(recipientEmail)}&name=${encodeURIComponent(recipientName || '')}&signatureId=${signatureId || 'irina'}`;
     
     const actionButtonsHtml = `
       <div style="text-align: center; margin: 30px 0 25px 0;">
@@ -212,7 +212,7 @@ export class EmailTrackingService {
           <p style="font-size: 13px; color: #64748B; margin: 0 0 10px 0; text-align: center; font-family: Arial, sans-serif;">
             Si deseas más información o cambiar la cita contáctanos aquí:
           </p>
-          <a href="${whatsappLink}" 
+          <a href="${whatsappTrackingLink}" 
              target="_blank"
              style="display: inline-block; background-color: #25D366; color: #FFFFFF; padding: 11px 26px; font-weight: bold; font-size: 13px; text-decoration: none; border-radius: 6px; letter-spacing: 0.5px; box-shadow: 0 2px 6px rgba(37, 211, 102, 0.25); font-family: Arial, sans-serif;">
             💬 Chatear por WhatsApp
@@ -1255,6 +1255,98 @@ Me avisa para agendar,`;
       this.logger.error(`Error confirmando reunión: ${err.message}`);
       throw new HttpException(`Error al programar la reunión en Google Calendar: ${err.message}`, HttpStatus.INTERNAL_SERVER_ERROR);
     }
+  }
+
+  async trackWhatsAppClick(email?: string, name?: string, signatureId?: string): Promise<string> {
+    this.logger.log(`Registrando clic en WhatsApp para el destinatario: ${email || 'Desconocido'}`);
+
+    const defaultPhone = '51902821992';
+    const targetUrl = `https://wa.me/${defaultPhone}?text=${encodeURIComponent('Hola, me gustaría más información o coordinar un cambio de horario para mi reunión con Afinitive.')}`;
+
+    if (this.supabase && email) {
+      try {
+        const emailClean = email.trim().toLowerCase();
+        const nowIso = new Date().toISOString();
+
+        // 1. Actualizar en email_tracking_test
+        const { data: existingRecords, error: fetchErr } = await this.supabase
+          .from('email_tracking_test')
+          .select('id, status, opened_at, whatsapp_clicked_at')
+          .ilike('recipient_email', emailClean);
+
+        if (!fetchErr && existingRecords && existingRecords.length > 0) {
+          for (const record of existingRecords) {
+            const updatePayload: any = {
+              whatsapp_clicked_at: nowIso,
+            };
+            if (!record.opened_at) {
+              updatePayload.opened_at = nowIso;
+            }
+            if (record.status === 'Enviado') {
+              updatePayload.status = 'Leído';
+            }
+
+            await this.supabase
+              .from('email_tracking_test')
+              .update(updatePayload)
+              .eq('id', record.id);
+          }
+          this.logger.log(`Cliente ${emailClean} registrado con clic de WhatsApp en email_tracking_test.`);
+        }
+
+        // 2. Actualizar en email_queue si existe
+        const { error: queueErr } = await this.supabase
+          .from('email_queue')
+          .update({
+            whatsapp_clicked_at: nowIso,
+          })
+          .ilike('recipient_email', emailClean);
+
+        if (queueErr) {
+          this.logger.warn(`No se pudo actualizar whatsapp_clicked_at en email_queue: ${queueErr.message}`);
+        } else {
+          this.logger.log(`Cliente ${emailClean} registrado con clic de WhatsApp en email_queue.`);
+        }
+      } catch (dbErr) {
+        this.logger.warn(`Error al registrar clic de WhatsApp en base de datos: ${dbErr.message}`);
+      }
+    }
+
+    return `
+      <!DOCTYPE html>
+      <html lang="es">
+        <head>
+          <meta charset="UTF-8">
+          <meta name="viewport" content="width=device-width, initial-scale=1.0">
+          <meta http-equiv="refresh" content="0; url=${targetUrl}">
+          <title>Redirigiendo a WhatsApp | Afinitive</title>
+          <style>
+            body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background-color: #0D1B2A; color: #FFFFFF; text-align: center; padding: 60px 20px; margin: 0; }
+            .card { max-width: 440px; margin: 0 auto; background: #1B2A4A; padding: 40px 30px; border-radius: 16px; box-shadow: 0 10px 30px rgba(0,0,0,0.3); border: 1px solid rgba(201, 168, 76, 0.3); }
+            .icon { font-size: 48px; margin-bottom: 15px; }
+            h2 { margin: 0 0 10px 0; color: #FFFFFF; font-size: 20px; font-weight: 600; }
+            p { color: #94A3B8; font-size: 14px; line-height: 1.5; margin: 0 0 20px 0; }
+            .spinner { width: 36px; height: 36px; border: 3px solid rgba(255,255,255,0.15); border-top: 3px solid #25D366; border-radius: 50%; animation: spin 0.8s linear infinite; margin: 20px auto; }
+            @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+            a.btn { display: inline-block; background-color: #25D366; color: #FFFFFF; padding: 12px 28px; font-weight: bold; border-radius: 8px; text-decoration: none; font-size: 14px; transition: background 0.2s; box-shadow: 0 4px 12px rgba(37, 211, 102, 0.3); }
+            a.btn:hover { background-color: #20BA56; }
+          </style>
+        </head>
+        <body>
+          <div class="card">
+            <div class="icon">💬</div>
+            <h2>Conectando con WhatsApp...</h2>
+            <p>Te estamos redirigiendo para chatear con un asesor de <strong>Afinitive Wealth Management</strong>.</p>
+            <div class="spinner"></div>
+            <p style="font-size: 12px; color: #64748B; margin-top: 15px;">Si no abre automáticamente en unos segundos:</p>
+            <a href="${targetUrl}" class="btn">Abrir Chat de WhatsApp</a>
+          </div>
+          <script>
+            window.location.href = "${targetUrl}";
+          </script>
+        </body>
+      </html>
+    `;
   }
 
   async getAvailableSlots(signatureId?: string) {
