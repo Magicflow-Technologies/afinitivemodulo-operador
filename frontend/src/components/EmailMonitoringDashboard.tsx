@@ -20,13 +20,16 @@ import {
   Trash2,
   Settings,
   PauseCircle,
-  MessageCircle
+  MessageCircle,
+  Search,
+  Phone
 } from 'lucide-react';
 
 interface EmailRecord {
   id: string;
   recipient_email: string;
   recipient_name?: string | null;
+  recipient_phone?: string | null;
   subject: string;
   status: string;
   resend_email_id: string;
@@ -170,23 +173,28 @@ export default function EmailMonitoringDashboard() {
     reader.onerror = error => reject(error);
   });
 
-  // Estados para Filtros
+  // Estados para Filtros y Búsqueda
   const [filterStatus, setFilterStatus] = useState('Todos');
   const [filterStartDate, setFilterStartDate] = useState('');
   const [filterEndDate, setFilterEndDate] = useState('');
+  const [searchQuery, setSearchQuery] = useState('');
 
   // Obtener el backend URL de las variables de entorno o usar el puerto de monitoreo del backend
   const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || 'http://localhost:3080';
 
-  // Lógica de filtrado de correos
+  // Lógica de filtrado de correos enriquecida
   const filteredEmails = emails.filter((email) => {
+    // 1. Filtro por Estado
     if (filterStatus !== 'Todos') {
       if (filterStatus === 'WhatsApp') {
         if (!email.whatsapp_clicked_at) return false;
+      } else if (filterStatus === 'Leído') {
+        if (email.status !== 'Leído' && email.status !== 'Agendado' && !email.whatsapp_clicked_at) return false;
       } else if (email.status !== filterStatus) {
         return false;
       }
     }
+    // 2. Filtro por Fechas
     if (filterStartDate) {
       const start = new Date(filterStartDate);
       start.setHours(0, 0, 0, 0);
@@ -198,6 +206,15 @@ export default function EmailMonitoringDashboard() {
       end.setHours(23, 59, 59, 999);
       const sentDate = new Date(email.sent_at);
       if (sentDate > end) return false;
+    }
+    // 3. Filtro por Búsqueda de Texto (Nombre, Correo o Asunto)
+    if (searchQuery.trim()) {
+      const q = searchQuery.toLowerCase().trim();
+      const matchEmail = email.recipient_email?.toLowerCase().includes(q);
+      const matchName = email.recipient_name?.toLowerCase().includes(q);
+      const matchSubject = email.subject?.toLowerCase().includes(q);
+      const matchPhone = email.recipient_phone?.toLowerCase().includes(q);
+      if (!matchEmail && !matchName && !matchSubject && !matchPhone) return false;
     }
     return true;
   });
@@ -215,17 +232,18 @@ export default function EmailMonitoringDashboard() {
         throw trackingError;
       }
 
-      // Enriquecer con datos de la cola (proposed_time / recipient_name / whatsapp_clicked_at) para compatibilidad inmediata
+      // Enriquecer con datos de la cola (proposed_time / recipient_name / recipient_phone / whatsapp_clicked_at) para compatibilidad inmediata
       const { data: queueData } = await supabase
         .from('email_queue')
-        .select('recipient_email, recipient_name, proposed_time, whatsapp_clicked_at');
+        .select('recipient_email, recipient_name, recipient_phone, proposed_time, whatsapp_clicked_at');
 
-      const queueMap = new Map<string, { recipient_name?: string; proposed_time?: string; whatsapp_clicked_at?: string }>();
+      const queueMap = new Map<string, { recipient_name?: string; recipient_phone?: string; proposed_time?: string; whatsapp_clicked_at?: string }>();
       if (queueData) {
         queueData.forEach((q: any) => {
           if (q.recipient_email) {
             queueMap.set(q.recipient_email.toLowerCase(), {
               recipient_name: q.recipient_name,
+              recipient_phone: q.recipient_phone,
               proposed_time: q.proposed_time,
               whatsapp_clicked_at: q.whatsapp_clicked_at,
             });
@@ -238,6 +256,7 @@ export default function EmailMonitoringDashboard() {
         return {
           ...item,
           recipient_name: item.recipient_name || queueMatch?.recipient_name || null,
+          recipient_phone: queueMatch?.recipient_phone || null,
           proposed_time: item.proposed_time || queueMatch?.proposed_time || null,
           whatsapp_clicked_at: item.whatsapp_clicked_at || queueMatch?.whatsapp_clicked_at || null,
         };
@@ -669,24 +688,29 @@ export default function EmailMonitoringDashboard() {
   return (
     <div className="min-h-screen bg-[#08101A] text-slate-100 flex flex-col antialiased selection:bg-brand-gold/30 selection:text-brand-gold">
       
-      {/* Cabecera Premium */}
-      <header className="border-b border-brand-gold/30 bg-[#0D1B2A] py-6 px-8 shadow-lg shadow-black/40 sticky top-0 z-50 backdrop-blur-md bg-opacity-95">
-        <div className="max-w-7xl mx-auto flex flex-col md:flex-row justify-between items-center gap-4">
+      {/* Cabecera Premium Full-Width */}
+      <header className="border-b border-brand-gold/30 bg-[#0D1B2A] py-5 px-4 sm:px-8 shadow-lg shadow-black/40 sticky top-0 z-50 backdrop-blur-md bg-opacity-95">
+        <div className="max-w-[1780px] w-full mx-auto flex flex-col md:flex-row justify-between items-center gap-4">
           <div className="flex items-center gap-3">
-            <div className="p-2 bg-brand-gold/10 border border-brand-gold/40 rounded-lg text-brand-gold">
-              <Mail className="w-8 h-8 animate-pulse-gold" />
+            <div className="p-2.5 bg-brand-gold/10 border border-brand-gold/40 rounded-xl text-brand-gold shadow-md shadow-brand-gold/10">
+              <Mail className="w-7 h-7 animate-pulse-gold" />
             </div>
             <div>
-              <h1 className="text-2xl md:text-3xl font-bold tracking-wide text-transparent bg-clip-text bg-gradient-to-r from-white via-slate-100 to-brand-gold">
-                AFINITIVE
-              </h1>
+              <div className="flex items-center gap-3">
+                <h1 className="text-2xl md:text-3xl font-extrabold tracking-tight text-transparent bg-clip-text bg-gradient-to-r from-white via-slate-100 to-brand-gold font-sans">
+                  AFINITIVE
+                </h1>
+                <span className="px-2.5 py-0.5 rounded-full bg-brand-gold/15 border border-brand-gold/30 text-brand-gold text-xxs font-mono uppercase font-bold tracking-wider">
+                  Suite Operador
+                </span>
+              </div>
               <p className="text-xs text-brand-gold font-medium uppercase tracking-widest mt-0.5">
-                Monitoreo Omnicanal — Irina (Operadora)
+                Monitoreo Omnicanal y Conversión en Vivo — Irina
               </p>
             </div>
           </div>
           
-          <div className="flex items-center gap-4 flex-wrap justify-center md:justify-end">
+          <div className="flex items-center gap-3 flex-wrap justify-center md:justify-end">
             <a
               href="https://operador.afinitive.com.pe/formEvento/index2.html"
               target="_blank"
@@ -696,31 +720,31 @@ export default function EmailMonitoringDashboard() {
                 e.stopPropagation();
                 window.open("https://operador.afinitive.com.pe/formEvento/index2.html", "_blank");
               }}
-              className="flex items-center gap-2 px-4 py-2 bg-brand-gold/10 hover:bg-brand-gold/25 active:bg-brand-gold/30 border border-brand-gold/40 hover:border-brand-gold/60 text-sm font-semibold text-brand-gold rounded-lg transition-all duration-200 shadow-md shadow-brand-gold/5"
+              className="flex items-center gap-2 px-3.5 py-2 bg-brand-gold/10 hover:bg-brand-gold/25 active:bg-brand-gold/30 border border-brand-gold/40 hover:border-brand-gold/60 text-xs font-semibold text-brand-gold rounded-xl transition-all duration-200 shadow-md shadow-brand-gold/5"
             >
-              <Calendar className="w-4 h-4 text-brand-gold" />
+              <Calendar className="w-3.5 h-3.5 text-brand-gold" />
               <span>Formulario de Eventos</span>
-              <ExternalLink className="w-3.5 h-3.5 opacity-80" />
+              <ExternalLink className="w-3 h-3 opacity-80" />
             </a>
             <span className="h-6 w-px bg-slate-800 hidden sm:inline"></span>
             <button
               onClick={() => fetchEmails()}
               disabled={refreshing}
-              className="flex items-center gap-2 px-4 py-2 bg-brand-navy-light hover:bg-[#22334F] active:bg-[#0D1B2A] border border-brand-gold/20 hover:border-brand-gold/40 text-sm font-medium rounded-lg transition-all duration-200 disabled:opacity-50"
+              className="flex items-center gap-2 px-3.5 py-2 bg-brand-navy-light hover:bg-[#22334F] active:bg-[#0D1B2A] border border-brand-gold/20 hover:border-brand-gold/40 text-xs font-medium rounded-xl transition-all duration-200 disabled:opacity-50"
             >
-              <RefreshCw className={`w-4 h-4 text-brand-gold ${refreshing ? 'animate-spin' : ''}`} />
+              <RefreshCw className={`w-3.5 h-3.5 text-brand-gold ${refreshing ? 'animate-spin' : ''}`} />
               <span>{refreshing ? 'Actualizando...' : 'Actualizar'}</span>
             </button>
             <span className="h-6 w-px bg-slate-800 hidden sm:inline"></span>
-            <div className="text-xs text-slate-400 font-mono bg-slate-900/60 px-3 py-1.5 rounded border border-slate-800">
-              Backend: <span className="text-brand-gold">{BACKEND_URL}</span>
+            <div className="text-xs text-slate-400 font-mono bg-slate-900/80 px-3 py-1.5 rounded-lg border border-slate-800">
+              Backend: <span className="text-brand-gold font-semibold">{BACKEND_URL}</span>
             </div>
           </div>
         </div>
       </header>
 
-      {/* Contenido Principal */}
-      <main className="flex-1 max-w-7xl w-full mx-auto p-6 md:p-8 space-y-8">
+      {/* Contenido Principal Full-Width */}
+      <main className="flex-1 max-w-[1780px] w-full mx-auto p-4 sm:p-6 lg:p-8 space-y-8">
         
         {/* Pestañas de Navegación Premium */}
         <div className="flex border-b border-slate-800 gap-2 overflow-x-auto pb-px">
@@ -1107,192 +1131,429 @@ export default function EmailMonitoringDashboard() {
               </div>
             </section>
 
-            {/* Sección de Historial - Tabla de Monitoreo */}
-            <section className="bg-gradient-to-b from-[#0D1B2A] to-[#0A1420] border border-brand-gold/20 rounded-2xl shadow-xl overflow-hidden">
-              <div className="p-6 border-b border-brand-gold/15 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+            {/* Sección de Historial - Panel de Control Rediseñado Full-Width */}
+            <section className="bg-gradient-to-b from-[#0D1B2A] to-[#0A1420] border border-brand-gold/20 rounded-2xl shadow-2xl overflow-hidden w-full">
+              {/* Header de la sección */}
+              <div className="p-6 border-b border-brand-gold/15 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-slate-950/40">
                 <div>
-                  <h2 className="text-xl font-semibold text-brand-gold">Panel de Control de Rastreos</h2>
-                  <p className="text-sm text-slate-400">Rastreo de envíos y lecturas. Se actualiza automáticamente cada 5 segundos.</p>
+                  <h2 className="text-xl font-bold text-brand-gold flex items-center gap-2.5">
+                    <span>Panel de Rastreos en Tiempo Real</span>
+                    <span className="text-xs px-2.5 py-0.5 rounded-full bg-brand-gold/10 text-brand-gold font-mono font-normal border border-brand-gold/30">
+                      {emails.length} envíos
+                    </span>
+                  </h2>
+                  <p className="text-xs text-slate-400 mt-1">
+                    Monitorea qué prospectos abren el correo, quiénes hacen clic en WhatsApp y quiénes confirman su reunión.
+                  </p>
                 </div>
-                <span className="px-3 py-1 bg-brand-gold/10 border border-brand-gold/30 text-brand-gold text-xs font-mono rounded-full flex items-center gap-1.5">
-                  <span className="w-2 h-2 rounded-full bg-emerald-500 animate-ping"></span>
-                  Live Tracking Activo
-                </span>
+                <div className="flex items-center gap-3">
+                  <span className="px-3 py-1.5 bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 text-xs font-mono rounded-full flex items-center gap-2 shadow-sm">
+                    <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping"></span>
+                    Live Polling 5s
+                  </span>
+                </div>
               </div>
 
-              {/* Tarjetas de Métricas Resumen (Funnel: Enviado -> Leído -> WhatsApp -> Agendado) */}
-              <div className="p-6 pb-2 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 border-b border-brand-gold/10">
-                <div className="bg-[#08101A] border border-brand-gold/15 rounded-xl p-4 flex items-center justify-between">
+              {/* Tarjetas de Métricas Interactivas (Funnel y Filtro Rápido en 1 Clic) */}
+              <div className="p-6 pb-5 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 border-b border-brand-gold/10 bg-slate-950/20">
+                {/* Card 1: Total Enviados */}
+                <button
+                  type="button"
+                  onClick={() => setFilterStatus('Todos')}
+                  className={`p-4 rounded-2xl border text-left transition-all duration-200 cursor-pointer flex items-center justify-between group ${
+                    filterStatus === 'Todos'
+                      ? 'bg-[#112338] border-blue-400/80 ring-2 ring-blue-500/40 shadow-xl shadow-blue-950/50 scale-[1.01]'
+                      : 'bg-[#08101A] border-brand-gold/15 hover:border-blue-500/40 hover:bg-[#0c1827]'
+                  }`}
+                >
                   <div>
-                    <p className="text-xs text-slate-400 font-medium uppercase">Total Enviados</p>
-                    <p className="text-2xl font-bold text-slate-100 font-mono mt-1">{emails.length}</p>
+                    <div className="flex items-center gap-2">
+                      <p className="text-xs text-slate-400 font-bold uppercase tracking-wider">Total Enviados</p>
+                      {filterStatus === 'Todos' && <span className="w-2 h-2 rounded-full bg-blue-400"></span>}
+                    </div>
+                    <p className="text-3xl font-extrabold text-slate-100 font-mono mt-1">{emails.length}</p>
+                    <p className="text-xxs text-slate-500 mt-1 group-hover:text-blue-400 transition-colors">
+                      {filterStatus === 'Todos' ? '✓ Viendo todo el historial' : '⚡ Clic para ver todos'}
+                    </p>
                   </div>
-                  <div className="p-2.5 bg-blue-500/10 border border-blue-500/20 rounded-lg text-blue-400">
-                    <Mail className="w-5 h-5" />
+                  <div className={`p-3 rounded-xl border transition-colors ${
+                    filterStatus === 'Todos' ? 'bg-blue-500/20 border-blue-400/50 text-blue-300' : 'bg-blue-500/10 border-blue-500/20 text-blue-400'
+                  }`}>
+                    <Mail className="w-6 h-6" />
                   </div>
-                </div>
+                </button>
 
-                <div className="bg-[#08101A] border border-brand-gold/15 rounded-xl p-4 flex items-center justify-between">
+                {/* Card 2: Correos Leídos */}
+                <button
+                  type="button"
+                  onClick={() => setFilterStatus('Leído')}
+                  className={`p-4 rounded-2xl border text-left transition-all duration-200 cursor-pointer flex items-center justify-between group ${
+                    filterStatus === 'Leído'
+                      ? 'bg-[#09261C] border-emerald-400/80 ring-2 ring-emerald-500/40 shadow-xl shadow-emerald-950/50 scale-[1.01]'
+                      : 'bg-[#08101A] border-brand-gold/15 hover:border-emerald-500/40 hover:bg-[#0c1827]'
+                  }`}
+                >
                   <div>
-                    <p className="text-xs text-slate-400 font-medium uppercase">Correos Leídos</p>
+                    <div className="flex items-center gap-2">
+                      <p className="text-xs text-emerald-400 font-bold uppercase tracking-wider">Correos Leídos</p>
+                      {filterStatus === 'Leído' && <span className="w-2 h-2 rounded-full bg-emerald-400"></span>}
+                    </div>
                     <div className="flex items-baseline gap-2 mt-1">
-                      <p className="text-2xl font-bold text-emerald-400 font-mono">
+                      <p className="text-3xl font-extrabold text-emerald-400 font-mono">
                         {emails.filter(e => e.status === 'Leído' || e.status === 'Agendado' || e.whatsapp_clicked_at).length}
                       </p>
-                      <span className="text-xs font-semibold text-emerald-400/80 font-mono">
+                      <span className="text-xs font-bold text-emerald-400/80 font-mono">
                         ({emails.length > 0 ? Math.round((emails.filter(e => e.status === 'Leído' || e.status === 'Agendado' || e.whatsapp_clicked_at).length / emails.length) * 100) : 0}%)
                       </span>
                     </div>
+                    <p className="text-xxs text-emerald-500/80 mt-1 group-hover:text-emerald-400 font-medium transition-colors">
+                      {filterStatus === 'Leído' ? '✓ Viendo correos abiertos' : '⚡ Clic para ver leídos'}
+                    </p>
                   </div>
-                  <div className="p-2.5 bg-emerald-500/10 border border-emerald-500/20 rounded-lg text-emerald-400">
-                    <Eye className="w-5 h-5" />
+                  <div className={`p-3 rounded-xl border transition-colors ${
+                    filterStatus === 'Leído' ? 'bg-emerald-500/20 border-emerald-400/50 text-emerald-300' : 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400'
+                  }`}>
+                    <Eye className="w-6 h-6" />
                   </div>
-                </div>
+                </button>
 
-                <div className="bg-[#08101A] border border-[#25D366]/30 rounded-xl p-4 flex items-center justify-between shadow-lg shadow-emerald-950/20">
+                {/* Card 3: Clicks WhatsApp (Destacado) */}
+                <button
+                  type="button"
+                  onClick={() => setFilterStatus('WhatsApp')}
+                  className={`p-4 rounded-2xl border text-left transition-all duration-200 cursor-pointer flex items-center justify-between group ${
+                    filterStatus === 'WhatsApp'
+                      ? 'bg-[#082B18] border-[#25D366] ring-2 ring-[#25D366]/50 shadow-2xl shadow-emerald-950/70 scale-[1.01]'
+                      : 'bg-[#08101A] border-[#25D366]/30 hover:border-[#25D366]/70 hover:bg-[#0a1e17]'
+                  }`}
+                >
                   <div>
-                    <p className="text-xs text-[#25D366] font-medium uppercase">Clicks WhatsApp</p>
+                    <div className="flex items-center gap-2">
+                      <p className="text-xs text-[#25D366] font-bold uppercase tracking-wider flex items-center gap-1.5">
+                        Clicks WhatsApp
+                      </p>
+                      {filterStatus === 'WhatsApp' && <span className="w-2 h-2 rounded-full bg-[#25D366] animate-ping"></span>}
+                    </div>
                     <div className="flex items-baseline gap-2 mt-1">
-                      <p className="text-2xl font-bold text-[#25D366] font-mono">
+                      <p className="text-3xl font-extrabold text-[#25D366] font-mono">
                         {emails.filter(e => e.whatsapp_clicked_at).length}
                       </p>
-                      <span className="text-xs font-semibold text-[#25D366]/80 font-mono">
+                      <span className="text-xs font-bold text-[#25D366]/80 font-mono">
                         ({emails.length > 0 ? Math.round((emails.filter(e => e.whatsapp_clicked_at).length / emails.length) * 100) : 0}%)
                       </span>
                     </div>
+                    <p className="text-xxs text-emerald-400 mt-1 font-semibold group-hover:underline">
+                      {filterStatus === 'WhatsApp' ? '✓ Viendo quiénes clickearon' : '👉 Clic para filtrar leads de WhatsApp'}
+                    </p>
                   </div>
-                  <div className="p-2.5 bg-[#25D366]/20 border border-[#25D366]/40 rounded-lg text-[#25D366]">
-                    <MessageCircle className="w-5 h-5" />
+                  <div className={`p-3 rounded-xl border transition-colors ${
+                    filterStatus === 'WhatsApp' ? 'bg-[#25D366]/25 border-[#25D366]/60 text-[#25D366]' : 'bg-[#25D366]/15 border-[#25D366]/30 text-[#25D366]'
+                  }`}>
+                    <MessageCircle className="w-6 h-6" />
                   </div>
-                </div>
+                </button>
 
-                <div className="bg-[#08101A] border border-purple-500/30 rounded-xl p-4 flex items-center justify-between shadow-lg shadow-purple-950/20">
+                {/* Card 4: Citas Agendadas */}
+                <button
+                  type="button"
+                  onClick={() => setFilterStatus('Agendado')}
+                  className={`p-4 rounded-2xl border text-left transition-all duration-200 cursor-pointer flex items-center justify-between group ${
+                    filterStatus === 'Agendado'
+                      ? 'bg-[#241336] border-purple-400 ring-2 ring-purple-500/50 shadow-2xl shadow-purple-950/70 scale-[1.01]'
+                      : 'bg-[#08101A] border-purple-500/30 hover:border-purple-400/60 hover:bg-[#160d24]'
+                  }`}
+                >
                   <div>
-                    <p className="text-xs text-purple-300 font-medium uppercase">Citas Agendadas</p>
+                    <div className="flex items-center gap-2">
+                      <p className="text-xs text-purple-300 font-bold uppercase tracking-wider">Citas Agendadas</p>
+                      {filterStatus === 'Agendado' && <span className="w-2 h-2 rounded-full bg-purple-400"></span>}
+                    </div>
                     <div className="flex items-baseline gap-2 mt-1">
-                      <p className="text-2xl font-bold text-purple-400 font-mono">
+                      <p className="text-3xl font-extrabold text-purple-400 font-mono">
                         {emails.filter(e => e.status === 'Agendado').length}
                       </p>
-                      <span className="text-xs font-semibold text-purple-300/80 font-mono">
+                      <span className="text-xs font-bold text-purple-300/80 font-mono">
                         ({emails.length > 0 ? Math.round((emails.filter(e => e.status === 'Agendado').length / emails.length) * 100) : 0}% conv.)
                       </span>
                     </div>
+                    <p className="text-xxs text-purple-300 mt-1 font-semibold group-hover:underline">
+                      {filterStatus === 'Agendado' ? '✓ Viendo citas confirmadas' : '👉 Clic para filtrar agendados'}
+                    </p>
                   </div>
-                  <div className="p-2.5 bg-purple-500/20 border border-purple-500/40 rounded-lg text-purple-300">
-                    <CheckCircle className="w-5 h-5" />
+                  <div className={`p-3 rounded-xl border transition-colors ${
+                    filterStatus === 'Agendado' ? 'bg-purple-500/25 border-purple-400/60 text-purple-300' : 'bg-purple-500/15 border-purple-500/30 text-purple-400'
+                  }`}>
+                    <CheckCircle className="w-6 h-6" />
                   </div>
+                </button>
+              </div>
+
+              {/* Barra de Búsqueda y Filtros en Tiempo Real */}
+              <div className="p-6 bg-slate-950/40 border-b border-brand-gold/10 flex flex-col lg:flex-row gap-4 items-stretch lg:items-end justify-between">
+                {/* Búsqueda inteligente por nombre, correo o asunto */}
+                <div className="w-full lg:w-96 space-y-1.5">
+                  <label className="text-xs text-slate-400 font-bold uppercase tracking-wider flex items-center gap-1.5">
+                    <Search className="w-3.5 h-3.5 text-brand-gold" />
+                    Buscar Prospecto
+                  </label>
+                  <div className="relative">
+                    <input
+                      type="text"
+                      value={searchQuery}
+                      onChange={(e) => setSearchQuery(e.target.value)}
+                      placeholder="Escribe nombre, correo o asunto..."
+                      className="w-full pl-10 pr-9 py-2.5 bg-[#08101A] border border-brand-gold/20 hover:border-brand-gold/40 focus:border-brand-gold/90 focus:ring-1 focus:ring-brand-gold/50 rounded-xl text-slate-100 placeholder-slate-500 outline-none transition-all duration-200 text-sm font-sans"
+                    />
+                    <Search className="w-4 h-4 text-slate-500 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+                    {searchQuery && (
+                      <button
+                        onClick={() => setSearchQuery('')}
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-200 p-1"
+                        title="Limpiar búsqueda"
+                      >
+                        <X className="w-3.5 h-3.5" />
+                      </button>
+                    )}
+                  </div>
+                </div>
+
+                {/* Filtros de Estado y Fechas */}
+                <div className="flex flex-wrap sm:flex-nowrap gap-3 items-end w-full lg:w-auto">
+                  <div className="w-full sm:w-52 space-y-1.5">
+                    <label className="text-xs text-slate-400 font-bold uppercase tracking-wider">Estado</label>
+                    <select
+                      value={filterStatus}
+                      onChange={(e) => setFilterStatus(e.target.value)}
+                      className="w-full px-3 py-2.5 bg-[#08101A] border border-brand-gold/20 hover:border-brand-gold/40 focus:border-brand-gold/90 focus:ring-1 focus:ring-brand-gold/50 rounded-xl text-slate-100 placeholder-slate-500 outline-none transition-all duration-200 text-sm font-sans"
+                    >
+                      <option value="Todos">Todos los Estados ({emails.length})</option>
+                      <option value="WhatsApp">💬 Clicks WhatsApp ({emails.filter(e => e.whatsapp_clicked_at).length})</option>
+                      <option value="Agendado">📅 Cita Agendada ({emails.filter(e => e.status === 'Agendado').length})</option>
+                      <option value="Leído">👁️ Leído ({emails.filter(e => e.status === 'Leído' || e.status === 'Agendado').length})</option>
+                      <option value="Enviado">✉️ Solo Enviado ({emails.filter(e => e.status === 'Enviado').length})</option>
+                    </select>
+                  </div>
+
+                  <div className="w-full sm:w-36 space-y-1.5">
+                    <label className="text-xs text-slate-400 font-bold uppercase tracking-wider">Desde</label>
+                    <input
+                      type="date"
+                      value={filterStartDate}
+                      onChange={(e) => setFilterStartDate(e.target.value)}
+                      className="w-full px-3 py-2.5 bg-[#08101A] border border-brand-gold/20 hover:border-brand-gold/40 focus:border-brand-gold/90 focus:ring-1 focus:ring-brand-gold/50 rounded-xl text-slate-100 text-sm font-sans"
+                    />
+                  </div>
+
+                  <div className="w-full sm:w-36 space-y-1.5">
+                    <label className="text-xs text-slate-400 font-bold uppercase tracking-wider">Hasta</label>
+                    <input
+                      type="date"
+                      value={filterEndDate}
+                      onChange={(e) => setFilterEndDate(e.target.value)}
+                      className="w-full px-3 py-2.5 bg-[#08101A] border border-brand-gold/20 hover:border-brand-gold/40 focus:border-brand-gold/90 focus:ring-1 focus:ring-brand-gold/50 rounded-xl text-slate-100 text-sm font-sans"
+                    />
+                  </div>
+
+                  {(filterStatus !== 'Todos' || filterStartDate || filterEndDate || searchQuery) && (
+                    <button
+                      onClick={() => {
+                        setFilterStatus('Todos');
+                        setFilterStartDate('');
+                        setFilterEndDate('');
+                        setSearchQuery('');
+                      }}
+                      className="px-4 py-2.5 bg-red-500/10 hover:bg-red-500/20 active:bg-red-500/30 border border-red-500/30 text-red-300 text-sm font-medium rounded-xl transition-all duration-200 flex items-center gap-1.5 whitespace-nowrap h-[42px]"
+                      title="Restablecer todos los filtros"
+                    >
+                      <X className="w-4 h-4" />
+                      <span>Limpiar</span>
+                    </button>
+                  )}
                 </div>
               </div>
 
-              {/* Barra de Filtros */}
-              <div className="p-6 bg-slate-950/20 border-b border-brand-gold/10 flex flex-col md:flex-row gap-4 items-end">
-                <div className="w-full md:w-1/4 space-y-1.5">
-                  <label className="text-xs text-slate-400 font-medium uppercase tracking-wider">Estado</label>
-                  <select
-                    value={filterStatus}
-                    onChange={(e) => setFilterStatus(e.target.value)}
-                    className="w-full px-3 py-2 bg-[#08101A] border border-brand-gold/20 hover:border-brand-gold/40 focus:border-brand-gold/90 focus:ring-1 focus:ring-brand-gold/50 rounded-lg text-slate-100 placeholder-slate-500 outline-none transition-all duration-200 text-sm font-sans"
-                  >
-                    <option value="Todos">Todos los Estados</option>
-                    <option value="Enviado">Enviado</option>
-                    <option value="Leído">Leído</option>
-                    <option value="Agendado">📅 Agendado (Cita Confirmada)</option>
-                    <option value="WhatsApp">💬 Contactó por WhatsApp</option>
-                  </select>
-                </div>
-
-                <div className="w-full md:w-1/4 space-y-1.5">
-                  <label className="text-xs text-slate-400 font-medium uppercase tracking-wider">Fecha Desde</label>
-                  <input
-                    type="date"
-                    value={filterStartDate}
-                    onChange={(e) => setFilterStartDate(e.target.value)}
-                    className="w-full px-3 py-2 bg-[#08101A] border border-brand-gold/20 hover:border-brand-gold/40 focus:border-brand-gold/90 focus:ring-1 focus:ring-brand-gold/50 rounded-lg text-slate-100 placeholder-slate-500 outline-none transition-all duration-200 text-sm font-sans"
-                  />
-                </div>
-
-                <div className="w-full md:w-1/4 space-y-1.5">
-                  <label className="text-xs text-slate-400 font-medium uppercase tracking-wider">Fecha Hasta</label>
-                  <input
-                    type="date"
-                    value={filterEndDate}
-                    onChange={(e) => setFilterEndDate(e.target.value)}
-                    className="w-full px-3 py-2 bg-[#08101A] border border-brand-gold/20 hover:border-brand-gold/40 focus:border-brand-gold/90 focus:ring-1 focus:ring-brand-gold/50 rounded-lg text-slate-100 placeholder-slate-500 outline-none transition-all duration-200 text-sm font-sans"
-                  />
-                </div>
-
-                <div className="w-full md:w-auto">
+              {/* Banner visual de Filtro Activo */}
+              {filterStatus !== 'Todos' && (
+                <div className="px-6 py-3 bg-brand-gold/10 border-b border-brand-gold/20 flex flex-wrap items-center justify-between gap-3 text-xs">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="text-slate-400 font-medium">Mostrando únicamente:</span>
+                    <span className="font-bold text-white px-2.5 py-1 rounded-lg bg-slate-900 border border-brand-gold/40 flex items-center gap-1.5">
+                      {filterStatus === 'WhatsApp' && (
+                        <>
+                          <MessageCircle className="w-3.5 h-3.5 text-[#25D366]" />
+                          <span>Prospectos que hicieron clic en WhatsApp</span>
+                        </>
+                      )}
+                      {filterStatus === 'Agendado' && (
+                        <>
+                          <CheckCircle className="w-3.5 h-3.5 text-purple-400" />
+                          <span>Prospectos con Cita Agendada</span>
+                        </>
+                      )}
+                      {filterStatus === 'Leído' && (
+                        <>
+                          <Eye className="w-3.5 h-3.5 text-emerald-400" />
+                          <span>Prospectos que abrieron el correo</span>
+                        </>
+                      )}
+                      {filterStatus === 'Enviado' && (
+                        <>
+                          <Mail className="w-3.5 h-3.5 text-blue-400" />
+                          <span>Prospectos en estado enviado</span>
+                        </>
+                      )}
+                    </span>
+                    <span className="px-2.5 py-0.5 rounded-full bg-brand-gold/20 text-brand-gold font-mono font-bold">
+                      {filteredEmails.length} {filteredEmails.length === 1 ? 'prospecto encontrado' : 'prospectos encontrados'}
+                    </span>
+                  </div>
                   <button
-                    onClick={() => {
-                      setFilterStatus('Todos');
-                      setFilterStartDate('');
-                      setFilterEndDate('');
-                    }}
-                    disabled={filterStatus === 'Todos' && !filterStartDate && !filterEndDate}
-                    className="w-full md:w-auto px-4 py-2 bg-brand-navy-light hover:bg-[#22334F] active:bg-[#0D1B2A] border border-brand-gold/20 hover:border-brand-gold/40 text-sm font-medium rounded-lg transition-all duration-200 disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-1.5 whitespace-nowrap"
+                    onClick={() => setFilterStatus('Todos')}
+                    className="text-brand-gold hover:text-white font-semibold underline cursor-pointer text-xs transition-colors"
                   >
-                    Limpiar Filtros
+                    Mostrar todos los registros
                   </button>
                 </div>
-              </div>
+              )}
 
-              <div className="overflow-x-auto">
+              {/* Tabla de Rastreos Full-Width */}
+              <div className="overflow-x-auto w-full">
                 {emails.length === 0 ? (
-                  <div className="py-16 text-center space-y-3">
-                    <div className="w-16 h-16 bg-slate-900 border border-slate-800 rounded-full flex items-center justify-center mx-auto text-slate-500">
-                      <Mail className="w-8 h-8" />
+                  <div className="py-20 text-center space-y-4">
+                    <div className="w-20 h-20 bg-slate-900 border border-slate-800 rounded-2xl flex items-center justify-center mx-auto text-slate-500 shadow-lg">
+                      <Mail className="w-10 h-10 text-brand-gold/60" />
                     </div>
                     <div className="space-y-1">
-                      <p className="text-slate-400 font-medium">No hay registros de envío en este entorno</p>
-                      <p className="text-xs text-slate-500">Usa el formulario superior para enviar tu primer correo electrónico.</p>
+                      <p className="text-lg text-slate-300 font-semibold">No hay registros de envío en este entorno</p>
+                      <p className="text-xs text-slate-500">Usa el formulario superior para enviar tu primer correo de prueba.</p>
                     </div>
                   </div>
                 ) : filteredEmails.length === 0 ? (
-                  <div className="py-16 text-center space-y-3">
-                    <div className="w-16 h-16 bg-slate-900 border border-slate-800 rounded-full flex items-center justify-center mx-auto text-slate-500">
-                      <Mail className="w-8 h-8" />
+                  <div className="py-20 text-center space-y-4">
+                    <div className="w-20 h-20 bg-slate-900 border border-slate-800 rounded-2xl flex items-center justify-center mx-auto text-slate-500 shadow-lg">
+                      <Search className="w-10 h-10 text-brand-gold/60" />
                     </div>
-                    <div className="space-y-1">
-                      <p className="text-slate-400 font-medium">Ningún registro coincide con los filtros</p>
-                      <p className="text-xs text-slate-500">Prueba ajustando el estado o el rango de fechas seleccionado.</p>
+                    <div className="space-y-1.5">
+                      <p className="text-lg text-slate-300 font-semibold">Ningún prospecto coincide con los filtros</p>
+                      <p className="text-xs text-slate-500">
+                        Prueba ajustando la búsqueda <span className="text-brand-gold font-mono">"{searchQuery}"</span> o cambiando el estado seleccionado.
+                      </p>
+                      <button
+                        onClick={() => {
+                          setFilterStatus('Todos');
+                          setSearchQuery('');
+                          setFilterStartDate('');
+                          setFilterEndDate('');
+                        }}
+                        className="mt-3 px-4 py-2 bg-brand-gold/15 hover:bg-brand-gold/25 border border-brand-gold/40 text-brand-gold text-xs font-semibold rounded-xl transition-colors cursor-pointer"
+                      >
+                        Restablecer Filtros
+                      </button>
                     </div>
                   </div>
                 ) : (
                   <table className="w-full text-left border-collapse">
                     <thead>
-                      <tr className="bg-slate-950/40 text-slate-400 text-xs font-semibold tracking-wider uppercase border-b border-slate-800">
-                        <th className="py-4 px-6">Destinatario</th>
-                        <th className="py-4 px-6">Asunto</th>
-                        <th className="py-4 px-6">Fecha de Envío</th>
+                      <tr className="bg-[#07111D] text-slate-300 text-xs font-bold tracking-wider uppercase border-b border-brand-gold/20">
+                        <th className="py-4 px-6 md:px-8">Prospecto / Lead</th>
+                        <th className="py-4 px-6">Interacción y Estado</th>
                         <th className="py-4 px-6">Agenda Propuesta (Calendar)</th>
-                        <th className="py-4 px-6">Estado</th>
-                        <th className="py-4 px-6">Fecha de Lectura</th>
+                        <th className="py-4 px-6">Fecha de Envío</th>
+                        <th className="py-4 px-6">Asunto del Correo</th>
+                        <th className="py-4 px-6 text-right">Acción Rápida</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-800/60 text-sm">
                       {filteredEmails.map((email) => (
                         <tr 
                           key={email.id} 
-                          className="hover:bg-slate-900/40 transition-colors duration-150 group"
+                          className={`transition-colors duration-150 group ${
+                            email.whatsapp_clicked_at 
+                              ? 'bg-[#0B2018]/50 hover:bg-[#0E2D22]/80 border-l-4 border-l-[#25D366]' 
+                              : email.status === 'Agendado'
+                              ? 'bg-[#1C102E]/50 hover:bg-[#281742]/80 border-l-4 border-l-purple-500'
+                              : 'hover:bg-slate-900/60 border-l-4 border-l-transparent'
+                          }`}
                         >
-                          <td className="py-4 px-6 font-medium text-slate-200">
-                            <div>{email.recipient_email}</div>
-                            {email.recipient_name && (
-                              <div className="text-xs text-brand-gold/80 font-normal mt-0.5">{email.recipient_name}</div>
-                            )}
-                          </td>
-                          <td className="py-4 px-6 text-slate-400 max-w-[200px] truncate">
-                            {email.subject}
-                          </td>
-                          <td className="py-4 px-6 text-slate-400 whitespace-nowrap">
-                            <div className="flex items-center gap-2">
-                              <Clock className="w-3.5 h-3.5 text-slate-500" />
-                              <span>{formatDate(email.sent_at)}</span>
+                          {/* Columna 1: Prospecto / Destinatario */}
+                          <td className="py-4 px-6 md:px-8 font-medium">
+                            <div className="flex items-center gap-3.5">
+                              <div className={`w-10 h-10 rounded-xl flex items-center justify-center font-bold text-sm uppercase shrink-0 shadow-md ${
+                                email.whatsapp_clicked_at
+                                  ? 'bg-[#25D366]/20 border border-[#25D366]/50 text-[#25D366] shadow-[#25D366]/10'
+                                  : email.status === 'Agendado'
+                                  ? 'bg-purple-500/20 border border-purple-500/50 text-purple-300 shadow-purple-950/40'
+                                  : email.status === 'Leído'
+                                  ? 'bg-emerald-500/20 border border-emerald-500/40 text-emerald-300'
+                                  : 'bg-slate-800 border border-slate-700 text-slate-300'
+                              }`}>
+                                {(email.recipient_name || email.recipient_email).charAt(0)}
+                              </div>
+                              <div className="min-w-0">
+                                <div className="text-slate-100 font-bold text-sm flex items-center gap-2">
+                                  <span className="truncate">{email.recipient_name || 'Prospecto sin nombre'}</span>
+                                  {email.whatsapp_clicked_at && (
+                                    <span 
+                                      className="px-2 py-0.5 rounded-md bg-[#25D366]/20 border border-[#25D366]/40 text-[#25D366] text-xxs font-bold uppercase tracking-wider"
+                                      title="Este cliente hizo clic en el enlace de WhatsApp"
+                                    >
+                                      WhatsApp
+                                    </span>
+                                  )}
+                                </div>
+                                <div className="text-xs font-mono text-slate-400 mt-0.5 truncate">{email.recipient_email}</div>
+                                {email.recipient_phone && (
+                                  <div className="text-xxs font-mono text-brand-gold flex items-center gap-1 mt-0.5 font-semibold">
+                                    <Phone className="w-2.5 h-2.5" />
+                                    <span>{email.recipient_phone}</span>
+                                  </div>
+                                )}
+                              </div>
                             </div>
                           </td>
+
+                          {/* Columna 2: Interacciones y Estado */}
+                          <td className="py-4 px-6 whitespace-nowrap">
+                            <div className="flex flex-col gap-1.5 items-start">
+                              {/* Badge WhatsApp si hizo clic */}
+                              {email.whatsapp_clicked_at && (
+                                <span 
+                                  className="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-bold bg-[#25D366]/20 border border-[#25D366]/60 text-[#25D366] shadow-md shadow-emerald-950/40"
+                                  title={`Clic registrado: ${formatDate(email.whatsapp_clicked_at)}`}
+                                >
+                                  <MessageCircle className="w-3.5 h-3.5 text-[#25D366] shrink-0" />
+                                  <span>Clic en WhatsApp:</span>
+                                  <span className="font-mono text-xxs opacity-90">{formatDate(email.whatsapp_clicked_at)}</span>
+                                </span>
+                              )}
+
+                              {/* Badge de Estado Cita o Leído */}
+                              {email.status === 'Agendado' ? (
+                                <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-bold bg-purple-500/20 border border-purple-500/60 text-purple-300 shadow-md shadow-purple-950/40">
+                                  <CheckCircle className="w-3.5 h-3.5 text-purple-400 shrink-0" />
+                                  <span>Cita Agendada</span>
+                                </span>
+                              ) : email.status === 'Leído' ? (
+                                <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-semibold bg-emerald-500/15 border border-emerald-500/40 text-emerald-300 shadow-sm">
+                                  <Eye className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+                                  <span>Leído</span>
+                                  {email.opened_at && (
+                                    <span className="text-xxs font-mono text-emerald-400/80">({formatDate(email.opened_at)})</span>
+                                  )}
+                                </span>
+                              ) : (
+                                <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-semibold bg-brand-navy-light border border-blue-500/30 text-blue-400">
+                                  <Clock className="w-3.5 h-3.5 text-blue-400 shrink-0" />
+                                  <span>Enviado</span>
+                                </span>
+                              )}
+                            </div>
+                          </td>
+
+                          {/* Columna 3: Agenda Propuesta */}
                           <td className="py-4 px-6 whitespace-nowrap">
                             {email.proposed_time ? (
-                              <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg bg-brand-gold/10 border border-brand-gold/30 text-brand-gold text-xs font-semibold" title="Horario propuesto para validar en Google Calendar">
+                              <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-xl bg-brand-gold/10 border border-brand-gold/30 text-brand-gold text-xs font-semibold shadow-sm">
                                 <Calendar className="w-3.5 h-3.5 text-brand-gold shrink-0" />
                                 <span>{formatProposedDate(email.proposed_time)}</span>
                               </div>
@@ -1300,45 +1561,32 @@ export default function EmailMonitoringDashboard() {
                               <span className="text-slate-600 font-mono text-xs">—</span>
                             )}
                           </td>
-                          <td className="py-4 px-6 whitespace-nowrap">
-                            <div className="flex flex-col gap-1.5 items-start">
-                              {email.status === 'Agendado' ? (
-                                <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-purple-500/20 border border-purple-500/50 text-purple-300 shadow-md shadow-purple-950/30">
-                                  <CheckCircle className="w-3.5 h-3.5 text-purple-400" />
-                                  Cita Agendada
-                                </span>
-                              ) : email.status === 'Leído' ? (
-                                <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 shadow-sm shadow-emerald-500/5">
-                                  <Eye className="w-3.5 h-3.5" />
-                                  Leído
-                                </span>
-                              ) : (
-                                <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-brand-navy-light border border-blue-500/30 text-blue-400 shadow-sm">
-                                  <Clock className="w-3.5 h-3.5" />
-                                  Enviado
-                                </span>
-                              )}
 
-                              {email.whatsapp_clicked_at && (
-                                <span 
-                                  className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xxs font-semibold bg-[#25D366]/20 border border-[#25D366]/50 text-[#25D366] shadow-sm shadow-emerald-950/30"
-                                  title={`Clic en WhatsApp: ${formatDate(email.whatsapp_clicked_at)}`}
-                                >
-                                  <MessageCircle className="w-3 h-3 text-[#25D366]" />
-                                  WhatsApp ({formatDate(email.whatsapp_clicked_at)})
-                                </span>
-                              )}
+                          {/* Columna 4: Fecha de Envío */}
+                          <td className="py-4 px-6 text-slate-300 text-xs whitespace-nowrap">
+                            <div className="flex items-center gap-2 font-mono">
+                              <Clock className="w-3.5 h-3.5 text-slate-500 shrink-0" />
+                              <span>{formatDate(email.sent_at)}</span>
                             </div>
                           </td>
-                          <td className="py-4 px-6 text-slate-400 whitespace-nowrap">
-                            {email.status === 'Leído' ? (
-                              <div className="flex items-center gap-2 text-emerald-400 font-medium">
-                                <CheckCircle className="w-3.5 h-3.5" />
-                                <span>{formatDate(email.opened_at)}</span>
-                              </div>
-                            ) : (
-                              <span className="text-slate-600 font-mono">—</span>
-                            )}
+
+                          {/* Columna 5: Asunto del Correo */}
+                          <td className="py-4 px-6 text-slate-300 text-xs max-w-sm" title={email.subject}>
+                            <div className="truncate font-medium">{email.subject}</div>
+                          </td>
+
+                          {/* Columna 6: Acción Rápida Directa */}
+                          <td className="py-4 px-6 text-right whitespace-nowrap">
+                            <a
+                              href={`https://wa.me/${email.recipient_phone?.replace(/[^0-9]/g, '') || '51902821992'}?text=${encodeURIComponent(`Hola ${email.recipient_name || ''}, te contacto de Afinitive Wealth Management sobre la reunión coordinada.`)}`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-[#25D366]/15 hover:bg-[#25D366]/30 active:bg-[#25D366]/40 border border-[#25D366]/40 hover:border-[#25D366]/70 text-[#25D366] text-xs font-bold transition-all duration-150 shadow-md shadow-emerald-950/30"
+                              title="Abrir chat de WhatsApp con este prospecto"
+                            >
+                              <MessageCircle className="w-3.5 h-3.5 shrink-0" />
+                              <span>Chatear</span>
+                            </a>
                           </td>
                         </tr>
                       ))}
