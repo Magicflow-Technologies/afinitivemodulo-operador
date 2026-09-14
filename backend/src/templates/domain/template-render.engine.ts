@@ -177,32 +177,7 @@ export class TemplateRenderEngine {
         }
       );
 
-      // Normalizar imágenes del Logo Afinitive (eliminar base64 roto o rutas relativas)
-      finalFullHtml = finalFullHtml.replace(
-        /<img\s+([^>]*?(?:alt=["'][^"']*(?:afinitive|logo)[^"']*["'])[^>]*?)>/gi,
-        (match) => {
-          if (match.includes('links.afinitive.com.pe/img/afinitive_logo.png')) return match;
-          return match.replace(/src=["'][^"']*["']/gi, 'src="https://links.afinitive.com.pe/img/afinitive_logo.png"');
-        }
-      );
 
-      // Normalizar foto de Ricardo Bertalmio / Johana / Asesor
-      finalFullHtml = finalFullHtml.replace(
-        /<img\s+([^>]*?(?:alt=["'][^"']*(?:ricardo|johana|rubi[ñn]os|asesor)[^"']*["'])[^>]*?)>/gi,
-        (match) => {
-          if (match.includes('dashbportal.com/afinitive/rbertalmio.png')) return match;
-          return match.replace(/src=["'][^"']*["']/gi, 'src="https://dashbportal.com/afinitive/rbertalmio.png"');
-        }
-      );
-
-      // Normalizar icono de WhatsApp
-      finalFullHtml = finalFullHtml.replace(
-        /<img\s+([^>]*?(?:alt=["'][^"']*(?:whatsapp|wa\b|chat)[^"']*["'])[^>]*?)>/gi,
-        (match) => {
-          if (match.includes('flaticon.com/512/733/733585.png')) return match;
-          return match.replace(/src=["'][^"']*["']/gi, 'src="https://cdn-icons-png.flaticon.com/512/733/733585.png"');
-        }
-      );
 
       // Si el diseño contiene marcadores explícitos de botones
       if (finalFullHtml.includes('[CONFIRMAR_CITA]')) {

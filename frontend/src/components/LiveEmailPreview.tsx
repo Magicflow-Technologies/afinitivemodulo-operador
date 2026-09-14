@@ -132,35 +132,6 @@ export const LiveEmailPreview: React.FC<LiveEmailPreviewProps> = ({
       .replace(/\{\{\s*calendario_link\s*\}\}/gi, calendarBookingLink)
       .replace(/\{\{\s*confirmar_cita_link\s*\}\}/gi, calendarBookingLink);
 
-    // Función de normalización de imágenes institucionales
-    const normalizeImages = (html: string): string => {
-      return html
-        // Logo Afinitive
-        .replace(
-          /<img\s+([^>]*?(?:alt=["'][^"']*(?:afinitive|logo)[^"']*["'])[^>]*?)>/gi,
-          (match) => {
-            if (match.includes('links.afinitive.com.pe/img/afinitive_logo.png')) return match;
-            return match.replace(/src=["'][^"']*["']/gi, 'src="https://links.afinitive.com.pe/img/afinitive_logo.png"');
-          }
-        )
-        // Foto Ricardo / Johana / Asesor
-        .replace(
-          /<img\s+([^>]*?(?:alt=["'][^"']*(?:ricardo|johana|rubi[ñn]os|asesor)[^"']*["'])[^>]*?)>/gi,
-          (match) => {
-            if (match.includes('dashbportal.com/afinitive/rbertalmio.png')) return match;
-            return match.replace(/src=["'][^"']*["']/gi, 'src="https://dashbportal.com/afinitive/rbertalmio.png"');
-          }
-        )
-        // Icono WhatsApp
-        .replace(
-          /<img\s+([^>]*?(?:alt=["'][^"']*(?:whatsapp|wa\b|chat)[^"']*["'])[^>]*?)>/gi,
-          (match) => {
-            if (match.includes('flaticon.com/512/733/733585.png')) return match;
-            return match.replace(/src=["'][^"']*["']/gi, 'src="https://cdn-icons-png.flaticon.com/512/733/733585.png"');
-          }
-        );
-    };
-
     // Función de normalización y reemplazo de enlaces de conversión
     const normalizeLinks = (html: string): string => {
       let res = html;
@@ -211,7 +182,7 @@ export const LiveEmailPreview: React.FC<LiveEmailPreviewProps> = ({
     // MODO FULL HTML (Landing completa autónoma)
     const isFull = templateType === 'full_html' || content.toLowerCase().includes('<!doctype') || content.toLowerCase().includes('<html');
     if (isFull) {
-      return normalizeLinks(normalizeImages(content));
+      return normalizeLinks(content);
     }
 
     // MODO STANDARD WRAPPER
@@ -299,7 +270,7 @@ export const LiveEmailPreview: React.FC<LiveEmailPreviewProps> = ({
       </html>
     `;
 
-    return normalizeLinks(normalizeImages(wrappedHtml));
+    return normalizeLinks(wrappedHtml);
   }, [rawHtmlOrBody, templateType, simulatedName, greeting, formattedDate, operatorName, operatorRole, signatureId]);
 
   return (
