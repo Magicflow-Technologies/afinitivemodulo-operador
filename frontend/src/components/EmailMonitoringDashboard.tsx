@@ -22,8 +22,15 @@ import {
   PauseCircle,
   MessageCircle,
   Search,
-  Phone
+  Phone,
+  LayoutTemplate,
+  FolderOpen,
+  Copy,
+  Check
 } from 'lucide-react';
+import { LiveEmailPreview } from './LiveEmailPreview';
+import { TemplateManagerModal } from './TemplateManagerModal';
+import type { EmailTemplateItem } from './TemplateManagerModal';
 
 interface EmailRecord {
   id: string;
@@ -65,7 +72,7 @@ interface UploadSummary {
   skippedContacts: SkippedContact[];
 }
 
-const buildEmailTemplate = (sigId: string, name: string, dateStr: string) => {
+const buildEmailTemplate = (name: string, dateStr: string) => {
   let formattedDate = 'miércoles, 3 de septiembre a las 10:00';
   if (dateStr) {
     const d = new Date(dateStr);
@@ -84,10 +91,8 @@ const buildEmailTemplate = (sigId: string, name: string, dateStr: string) => {
   const isFemale = cleanName.toLowerCase().endsWith('a') || cleanName.toLowerCase().includes('mari');
   const greeting = isFemale ? 'Estimada' : 'Estimado';
 
-  const nameInBody = sigId === 'ricardo' ? 'Ricardo Bertalmio Ruibal' : 'Irina Portilla Farfán';
-  const roleInBody = sigId === 'ricardo'
-    ? 'Soy economista de la Universidad del Pacífico y dirijo Afinitive Wealth Management'
-    : 'Soy Client Experience Manager en Afinitive Wealth Management';
+  const nameInBody = 'Ricardo Bertalmio Ruibal';
+  const roleInBody = 'Soy economista de la Universidad del Pacífico y dirijo Afinitive Wealth Management';
 
   return `${greeting} ${cleanName}:\n\n` +
     'Le escribo porque encontré su perfil en LinkedIn. Compartimos varios contactos en común, y me pareció oportuno tomar la iniciativa de escribirle.\n\n' +
@@ -102,39 +107,37 @@ const buildEmailTemplate = (sigId: string, name: string, dateStr: string) => {
     'Me avisa para agendar,';
 };
 
-export default function EmailMonitoringDashboard() {
+interface EmailMonitoringDashboardProps {
+  onNavigateToBooking?: () => void;
+}
+
+export default function EmailMonitoringDashboard({ onNavigateToBooking }: EmailMonitoringDashboardProps) {
   const [recipientEmail, setRecipientEmail] = useState('');
   const [recipientName, setRecipientName] = useState('Marielisa');
   const [proposedTime, setProposedTime] = useState('');
   const [showIndividualSlotPicker, setShowIndividualSlotPicker] = useState(false);
   const [selectedDayIndividual, setSelectedDayIndividual] = useState<string | null>(null);
 
-  const [signatureId, setSignatureId] = useState('ricardo');
+  const [signatureId] = useState('ricardo');
   const [senderName, setSenderName] = useState('Ricardo Bertalmio');
   const [senderEmail, setSenderEmail] = useState('rbertalmio@afinitive.com.pe');
-  
-  const handleSignatureChange = (id: string) => {
-    setSignatureId(id);
-    if (id === 'irina') {
-      setSenderName('Irina Portilla');
-      setSenderEmail('iportilla@afinitive.com.pe');
-      setEmailBody(buildEmailTemplate('irina', recipientName, proposedTime));
-    } else if (id === 'ricardo') {
-      setSenderName('Ricardo Bertalmio');
-      setSenderEmail('rbertalmio@afinitive.com.pe');
-      setEmailBody(buildEmailTemplate('ricardo', recipientName, proposedTime));
-    }
-    fetchFreeSlots(id);
-  };
+
+  const [copiedBookingUrl, setCopiedBookingUrl] = useState(false);
 
   const [subject, setSubject] = useState('Invitación Exclusiva - Afinitive');
-  const [emailBody, setEmailBody] = useState(buildEmailTemplate('ricardo', 'Marielisa', ''));
+  const [emailBody, setEmailBody] = useState(buildEmailTemplate('Marielisa', ''));
   const [loading, setLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [emails, setEmails] = useState<EmailRecord[]>([]);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
+
+  // --- Estados de Plantillas de Correo (Arquitectura Desacoplada) ---
+  const [templates, setTemplates] = useState<EmailTemplateItem[]>([]);
+  const [selectedTemplateId, setSelectedTemplateId] = useState<string | null>('00000000-0000-0000-0000-000000000001');
+  const [selectedTemplate, setSelectedTemplate] = useState<EmailTemplateItem | null>(null);
+  const [showTemplateModal, setShowTemplateModal] = useState(false);
 
   // --- Estados de Campañas y Cola (Nuevos) ---
   const [activeTab, setActiveTab] = useState<'individual' | 'campanas' | 'agenda'>('individual');
@@ -281,6 +284,70 @@ export default function EmailMonitoringDashboard() {
 
     return () => clearInterval(interval);
   }, [fetchEmails]);
+
+  // Cargar Plantillas desde el Backend
+  const fetchTemplates = useCallback(async () => {
+    try {
+      const response = await fetch(`${BACKEND_URL}/api/templates`);
+      if (response.ok) {
+        const data: EmailTemplateItem[] = await response.json();
+        setTemplates(data || []);
+        if (data && data.length > 0) {
+          const current = data.find((t) => t.id === selectedTemplateId) || data[0];
+          setSelectedTemplate(current);
+          setSelectedTemplateId(current.id);
+        }
+      }
+    } catch (err) {
+      console.error('Error al cargar plantillas:', err);
+    }
+  }, [BACKEND_URL, selectedTemplateId]);
+
+  useEffect(() => {
+    fetchTemplates();
+  }, [fetchTemplates]);
+
+  const handleSelectTemplate = (tpl: EmailTemplateItem) => {
+    setSelectedTemplateId(tpl.id);
+    setSelectedTemplate(tpl);
+    setSubject(tpl.subject);
+    const content = tpl.html_content || tpl.htmlContent || '';
+    setEmailBody(content);
+  };
+
+  const handleUploadHtml = async (file: File, name: string, subj: string, category: string) => {
+    const text = await file.text();
+    const response = await fetch(`${BACKEND_URL}/api/templates`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        name,
+        subject: subj,
+        htmlContent: text,
+        type: 'full_html',
+        category,
+        createdBy: 'manual',
+      }),
+    });
+    if (!response.ok) {
+      const err = await response.json();
+      throw new Error(err.message || 'Error al guardar plantilla');
+    }
+    const newTpl = await response.json();
+    await fetchTemplates();
+    handleSelectTemplate(newTpl);
+    setSuccessMsg(`¡Plantilla "${name}" guardada y lista para usar!`);
+  };
+
+  const handleDeleteTemplate = async (id: string) => {
+    const response = await fetch(`${BACKEND_URL}/api/templates/${id}`, {
+      method: 'DELETE',
+    });
+    if (response.ok) {
+      await fetchTemplates();
+      setSuccessMsg('Plantilla eliminada correctamente.');
+    }
+  };
 
   // Cargar Configuraciones de Agenda
   const fetchSettings = useCallback(async () => {
@@ -510,7 +577,11 @@ export default function EmailMonitoringDashboard() {
           signatureId,
           attachment: attachmentData,
           sendInterval: Number(sendInterval),
-          sendIntervalUnit: sendIntervalUnit
+          sendIntervalUnit: sendIntervalUnit,
+          templateId: selectedTemplateId || undefined,
+          customSubject: subject,
+          customBody: emailBody,
+          customTemplateType: selectedTemplate?.type || undefined,
         }),
       });
       if (response.ok) {
@@ -629,7 +700,9 @@ export default function EmailMonitoringDashboard() {
           subject, 
           body: emailBody,
           signatureId,
-          attachment: attachmentData
+          attachment: attachmentData,
+          templateId: selectedTemplateId || undefined,
+          templateType: selectedTemplate?.type || undefined,
         }),
       });
 
@@ -705,12 +778,29 @@ export default function EmailMonitoringDashboard() {
                 </span>
               </div>
               <p className="text-xs text-brand-gold font-medium uppercase tracking-widest mt-0.5">
-                Monitoreo Omnicanal y Conversión en Vivo — Irina
+                Monitoreo Omnicanal y Conversión en Vivo — Ricardo Bertalmio
               </p>
             </div>
           </div>
           
           <div className="flex items-center gap-3 flex-wrap justify-center md:justify-end">
+            <button
+              onClick={() => {
+                if (onNavigateToBooking) {
+                  onNavigateToBooking();
+                } else {
+                  window.open('/agendar', '_blank');
+                }
+              }}
+              className="flex items-center gap-2 px-3.5 py-2 bg-gradient-to-r from-brand-gold/25 via-brand-gold/35 to-brand-gold/20 hover:from-brand-gold/40 hover:to-brand-gold/30 active:scale-[0.98] border border-brand-gold text-xs font-bold text-white rounded-xl transition-all duration-200 shadow-lg shadow-brand-gold/15 cursor-pointer"
+            >
+              <Calendar className="w-3.5 h-3.5 text-brand-gold" />
+              <span>Calendario Público de Ricardo</span>
+              <ExternalLink className="w-3 h-3 text-brand-gold" />
+            </button>
+
+            <span className="h-6 w-px bg-slate-800 hidden sm:inline"></span>
+
             <a
               href="https://operador.afinitive.com.pe/formEvento/index2.html"
               target="_blank"
@@ -746,6 +836,71 @@ export default function EmailMonitoringDashboard() {
       {/* Contenido Principal Full-Width */}
       <main className="flex-1 max-w-[1780px] w-full mx-auto p-4 sm:p-6 lg:p-8 space-y-8">
         
+        {/* Banner Destacado: Enlace Fijo de Agendamiento Online */}
+        <div className="bg-gradient-to-r from-[#0F1E33] via-[#0D1B2A] to-[#142338] border border-brand-gold/30 rounded-2xl p-4 sm:p-5 shadow-xl flex flex-col lg:flex-row items-start lg:items-center justify-between gap-4">
+          <div className="flex items-start sm:items-center gap-3.5">
+            <div className="p-3 bg-brand-gold/10 border border-brand-gold/30 rounded-xl text-brand-gold shrink-0">
+              <Calendar className="w-6 h-6 text-brand-gold" />
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <h2 className="text-sm sm:text-base font-bold text-white">
+                  Enlace Fijo de Agendamiento Online — Ricardo Bertalmio
+                </h2>
+                <span className="px-2 py-0.5 rounded-full bg-emerald-500/15 border border-emerald-500/30 text-emerald-400 text-[10px] font-mono uppercase font-bold">
+                  URL Fijo Oficial
+                </span>
+              </div>
+              <p className="text-xs text-slate-300 mt-1 max-w-2xl">
+                Enlace universal para colocar en la página web, firmas de correo o enviar por WhatsApp. Muestra los días y horas libres sincronizados de Google Calendar y permite agendar directamente.
+              </p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2 flex-wrap w-full lg:w-auto justify-start lg:justify-end">
+            <div className="flex items-center bg-[#070F1A] border border-brand-gold/25 rounded-xl px-3 py-2 text-xs font-mono text-brand-gold select-all max-w-full overflow-x-auto">
+              <span>{typeof window !== 'undefined' ? `${window.location.origin}/agendar` : 'https://operador.afinitive.com.pe/agendar'}</span>
+            </div>
+
+            <button
+              onClick={() => {
+                const url = `${window.location.origin}/agendar`;
+                navigator.clipboard.writeText(url);
+                setCopiedBookingUrl(true);
+                setTimeout(() => setCopiedBookingUrl(false), 2500);
+              }}
+              className="flex items-center gap-1.5 px-3.5 py-2 bg-brand-gold/15 hover:bg-brand-gold/30 border border-brand-gold/40 text-brand-gold rounded-xl text-xs font-semibold transition-all cursor-pointer"
+            >
+              {copiedBookingUrl ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
+              <span>{copiedBookingUrl ? '¡Copiado!' : 'Copiar'}</span>
+            </button>
+
+            <button
+              onClick={() => {
+                if (onNavigateToBooking) {
+                  onNavigateToBooking();
+                } else {
+                  window.open('/agendar', '_blank');
+                }
+              }}
+              className="flex items-center gap-1.5 px-3.5 py-2 bg-white hover:bg-slate-100 text-[#070F1E] font-bold rounded-xl text-xs shadow-md transition-all cursor-pointer"
+            >
+              <span>Abrir Calendario</span>
+              <ExternalLink className="w-3.5 h-3.5" />
+            </button>
+
+            <a
+              href={`https://wa.me/?text=${encodeURIComponent(`Hola, puedes agendar una reunión directamente en mi calendario en el siguiente enlace: ${typeof window !== 'undefined' ? window.location.origin : ''}/agendar`)}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex items-center gap-1.5 px-3.5 py-2 bg-[#25D366] hover:bg-[#20BA56] text-white font-bold rounded-xl text-xs shadow-md transition-all cursor-pointer"
+              title="Compartir por WhatsApp"
+            >
+              <span>WhatsApp</span>
+            </a>
+          </div>
+        </div>
+
         {/* Pestañas de Navegación Premium */}
         <div className="flex border-b border-slate-800 gap-2 overflow-x-auto pb-px">
           <button
@@ -826,42 +981,80 @@ export default function EmailMonitoringDashboard() {
                   </p>
                 </div>
 
+                {/* Selector de Plantillas & Biblioteca */}
+                <div className="bg-[#09131E] border border-brand-gold/25 rounded-xl p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-inner">
+                  <div className="flex items-center gap-3">
+                    <div className="p-2.5 rounded-lg bg-brand-gold/10 border border-brand-gold/30 text-brand-gold">
+                      <LayoutTemplate className="w-5 h-5" />
+                    </div>
+                    <div>
+                      <label className="text-xs text-brand-gold font-bold uppercase tracking-wider block">Plantilla del Correo</label>
+                      <div className="flex items-center gap-2 mt-1">
+                        <select
+                          value={selectedTemplateId || ''}
+                          onChange={(e) => {
+                            const found = templates.find((t) => t.id === e.target.value);
+                            if (found) handleSelectTemplate(found);
+                          }}
+                          className="px-3 py-1.5 bg-brand-navy-dark border border-brand-gold/30 rounded-lg text-xs font-semibold text-slate-100 outline-none focus:border-brand-gold max-w-xs sm:max-w-sm truncate"
+                        >
+                          {templates.map((tpl) => (
+                            <option key={tpl.id} value={tpl.id}>
+                              {tpl.name} ({tpl.type === 'full_html' ? 'Landing HTML' : 'Institucional'})
+                            </option>
+                          ))}
+                        </select>
+                        {selectedTemplate && (
+                          <span className="text-[10px] px-2 py-0.5 rounded-full bg-slate-800 text-slate-300 border border-slate-700 hidden md:inline">
+                            {selectedTemplate.category || 'General'}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-2 w-full sm:w-auto justify-end">
+                    <button
+                      type="button"
+                      onClick={() => setShowTemplateModal(true)}
+                      className="px-4 py-2 bg-gradient-to-r from-brand-gold/20 to-brand-gold/10 hover:from-brand-gold/30 hover:to-brand-gold/20 text-brand-gold border border-brand-gold/40 rounded-xl text-xs font-bold transition-all flex items-center gap-2 shadow-sm cursor-pointer"
+                    >
+                      <FolderOpen className="w-4 h-4" />
+                      <span>Biblioteca / Subir .HTML</span>
+                    </button>
+                  </div>
+                </div>
+
+                {/* Visor de Previsualización en Vivo */}
+                <div className="pt-2">
+                  <LiveEmailPreview
+                    templateName={selectedTemplate?.name || 'Plantilla Personalizada'}
+                    templateType={selectedTemplate?.type || 'standard_wrapper'}
+                    rawHtmlOrBody={emailBody}
+                    subject={subject}
+                    signatureId={signatureId}
+                    senderName={senderName}
+                    testRecipientName={recipientName}
+                    testProposedDate={proposedTime}
+                    createdBy={selectedTemplate?.createdBy || selectedTemplate?.created_by || 'manual'}
+                    onRefresh={() => fetchTemplates()}
+                  />
+                </div>
+
                 <form onSubmit={handleSendEmail} className="space-y-5 pt-2">
                   {/* Selección de Firma */}
                   <div className="space-y-2">
-                    <label className="text-xs text-brand-gold font-medium uppercase tracking-wider block">Firma del Correo (Remitente)</label>
+                    <label className="text-xs text-brand-gold font-medium uppercase tracking-wider block">Firma del Correo (Remitente Oficial)</label>
                     <div className="flex flex-col sm:flex-row gap-4">
-                      <button
-                        type="button"
-                        onClick={() => handleSignatureChange('irina')}
-                        className={`flex items-center gap-3 px-5 py-3 rounded-xl border text-sm font-medium transition-all duration-200 cursor-pointer ${
-                          signatureId === 'irina'
-                            ? 'bg-brand-gold/10 border-brand-gold text-brand-gold shadow-lg shadow-brand-gold/5'
-                            : 'bg-brand-navy-dark border-brand-gold/10 hover:border-brand-gold/30 text-slate-400'
-                        }`}
+                      <div
+                        className="flex items-center gap-3 px-5 py-3 rounded-xl border border-brand-gold bg-brand-gold/10 text-brand-gold shadow-lg shadow-brand-gold/5 text-sm font-medium w-full sm:w-auto"
                       >
-                        <img src="https://dashbportal.com/afinitive/foto_irina.png" className="w-7 h-7 rounded-full object-cover border border-brand-gold/25" alt="Irina" />
+                        <img src="https://dashbportal.com/afinitive/rbertalmio.png" className="w-8 h-8 rounded-full object-cover border border-brand-gold/40 shadow-sm" alt="Ricardo" />
                         <div className="text-left">
-                          <p className="font-semibold leading-tight">Irina Portilla Farfán</p>
-                          <p className="text-xxs opacity-80 font-normal">Client Experience Manager</p>
+                          <p className="font-semibold leading-tight text-white">Ricardo Bertalmio Ruibal</p>
+                          <p className="text-xxs text-brand-gold opacity-90 font-normal">CEO Wealth Management (Oficial)</p>
                         </div>
-                      </button>
-                      
-                      <button
-                        type="button"
-                        onClick={() => handleSignatureChange('ricardo')}
-                        className={`flex items-center gap-3 px-5 py-3 rounded-xl border text-sm font-medium transition-all duration-200 cursor-pointer ${
-                          signatureId === 'ricardo'
-                            ? 'bg-brand-gold/10 border-brand-gold text-brand-gold shadow-lg shadow-brand-gold/5'
-                            : 'bg-brand-navy-dark border-brand-gold/10 hover:border-brand-gold/30 text-slate-400'
-                        }`}
-                      >
-                        <img src="https://dashbportal.com/afinitive/rbertalmio.png" className="w-7 h-7 rounded-full object-cover border border-brand-gold/25" alt="Ricardo" />
-                        <div className="text-left">
-                          <p className="font-semibold leading-tight">Ricardo Bertalmio Ruibal</p>
-                          <p className="text-xxs opacity-80 font-normal">CEO Wealth Management</p>
-                        </div>
-                      </button>
+                      </div>
                     </div>
                   </div>
 
@@ -872,7 +1065,7 @@ export default function EmailMonitoringDashboard() {
                       <input
                         type="text"
                         required
-                        placeholder="Ej: Irina Portilla"
+                        placeholder="Ej: Ricardo Bertalmio"
                         value={senderName}
                         onChange={(e) => setSenderName(e.target.value)}
                         className="w-full px-4 py-3 bg-brand-navy-dark border border-brand-gold/20 hover:border-brand-gold/40 focus:border-brand-gold/90 focus:ring-1 focus:ring-brand-gold/50 rounded-xl text-slate-100 placeholder-slate-500 outline-none transition-all duration-200 text-sm font-sans"
@@ -884,7 +1077,7 @@ export default function EmailMonitoringDashboard() {
                       <input
                         type="text"
                         required
-                        placeholder="Ej: iportilla@afinitive.com.pe"
+                        placeholder="Ej: rbertalmio@afinitive.com.pe"
                         value={senderEmail}
                         onChange={(e) => setSenderEmail(e.target.value)}
                         className="w-full px-4 py-3 bg-brand-navy-dark border border-brand-gold/20 hover:border-brand-gold/40 focus:border-brand-gold/90 focus:ring-1 focus:ring-brand-gold/50 rounded-xl text-slate-100 placeholder-slate-500 outline-none transition-all duration-200 text-sm font-sans"
@@ -947,7 +1140,7 @@ export default function EmailMonitoringDashboard() {
                           onChange={(e) => {
                             setProposedTime(e.target.value);
                             if (e.target.value) {
-                              setEmailBody(buildEmailTemplate(signatureId, recipientName, e.target.value));
+                              setEmailBody(buildEmailTemplate(recipientName, e.target.value));
                             }
                           }}
                           className="w-full px-4 py-3 bg-brand-navy-dark border border-brand-gold/20 hover:border-brand-gold/40 focus:border-brand-gold/90 focus:ring-1 focus:ring-brand-gold/50 rounded-xl text-slate-100 placeholder-slate-500 outline-none transition-all duration-200 text-sm font-sans [color-scheme:dark]"
@@ -1013,7 +1206,7 @@ export default function EmailMonitoringDashboard() {
                                     onClick={() => {
                                       const formattedValue = `${selectedDayIndividual}T${time}:00-05:00`;
                                       setProposedTime(formattedValue);
-                                      setEmailBody(buildEmailTemplate(signatureId, recipientName, formattedValue));
+                                      setEmailBody(buildEmailTemplate(recipientName, formattedValue));
                                       setShowIndividualSlotPicker(false);
                                     }}
                                     className="py-1.5 px-2 text-xs font-mono bg-brand-navy-dark hover:bg-brand-gold hover:text-[#070F1E] border border-brand-gold/20 rounded-lg text-slate-200 text-center transition-all cursor-pointer font-semibold"
@@ -1047,7 +1240,7 @@ export default function EmailMonitoringDashboard() {
                       <label className="text-xs text-brand-gold font-medium uppercase tracking-wider">Cuerpo del Mensaje (Invitación)</label>
                       <button
                         type="button"
-                        onClick={() => setEmailBody(buildEmailTemplate(signatureId, recipientName, proposedTime))}
+                        onClick={() => setEmailBody(buildEmailTemplate(recipientName, proposedTime))}
                         className="text-[11px] text-brand-gold/80 hover:text-brand-gold font-medium flex items-center gap-1 cursor-pointer transition-colors"
                         title="Regenerar mensaje con el nombre y fecha seleccionados"
                       >
@@ -1636,7 +1829,67 @@ export default function EmailMonitoringDashboard() {
                   </div>
                 </div>
 
-                {/* Subidor de Archivo Drag & Drop */}
+                {/* Paso 1: Selección de Plantilla de la Campaña */}
+                <div className="bg-[#09131E] border border-brand-gold/25 rounded-xl p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-inner">
+                  <div className="flex items-center gap-3">
+                    <div className="p-2.5 rounded-lg bg-brand-gold/10 border border-brand-gold/30 text-brand-gold">
+                      <LayoutTemplate className="w-5 h-5" />
+                    </div>
+                    <div>
+                      <label className="text-xs text-brand-gold font-bold uppercase tracking-wider block">
+                        Paso 1: Plantilla para esta Campaña Masiva
+                      </label>
+                      <div className="flex items-center gap-2 mt-1">
+                        <select
+                          value={selectedTemplateId || ''}
+                          onChange={(e) => {
+                            const found = templates.find((t) => t.id === e.target.value);
+                            if (found) handleSelectTemplate(found);
+                          }}
+                          className="px-3 py-1.5 bg-brand-navy-dark border border-brand-gold/30 rounded-lg text-xs font-semibold text-slate-100 outline-none focus:border-brand-gold max-w-xs sm:max-w-sm truncate"
+                        >
+                          {templates.map((tpl) => (
+                            <option key={tpl.id} value={tpl.id}>
+                              {tpl.name} ({tpl.type === 'full_html' ? 'Landing HTML' : 'Institucional'})
+                            </option>
+                          ))}
+                        </select>
+                        {selectedTemplate && (
+                          <span className="text-[10px] px-2 py-0.5 rounded-full bg-slate-800 text-slate-300 border border-slate-700 hidden md:inline">
+                            {selectedTemplate.category || 'General'}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-2 w-full sm:w-auto justify-end">
+                    <button
+                      type="button"
+                      onClick={() => setShowTemplateModal(true)}
+                      className="px-4 py-2 bg-gradient-to-r from-brand-gold/20 to-brand-gold/10 hover:from-brand-gold/30 hover:to-brand-gold/20 text-brand-gold border border-brand-gold/40 rounded-xl text-xs font-bold transition-all flex items-center gap-2 shadow-sm cursor-pointer"
+                    >
+                      <FolderOpen className="w-4 h-4" />
+                      <span>Biblioteca / Subir .HTML</span>
+                    </button>
+                  </div>
+                </div>
+
+                {/* Visor de Previsualización en Campaña */}
+                <LiveEmailPreview
+                  templateName={selectedTemplate?.name || 'Plantilla de Campaña'}
+                  templateType={selectedTemplate?.type || 'standard_wrapper'}
+                  rawHtmlOrBody={emailBody}
+                  subject={subject}
+                  signatureId={signatureId}
+                  senderName={senderName}
+                  testRecipientName="Carlos Mendoza (Ejemplo)"
+                  testProposedDate={proposedTime}
+                  createdBy={selectedTemplate?.createdBy || selectedTemplate?.created_by || 'manual'}
+                  onRefresh={() => fetchTemplates()}
+                />
+
+                {/* Paso 2: Subidor de Archivo Drag & Drop */}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-center">
                   <div className="border-2 border-dashed border-brand-gold/25 hover:border-brand-gold/50 rounded-xl p-8 text-center bg-slate-950/20 transition-all duration-200 relative group">
                     <input
@@ -1711,7 +1964,7 @@ export default function EmailMonitoringDashboard() {
                         {queueItems.length > 0 && (
                           <div className="space-y-3">
                             <p className="text-xs text-brand-gold/85 italic bg-brand-gold/5 border border-brand-gold/15 rounded-lg px-3 py-2 text-center">
-                              Los correos se enviarán con la firma de: <strong>{signatureId === 'irina' ? 'Irina Portilla Farfán' : 'Ricardo Bertalmio Ruibal'}</strong>. (Puedes cambiarla en el selector en la parte superior).
+                              Los correos se enviarán con la firma ejecutiva oficial de: <strong>Ricardo Bertalmio Ruibal</strong>.
                             </p>
                             {selectedFile && (
                               <p className="text-xs text-emerald-400/90 italic bg-emerald-500/5 border border-emerald-500/15 rounded-lg px-3 py-2 text-center">
@@ -2228,6 +2481,17 @@ export default function EmailMonitoringDashboard() {
           </section>
         )}
 
+        {/* Modal de Gestión y Carga de Plantillas */}
+        <TemplateManagerModal
+          isOpen={showTemplateModal}
+          onClose={() => setShowTemplateModal(false)}
+          templates={templates}
+          selectedTemplateId={selectedTemplateId}
+          onSelectTemplate={handleSelectTemplate}
+          onUploadHtml={handleUploadHtml}
+          onDeleteTemplate={handleDeleteTemplate}
+        />
+
       </main>
 
       {/* Pie de página */}
@@ -2236,7 +2500,7 @@ export default function EmailMonitoringDashboard() {
           <span>Afinitive Inc. — Monitoreo Omnicanal</span>
           <span className="w-1 h-1 rounded-full bg-slate-600"></span>
           <span className="text-brand-gold font-semibold flex items-center gap-0.5">
-            Operadora Irina <ArrowRight className="w-3 h-3 inline" /> Módulo de Correo Omnicanal
+            Ricardo Bertalmio Ruibal <ArrowRight className="w-3 h-3 inline" /> Suite de Correo Omnicanal
           </span>
         </p>
       </footer>

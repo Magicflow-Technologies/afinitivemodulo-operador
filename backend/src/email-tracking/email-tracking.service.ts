@@ -5,72 +5,11 @@ import { Resend } from 'resend';
 import * as fs from 'fs';
 import * as path from 'path';
 import { google } from 'googleapis';
+import { TemplatesService } from '../templates/templates.service';
+import { TemplateRenderEngine } from '../templates/domain/template-render.engine';
 
 // Catálogo de Firmas Corporativas Disponibles
 const SIGNATURES = {
-  irina: `
-              <!-- FIRMA: IRINA PORTILLA -->
-              <table cellpadding="0" cellspacing="0" border="0" style="font-family: Arial, Helvetica, sans-serif; max-width: 100%; background-color: #ffffff;">
-                <tr>
-                  <!-- 1. Columna del Logo -->
-                  <td valign="middle" style="padding-right: 15px;">
-                    <img src="https://dashbportal.com/afinitive/afi.jpeg" alt="Afinitive" width="120" style="display: block; border: none;">
-                  </td>
-
-                  <!-- 2. Columna de la Foto de Perfil -->
-                  <td valign="middle" style="padding-right: 20px;">
-                    <img src="https://dashbportal.com/afinitive/foto_irina.png" alt="Irina Portilla Farfán" width="90" style="display: block; border-radius: 50%; box-shadow: 0px 0px 5px rgba(0,0,0,0.15);">
-                  </td>
-
-                  <!-- 3. Columna de Datos de Contacto -->
-                  <td valign="middle">
-                    
-                    <!-- Nombre y Cargo -->
-                    <table cellpadding="0" cellspacing="0" border="0" style="width: 100%; margin-bottom: 8px;">
-                      <tr>
-                        <td style="padding-bottom: 3px;">
-                          <span style="font-size: 18px; color: #000000; font-weight: bold; margin: 0; line-height: 1.1; font-family: Arial, sans-serif;">Irina Portilla Farfán</span>
-                        </td>
-                      </tr>
-                      <tr>
-                        <td>
-                          <span style="font-size: 13px; color: #555555; margin: 0; font-family: Arial, sans-serif;">Client Experience Manager</span>
-                        </td>
-                      </tr>
-                    </table>
-
-                    <!-- Datos de Contacto -->
-                    <table cellpadding="0" cellspacing="0" border="0" style="font-size: 12px; color: #000000; font-family: Arial, sans-serif;">
-                      <tr>
-                        <td valign="middle" style="padding: 0 15px 4px 0; white-space: nowrap;">
-                          <img src="https://cdn-icons-png.flaticon.com/512/15/15874.png" width="13" style="vertical-align: middle; margin-right: 4px; border: none;" alt="Celular">
-                          <span style="vertical-align: middle;">(511) 930111655</span>
-                        </td>
-                        <td valign="middle" style="padding: 0 0 4px 0; white-space: nowrap;">
-                          <img src="https://cdn-icons-png.flaticon.com/512/2838/2838912.png" width="13" style="vertical-align: middle; margin-right: 4px; border: none;" alt="Ubicación">
-                          <span style="vertical-align: middle;">Av. Camino Real, San Isidro.</span>
-                        </td>
-                      </tr>
-                      <tr>
-                        <td valign="middle" style="padding: 0 15px 0 0; white-space: nowrap;">
-                          <a href="https://afinitive.com.pe" style="text-decoration: none; color: #000000;" target="_blank">
-                            <img src="https://cdn-icons-png.flaticon.com/512/1006/1006771.png" width="13" style="vertical-align: middle; margin-right: 4px; border: none;" alt="Web">
-                            <span style="vertical-align: middle;">afinitive.com.pe</span>
-                          </a>
-                        </td>
-                        <td valign="middle" style="padding: 0; white-space: nowrap;">
-                          <a href="https://www.linkedin.com/in/irina-portilla-farfan" style="text-decoration: none; color: #000000;" target="_blank">
-                            <img src="https://cdn-icons-png.flaticon.com/512/174/174857.png" width="13" style="vertical-align: middle; margin-right: 4px; border: none;" alt="LinkedIn">
-                            <span style="vertical-align: middle;">irina-portilla-farfan</span>
-                          </a>
-                        </td>
-                      </tr>
-                    </table>
-
-                  </td>
-                </tr>
-              </table>
-  `,
   ricardo: `
               <!-- FIRMA: RICARDO BERTALMIO -->
               <table cellpadding="0" cellspacing="0" border="0" style="font-family: Arial, Helvetica, sans-serif; max-width: 100%; background-color: #ffffff;">
@@ -143,7 +82,11 @@ export class EmailTrackingService {
   private resend: Resend;
   private senderEmail: string;
 
-  constructor(private configService: ConfigService) {
+  constructor(
+    private configService: ConfigService,
+    private templatesService: TemplatesService,
+    private renderEngine: TemplateRenderEngine,
+  ) {
     const supabaseUrl = this.configService.get<string>('SUPABASE_URL');
     const supabaseKey = this.configService.get<string>('SUPABASE_SERVICE_ROLE_KEY') || this.configService.get<string>('SUPABASE_ANON_KEY');
     const resendApiKey = this.configService.get<string>('RESEND_API_KEY');
@@ -175,9 +118,11 @@ export class EmailTrackingService {
     signatureId?: string,
     attachment?: { filename: string; content: string },
     proposedTime?: string,
-    recipientName?: string
+    recipientName?: string,
+    templateId?: string,
+    customTemplateType?: string,
   ) {
-    this.logger.log(`Intentando enviar correo de prueba a: ${recipientEmail} desde: ${customSender || this.senderEmail} con firma: ${signatureId || 'default (irina)'}${attachment ? ` con adjunto: ${attachment.filename}` : ''}`);
+    this.logger.log(`Intentando enviar correo a: ${recipientEmail} desde: ${customSender || this.senderEmail} con firma: ${signatureId || 'default (ricardo)'}${templateId ? ` con plantilla: ${templateId}` : ''}${attachment ? ` con adjunto: ${attachment.filename}` : ''}`);
 
     if (!this.resend) {
       throw new HttpException('El servicio de Resend no está configurado', HttpStatus.INTERNAL_SERVER_ERROR);
@@ -187,102 +132,65 @@ export class EmailTrackingService {
     }
 
     const sender = customSender || this.senderEmail;
-    const subject = customSubject || 'Invitación Exclusiva - Afinitive';
-    const emailBody = customBody || 'Este es un correo electrónico de prueba enviado para validar el Módulo de Monitoreo Omnicanal.';
-    
-    // Formatear saltos de línea para el cuerpo del mensaje en caso de que sea texto plano
-    const formattedBodyHtml = emailBody.replace(/\n/g, '<br />');
-
-    // Botones de acción dinámicos (Confirmar cita y WhatsApp)
     const backendBaseUrl = (this.configService.get<string>('BACKEND_PUBLIC_URL') || process.env.BACKEND_PUBLIC_URL || process.env.APP_URL || `http://localhost:${process.env.PORT || 3080}`).replace(/\/+$/, '');
-    const confirmLink = `${backendBaseUrl}/api/test-email/confirm-meeting?calendarId=${signatureId === 'ricardo' ? 'rbertalmio@afinitive.com' : 'iportilla@afinitive.com.pe'}&time=${encodeURIComponent(proposedTime || '')}&email=${encodeURIComponent(recipientEmail)}&name=${encodeURIComponent(recipientName || '')}`;
-    const whatsappTrackingLink = `${backendBaseUrl}/api/test-email/whatsapp-click?email=${encodeURIComponent(recipientEmail)}&name=${encodeURIComponent(recipientName || '')}&signatureId=${signatureId || 'irina'}`;
-    
-    const actionButtonsHtml = `
-      <div style="text-align: center; margin: 30px 0 25px 0;">
-        <!-- Botón 1: Confirmar Cita -->
-        <div style="margin-bottom: 20px;">
-          <a href="${confirmLink}" 
-             style="display: inline-block; background-color: #0D1B2A; color: #FFFFFF; padding: 13px 32px; font-weight: bold; font-size: 14px; text-decoration: none; border-radius: 6px; letter-spacing: 0.5px; box-shadow: 0 2px 6px rgba(0,0,0,0.18); font-family: Arial, sans-serif;">
-            📅 CONFIRMAR CITA
-          </a>
-        </div>
-        <!-- Botón 2: WhatsApp con texto explicativo -->
-        <div style="margin-top: 15px; padding-top: 15px; border-top: 1px dashed #E2E8F0;">
-          <p style="font-size: 13px; color: #64748B; margin: 0 0 10px 0; text-align: center; font-family: Arial, sans-serif;">
-            Si deseas más información o cambiar la cita contáctanos aquí:
-          </p>
-          <a href="${whatsappTrackingLink}" 
-             target="_blank"
-             style="display: inline-block; background-color: #25D366; color: #FFFFFF; padding: 11px 26px; font-weight: bold; font-size: 13px; text-decoration: none; border-radius: 6px; letter-spacing: 0.5px; box-shadow: 0 2px 6px rgba(37, 211, 102, 0.25); font-family: Arial, sans-serif;">
-            💬 Chatear por WhatsApp
-          </a>
-        </div>
-      </div>
-    `;
 
-    let finalBodyHtml = formattedBodyHtml;
-    if (finalBodyHtml.includes('[CONFIRMAR_CITA]')) {
-      finalBodyHtml = finalBodyHtml.replace('[CONFIRMAR_CITA]', actionButtonsHtml);
-    } else if (finalBodyHtml.includes('[AGENDAR_LLAMADA]')) {
-      finalBodyHtml = finalBodyHtml.replace('[AGENDAR_LLAMADA]', actionButtonsHtml);
-    } else {
-      // Si no contiene ningún marcador, agregamos los botones de acción por defecto al final
-      finalBodyHtml = finalBodyHtml + actionButtonsHtml;
+    const renderContext = {
+      recipientEmail,
+      recipientName: recipientName || 'Marielisa',
+      proposedTime,
+      signatureId: (signatureId as any) || 'ricardo',
+      backendBaseUrl,
+    };
+
+    let renderedSubject = customSubject || 'Invitación Exclusiva - Afinitive';
+    let renderedHtml = '';
+
+    if (templateId) {
+      try {
+        const tpl = await this.templatesService.getTemplateById(templateId);
+        const result = this.renderEngine.render(tpl, renderContext);
+        renderedSubject = customSubject || result.subject;
+        renderedHtml = result.html;
+      } catch (err) {
+        this.logger.warn(`No se pudo cargar la plantilla ${templateId}: ${err.message}. Usando renderizado por defecto.`);
+      }
     }
 
-    // Obtener la firma correspondiente del catálogo
-    const activeSignatureHtml = (signatureId && signatureId in SIGNATURES)
-      ? SIGNATURES[signatureId as keyof typeof SIGNATURES]
-      : SIGNATURES['irina'];
-
-    const logoUrl = this.configService.get<string>('EMAIL_LOGO_URL') || process.env.EMAIL_LOGO_URL || 'https://links.afinitive.com.pe/img/afinitive_logo.png';
+    if (!renderedHtml) {
+      if (customBody) {
+        const detectedType = (customTemplateType as any) || this.renderEngine.detectTemplateType(customBody);
+        const result = this.renderEngine.render({
+          type: detectedType,
+          htmlContent: customBody,
+          subject: customSubject || renderedSubject,
+        }, renderContext);
+        renderedSubject = result.subject;
+        renderedHtml = result.html;
+      } else {
+        const defaultTemplate = await this.templatesService.getTemplateById('00000000-0000-0000-0000-000000000001').catch(() => null);
+        if (defaultTemplate) {
+          const result = this.renderEngine.render(defaultTemplate, renderContext);
+          renderedSubject = result.subject;
+          renderedHtml = result.html;
+        } else {
+          const result = this.renderEngine.render({
+            type: 'standard_wrapper',
+            htmlContent: 'Este es un correo electrónico de prueba enviado para validar el Módulo de Monitoreo Omnicanal.',
+            subject: renderedSubject,
+          }, renderContext);
+          renderedSubject = result.subject;
+          renderedHtml = result.html;
+        }
+      }
+    }
 
     try {
       // Opciones de envío de correo
       const mailOptions: any = {
         from: sender,
         to: [recipientEmail],
-        subject: subject,
-        html: `
-          <div style="background-color: #F0F4F8; padding: 40px 20px; font-family: Arial, sans-serif;">
-            <div style="max-width: 600px; margin: 0 auto; background-color: #FFFFFF; border-radius: 8px; overflow: hidden; box-shadow: 0 4px 10px rgba(0,0,0,0.05); border: 1px solid #E2E8F0;">
-              
-              <!-- Cabecera Premium en Fondo Blanco -->
-              <div style="padding: 30px 40px 25px 40px; border-bottom: 1px solid #F1F5F9; background-color: #FFFFFF;">
-                <table cellpadding="0" cellspacing="0" border="0" style="background-color: #FFFFFF;">
-                  <tr>
-                    <td valign="middle" style="padding-right: 15px; line-height: 0;">
-                      <!-- Logo del Árbol Azul de Afinitive -->
-                      <img src="${logoUrl}" alt="Afinitive Logo" width="65" style="display: block; border: none;">
-                    </td>
-                    <td valign="middle" style="line-height: 1.15;">
-                      <div style="font-family: Arial, sans-serif;">
-                        <span style="font-size: 10px; color: #5B728A; letter-spacing: 2px; text-transform: uppercase; font-weight: normal; display: block; margin-bottom: 1px;">AFINITIVE</span>
-                        <span style="font-size: 17px; color: #0F2942; font-weight: bold; letter-spacing: 0.5px; text-transform: uppercase; display: block;">WEALTH MANAGEMENT</span>
-                      </div>
-                    </td>
-                  </tr>
-                </table>
-              </div>
-
-              <!-- Cuerpo del Correo Justificado -->
-              <div style="padding: 30px 40px 20px 40px; font-size: 15px; line-height: 1.6; color: #334155; min-height: 100px; text-align: justify;">
-                ${finalBodyHtml}
-              </div>
-              
-              <!-- Firma del Operador: Fondo Blanco (HTML Dinámico de Firma) -->
-              <div style="background-color: #ffffff; padding: 20px 40px 30px 40px; border-top: 1px solid #F1F5F9;">
-                ${activeSignatureHtml}
-              </div>
-              
-              <!-- Pie de Monitoreo -->
-              <div style="background-color: #F8FAFC; padding: 15px; text-align: center; font-size: 10px; color: #64748B; border-top: 1px solid #E2E8F0;">
-                Este correo de invitación contiene elementos de monitoreo de recepción. Afinitive Inc.
-              </div>
-            </div>
-          </div>
-        `,
+        subject: renderedSubject,
+        html: renderedHtml,
       };
 
       // Si existe un archivo adjunto del usuario, agregarlo
@@ -320,7 +228,7 @@ export class EmailTrackingService {
       // Registrar en Supabase
       const insertRecord: any = {
         recipient_email: recipientEmail,
-        subject: subject,
+        subject: renderedSubject,
         status: 'Enviado',
         resend_email_id: emailId,
         sent_at: new Date().toISOString(),
@@ -346,7 +254,7 @@ export class EmailTrackingService {
           .insert([
             {
               recipient_email: recipientEmail,
-              subject: subject,
+              subject: renderedSubject,
               status: 'Enviado',
               resend_email_id: emailId,
               sent_at: new Date().toISOString(),
@@ -955,8 +863,12 @@ export class EmailTrackingService {
     sent: 0,
     failed: 0,
     currentId: null as string | null,
-    signatureId: 'irina',
+    signatureId: 'ricardo',
     attachment: null as { filename: string; content: string } | null,
+    templateId: null as string | null,
+    customSubject: null as string | null,
+    customBody: null as string | null,
+    customTemplateType: null as string | null,
   };
 
   getQueueStatus() {
@@ -967,7 +879,11 @@ export class EmailTrackingService {
     signatureId?: string, 
     attachment?: { filename: string; content: string },
     overrideInterval?: number,
-    overrideIntervalUnit?: string
+    overrideIntervalUnit?: string,
+    templateId?: string,
+    customSubject?: string,
+    customBody?: string,
+    customTemplateType?: string
   ) {
     if (this.queueProgress.isProcessing) {
       return { success: true, message: 'La cola ya se está procesando actualmente.' };
@@ -987,8 +903,12 @@ export class EmailTrackingService {
     }
 
     this.queueProgress.isProcessing = true;
-    this.queueProgress.signatureId = signatureId || 'irina';
+    this.queueProgress.signatureId = signatureId || 'ricardo';
     this.queueProgress.attachment = attachment || null;
+    this.queueProgress.templateId = templateId || null;
+    this.queueProgress.customSubject = customSubject || null;
+    this.queueProgress.customBody = customBody || null;
+    this.queueProgress.customTemplateType = customTemplateType || null;
     this.queueProgress.total = count;
     this.queueProgress.sent = 0;
     this.queueProgress.failed = 0;
@@ -1058,58 +978,23 @@ export class EmailTrackingService {
       .eq('id', item.id);
 
     try {
-      const date = new Date(item.proposed_time);
-      const formattedDate = date.toLocaleDateString('es-ES', {
-        timeZone: 'America/Lima',
-        weekday: 'long',
-        day: 'numeric',
-        month: 'long',
-        hour: '2-digit',
-        minute: '2-digit',
-      });
-
       const SENDERS = {
-        irina: 'Irina Portilla <iportilla@afinitive.com.pe>',
         ricardo: 'Ricardo Bertalmio <rbertalmio@afinitive.com.pe>'
       };
-      const signature = this.queueProgress.signatureId || 'irina';
+      const signature = this.queueProgress.signatureId || 'ricardo';
       const activeSender = SENDERS[signature as keyof typeof SENDERS] || undefined;
-
-      const nameInBody = signature === 'ricardo' ? 'Ricardo Bertalmio Ruibal' : 'Irina Portilla Farfán';
-      const roleInBody = signature === 'ricardo'
-        ? 'Soy economista de la Universidad del Pacífico y dirijo Afinitive Wealth Management'
-        : 'Soy Client Experience Manager en Afinitive Wealth Management';
-
-      const greeting = this.getGreeting(item.recipient_name);
-      const personalizedBody = `${greeting} ${item.recipient_name}:
-
-Le escribo porque encontré su perfil en LinkedIn. Compartimos varios contactos en común, y me pareció oportuno tomar la iniciativa de escribirle.
-
-Mi nombre es <strong>${nameInBody}</strong>. ${roleInBody}, una boutique de asesoría patrimonial. Le escribo porque sé perfectamente lo frustrante que es para perfiles como el suyo lidiar con la banca tradicional en Lima, donde casi siempre le intentan colocar sus propios productos financieros masivos, <strong>en lugar de ofrecer asesoría integral, objetiva y profesional</strong>.
-
-Nosotros operamos al revés: no tenemos productos propios. Trabajamos con arquitectura abierta para optimizar la estructura de ingresos y el capital de un grupo muy selecto de personas:
-
-• Morgan Stanley
-• BNY Mellon
-• Coril
-
-Le adjunto una presentación muy ejecutiva (<em>Afinitive Wealth | Tailor Made</em>) que detalla cómo estructuramos los balances y flujos, y maximizamos ingresos a partir de una inversión más eficiente que la que la oferta masiva puede lograr. Si nos busca en Google o LinkedIn, verá que mi trayectoria y la de mi equipo es transparente y de largo aliento.
-
-Entendiendo que sus tiempos son ajustados, le acomodaría una reunión virtual vía Meet o una llamada telefónica de 20 minutos el día <strong>${formattedDate}</strong>?
-
-[CONFIRMAR_CITA]
-
-Me avisa para agendar,`;
 
       await this.sendEmail(
         item.recipient_email,
         activeSender,
-        'Invitación Exclusiva - Afinitive Wealth Management',
-        personalizedBody,
+        this.queueProgress.customSubject || undefined,
+        this.queueProgress.customBody || undefined,
         signature,
         this.queueProgress.attachment || undefined,
         item.proposed_time,
-        item.recipient_name
+        item.recipient_name,
+        this.queueProgress.templateId || undefined,
+        this.queueProgress.customTemplateType || undefined,
       );
 
       await this.supabase
@@ -1220,9 +1105,7 @@ Me avisa para agendar,`;
         }
       }
 
-      const advisorName = (calendarId.includes('ricardo') || calendarId.includes('rbertalmio')) 
-        ? 'Ricardo Bertalmio Ruibal' 
-        : 'Irina Portilla Farfán';
+      const advisorName = 'Ricardo Bertalmio Ruibal';
 
       return `
         <html>
@@ -1257,11 +1140,232 @@ Me avisa para agendar,`;
     }
   }
 
+  async bookAppointmentPublic(data: {
+    name: string;
+    email: string;
+    phone: string;
+    time?: string;
+    investmentRange?: string;
+    consentPromo?: boolean;
+    consentPrivacy?: boolean;
+    consentDemand?: boolean;
+    notes?: string;
+    calendarId?: string;
+    bookingSource?: string;
+  }) {
+    const { name, email, phone, time, investmentRange, consentPromo, consentPrivacy, consentDemand, notes, bookingSource } = data;
+    if (!name || !email || !phone) {
+      throw new HttpException('Nombre, correo electrónico y celular son requeridos.', HttpStatus.BAD_REQUEST);
+    }
+
+    const calendarId = data.calendarId || 'rbertalmio@afinitive.com';
+    const advisorName = 'Ricardo Bertalmio Ruibal';
+    const invRange = investmentRange || 'No especificado';
+    const source = bookingSource || (time ? 'calendario_publico' : 'whatsapp_profiling');
+
+    this.logger.log(`Procesando perfilamiento/agendamiento público de ${name} (${email} / ${phone}) [Rango: ${invRange}, Origen: ${source}]`);
+
+    let startTime: Date | null = null;
+    let endTime: Date | null = null;
+    let eventId: string | null = null;
+    let meetLink: string | null = null;
+
+    if (time) {
+      startTime = new Date(time);
+      if (!isNaN(startTime.getTime())) {
+        const settings = await this.getCalendarSettings();
+        const durationMinutes = Number(settings.slot_duration) || 60;
+        endTime = new Date(startTime.getTime() + durationMinutes * 60000);
+
+        try {
+          const auth = this.getGoogleAuth(['https://www.googleapis.com/auth/calendar']);
+          const calendar = google.calendar({ version: 'v3', auth });
+
+          const event: any = {
+            summary: `Reunión Afinitive - ${name} [${invRange}]`,
+            description: `Sesión de Asesoría Patrimonial Estratégica con Afinitive Wealth Management.\n\n👤 Invitado: ${name}\n✉️ Correo: ${email}\n📱 Celular / WhatsApp: ${phone}\n💰 Rango de Inversión: ${invRange}\n📝 Notas: ${notes || 'Consulta General'}\n🛡️ Asesor: ${advisorName}\n\n* Datos registrados desde el Calendario Público Oficial.`,
+            start: {
+              dateTime: startTime.toISOString(),
+              timeZone: 'America/Lima',
+            },
+            end: {
+              dateTime: endTime.toISOString(),
+              timeZone: 'America/Lima',
+            },
+            attendees: [
+              { email: email, displayName: name },
+              { email: calendarId, displayName: advisorName },
+            ],
+            conferenceData: {
+              createRequest: {
+                requestId: `meet-${Date.now()}-${Math.random().toString(36).substring(7)}`,
+                conferenceSolutionKey: { type: 'hangoutsMeet' },
+              },
+            },
+          };
+
+          const res = await calendar.events.insert({
+            calendarId: calendarId,
+            requestBody: event,
+            conferenceDataVersion: 1,
+            sendUpdates: 'all',
+          });
+
+          eventId = res.data.id || null;
+          meetLink = res.data.hangoutLink || res.data.conferenceData?.entryPoints?.find(p => p.entryPointType === 'video')?.uri || null;
+          this.logger.log(`Evento de Google Calendar creado con éxito: ${eventId}`);
+        } catch (gErr) {
+          this.logger.warn(`No se pudo registrar en Google Calendar automáticamente: ${gErr.message}. Continuando con registro en BD.`);
+        }
+      }
+    }
+
+    // Registrar en Supabase (Reutilizando y enriqueciendo email_tracking_test y public_appointments)
+    if (this.supabase) {
+      try {
+        const nowIso = new Date().toISOString();
+        const emailClean = email.trim().toLowerCase();
+
+        // 1. Guardar o actualizar en email_tracking_test
+        const trackingPayload: any = {
+          recipient_email: emailClean,
+          recipient_name: name,
+          recipient_phone: phone,
+          investment_range: invRange,
+          consent_promo: !!consentPromo,
+          consent_privacy: consentPrivacy !== false,
+          consent_demand: !!consentDemand,
+          booking_notes: notes || null,
+          booking_source: source,
+          status: time ? 'Agendado' : 'WhatsApp Perfilado',
+          opened_at: nowIso,
+        };
+
+        if (startTime) {
+          trackingPayload.proposed_time = startTime.toISOString();
+        }
+
+        const { data: existing } = await this.supabase
+          .from('email_tracking_test')
+          .select('id')
+          .ilike('recipient_email', emailClean)
+          .limit(1);
+
+        if (existing && existing.length > 0) {
+          await this.supabase
+            .from('email_tracking_test')
+            .update(trackingPayload)
+            .eq('id', existing[0].id);
+        } else {
+          trackingPayload.subject = `Contacto Directo: ${invRange}`;
+          trackingPayload.sender_email = 'rbertalmio@afinitive.com.pe';
+          trackingPayload.resend_email_id = `booking-${Date.now()}-${Math.random().toString(36).substring(7)}`;
+          await this.supabase
+            .from('email_tracking_test')
+            .insert(trackingPayload);
+        }
+
+        // 2. Intentar guardar en public_appointments si existe la tabla
+        try {
+          await this.supabase
+            .from('public_appointments')
+            .insert({
+              recipient_name: name,
+              recipient_email: emailClean,
+              recipient_phone: phone,
+              investment_range: invRange,
+              proposed_time: startTime ? startTime.toISOString() : null,
+              consent_promo: !!consentPromo,
+              consent_privacy: consentPrivacy !== false,
+              consent_demand: !!consentDemand,
+              notes: notes || null,
+              advisor_name: advisorName,
+              advisor_calendar: calendarId,
+              status: startTime ? 'Agendado' : 'WhatsApp Contactado',
+            });
+        } catch {
+          // Si la tabla no existe aún, ya quedó seguro en email_tracking_test
+        }
+
+        this.logger.log(`Datos de perfilamiento y cita de ${name} almacenados con éxito en la base de datos.`);
+      } catch (dbErr) {
+        this.logger.warn(`Error al registrar agendamiento en Supabase: ${dbErr.message}`);
+      }
+    }
+
+    // Enviar correo de confirmación al cliente si Resend está disponible y se eligió horario
+    if (this.resend && startTime) {
+      try {
+        const formattedDateSpanish = startTime.toLocaleDateString('es-ES', {
+          timeZone: 'America/Lima',
+          weekday: 'long',
+          day: 'numeric',
+          month: 'long',
+          hour: '2-digit',
+          minute: '2-digit',
+        });
+
+        const settings = await this.getCalendarSettings();
+        const durationMinutes = Number(settings.slot_duration) || 60;
+
+        await this.resend.emails.send({
+          from: this.senderEmail || 'Ricardo Bertalmio <rbertalmio@afinitive.com.pe>',
+          to: email,
+          subject: `Confirmación de Reunión: ${name} y Ricardo Bertalmio — Afinitive`,
+          html: `
+            <div style="background-color: #F8FAFC; padding: 40px 20px; font-family: Arial, sans-serif; color: #0F2942;">
+              <div style="max-width: 540px; margin: 0 auto; background-color: #FFFFFF; border-radius: 10px; border: 1px solid #E2E8F0; padding: 35px 30px;">
+                <div style="text-align: center; margin-bottom: 25px;">
+                  <img src="https://links.afinitive.com.pe/img/afinitive_logo.png" alt="Afinitive" width="65" style="display: inline-block;">
+                  <h2 style="font-size: 20px; color: #0D1B2A; margin: 15px 0 5px 0;">¡Tu cita ha sido agendada con éxito!</h2>
+                  <p style="font-size: 14px; color: #64748B; margin: 0;">Sesión de Asesoría Patrimonial</p>
+                </div>
+                
+                <div style="background-color: #F1F5F9; border-radius: 8px; padding: 20px; margin-bottom: 25px; font-size: 14px; line-height: 1.6;">
+                  <p style="margin: 0 0 8px 0;"><strong>👤 Asesor:</strong> ${advisorName} (CEO Afinitive)</p>
+                  <p style="margin: 0 0 8px 0;"><strong>📅 Fecha y Hora:</strong> ${formattedDateSpanish}</p>
+                  <p style="margin: 0 0 8px 0;"><strong>⏱️ Duración:</strong> ${durationMinutes} minutos</p>
+                  ${meetLink ? `<p style="margin: 0 0 8px 0;"><strong>📹 Google Meet:</strong> <a href="${meetLink}" style="color: #0D1B2A; font-weight: bold;">Unirse a la llamada</a></p>` : ''}
+                  ${phone ? `<p style="margin: 0;"><strong>📱 Contacto:</strong> ${phone}</p>` : ''}
+                </div>
+
+                <p style="font-size: 13px; color: #475569; line-height: 1.6; text-align: justify; margin-bottom: 25px;">
+                  Estimado(a) <strong>${name}</strong>, nos pondremos en contacto contigo a la fecha y hora acordada. Si requieres reprogramar o necesitas atención inmediata, puedes escribirnos por WhatsApp al <a href="https://wa.me/51982100208" style="color: #25D366; font-weight: bold;">(511) 982100208</a>.
+                </p>
+
+                <div style="border-top: 1px solid #E2E8F0; padding-top: 20px; text-align: center; font-size: 11px; color: #94A3B8;">
+                  Afinitive Wealth Management • Av. Camino Real, San Isidro, Lima.
+                </div>
+              </div>
+            </div>
+          `,
+        });
+      } catch (emailErr) {
+        this.logger.warn(`No se pudo enviar correo de confirmación de reserva: ${emailErr.message}`);
+      }
+    }
+
+    return {
+      success: true,
+      message: startTime ? 'Reunión agendada exitosamente' : 'Perfilamiento para WhatsApp guardado exitosamente',
+      appointment: {
+        name,
+        email,
+        phone,
+        time: startTime ? startTime.toISOString() : undefined,
+        advisorName,
+        meetLink,
+        investmentRange: invRange,
+        bookingSource: source,
+      },
+    };
+  }
+
   async trackWhatsAppClick(email?: string, name?: string, signatureId?: string): Promise<string> {
     this.logger.log(`Registrando clic en WhatsApp para el destinatario: ${email || 'Desconocido'}`);
 
-    const defaultPhone = '51902821992';
-    const targetUrl = `https://wa.me/${defaultPhone}?text=${encodeURIComponent('Hola, me gustaría más información o coordinar un cambio de horario para mi reunión con Afinitive.')}`;
+    const frontendUrl = (this.configService.get<string>('FRONTEND_URL') || process.env.FRONTEND_URL || 'http://localhost:5173').replace(/\/+$/, '');
+    const targetUrl = `${frontendUrl}/agendar?mode=whatsapp&email=${encodeURIComponent(email || '')}&name=${encodeURIComponent(name || '')}`;
 
     if (this.supabase && email) {
       try {
@@ -1319,7 +1423,7 @@ Me avisa para agendar,`;
           <meta charset="UTF-8">
           <meta name="viewport" content="width=device-width, initial-scale=1.0">
           <meta http-equiv="refresh" content="0; url=${targetUrl}">
-          <title>Redirigiendo a WhatsApp | Afinitive</title>
+          <title>Redirigiendo a Afinitive | WhatsApp</title>
           <style>
             body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background-color: #0D1B2A; color: #FFFFFF; text-align: center; padding: 60px 20px; margin: 0; }
             .card { max-width: 440px; margin: 0 auto; background: #1B2A4A; padding: 40px 30px; border-radius: 16px; box-shadow: 0 10px 30px rgba(0,0,0,0.3); border: 1px solid rgba(201, 168, 76, 0.3); }
@@ -1336,10 +1440,10 @@ Me avisa para agendar,`;
           <div class="card">
             <div class="icon">💬</div>
             <h2>Conectando con WhatsApp...</h2>
-            <p>Te estamos redirigiendo para chatear con un asesor de <strong>Afinitive Wealth Management</strong>.</p>
+            <p>Te estamos redirigiendo para completar tus preferencias y coordinar con <strong>Afinitive Wealth Management</strong>.</p>
             <div class="spinner"></div>
             <p style="font-size: 12px; color: #64748B; margin-top: 15px;">Si no abre automáticamente en unos segundos:</p>
-            <a href="${targetUrl}" class="btn">Abrir Chat de WhatsApp</a>
+            <a href="${targetUrl}" class="btn">Continuar</a>
           </div>
           <script>
             window.location.href = "${targetUrl}";
@@ -1355,8 +1459,7 @@ Me avisa para agendar,`;
     }
 
     const settings = await this.getCalendarSettings();
-    const signature = signatureId || 'irina';
-    const calendarId = signature === 'ricardo' ? 'rbertalmio@afinitive.com' : 'iportilla@afinitive.com.pe';
+    const calendarId = 'rbertalmio@afinitive.com';
 
     // 1. Consultar eventos ocupados en Google Calendar para los próximos 14 días
     let occupiedEvents: any[] = [];

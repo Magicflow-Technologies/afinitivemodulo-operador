@@ -17,6 +17,8 @@ export class EmailTrackingController {
       attachment?: { filename: string; content: string };
       proposedTime?: string;
       recipientName?: string;
+      templateId?: string;
+      templateType?: string;
     }
   ) {
     return await this.emailTrackingService.sendEmail(
@@ -27,7 +29,9 @@ export class EmailTrackingController {
       body.signatureId,
       body.attachment,
       body.proposedTime,
-      body.recipientName
+      body.recipientName,
+      body.templateId,
+      body.templateType
     );
   }
 
@@ -89,13 +93,21 @@ export class EmailTrackingController {
       attachment?: { filename: string; content: string };
       sendInterval?: number;
       sendIntervalUnit?: string;
+      templateId?: string;
+      customSubject?: string;
+      customBody?: string;
+      customTemplateType?: string;
     }
   ) {
     return await this.emailTrackingService.processEmailQueue(
       body.signatureId, 
       body.attachment,
       body.sendInterval,
-      body.sendIntervalUnit
+      body.sendIntervalUnit,
+      body.templateId,
+      body.customSubject,
+      body.customBody,
+      body.customTemplateType
     );
   }
 
@@ -138,5 +150,25 @@ export class EmailTrackingController {
   @Get('free-slots')
   async getFreeSlots(@Query('signatureId') signatureId?: string) {
     return await this.emailTrackingService.getAvailableSlots(signatureId);
+  }
+
+  // --- Endpoint Público para Agendamiento Directo (JSON API) ---
+  @Post('book-appointment')
+  @HttpCode(HttpStatus.OK)
+  async bookAppointment(
+    @Body() body: {
+      name: string;
+      email: string;
+      phone: string;
+      time: string;
+      investmentRange?: string;
+      consentPromo?: boolean;
+      consentPrivacy?: boolean;
+      consentDemand?: boolean;
+      notes?: string;
+      calendarId?: string;
+    }
+  ) {
+    return await this.emailTrackingService.bookAppointmentPublic(body);
   }
 }

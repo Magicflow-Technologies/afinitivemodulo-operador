@@ -1,6 +1,6 @@
 # Módulo de Monitoreo de Correos Omnicanal — Entorno de Pruebas Sandbox
 
-Este módulo es un prototipo funcional e independiente (Standalone MVP) diseñado para el rol de Operador (Irina) en la plataforma **Afinitive**. Permite enviar correos de prueba usando la API de Resend y rastrear de forma visual y en tiempo real cuándo un cliente los abre.
+Este módulo es un prototipo funcional e independiente (Standalone MVP) diseñado para el rol de Operador / Asesor Ejecutivo (Ricardo Bertalmio) en la plataforma **Afinitive**. Permite enviar correos de prueba usando la API de Resend y rastrear de forma visual y en tiempo real cuándo un cliente los abre.
 
 ---
 
@@ -51,7 +51,7 @@ El backend corre sobre NestJS y actúa como el manejador seguro de credenciales 
 ---
 
 ## 💻 3. Configuración y Ejecución del Frontend (React + Vite)
-El frontend proporciona una interfaz interactiva de alta fidelidad estética (Azul Marino `#0D1B2A` y Dorado `#C9A84C`) para la operadora Irina.
+El frontend proporciona una interfaz interactiva de alta fidelidad estética (Azul Marino `#0D1B2A` y Dorado `#C9A84C`) para el operador y directivos de Afinitive.
 
 1. Navega al directorio del frontend:
    ```bash
