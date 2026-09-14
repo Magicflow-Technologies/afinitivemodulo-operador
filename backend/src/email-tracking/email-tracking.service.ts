@@ -1037,7 +1037,50 @@ export class EmailTrackingService {
   }
 
   async confirmMeeting(calendarId: string, time: string, email: string, name: string) {
-    this.logger.log(`Intentando confirmar cita en Google Calendar para: ${email} a las ${time}`);
+    this.logger.log(`Procesando confirmación/acceso a agenda para: ${email || 'Desconocido'} a las ${time || 'Horario no especificado'}`);
+
+    const frontendUrl = (this.configService.get<string>('FRONTEND_URL') || process.env.FRONTEND_URL || 'http://localhost:5173').replace(/\/+$/, '');
+    const targetCalendarUrl = `${frontendUrl}/agendar?email=${encodeURIComponent(email || '')}&name=${encodeURIComponent(name || '')}`;
+
+    // Si no se proporcionó un horario específico, redirigir al calendario público interactivo
+    if (!time || isNaN(new Date(time).getTime())) {
+      this.logger.log(`No se especificó horario fijo. Redirigiendo a ${targetCalendarUrl}`);
+      return `
+        <!DOCTYPE html>
+        <html lang="es">
+          <head>
+            <meta charset="UTF-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1.0">
+            <meta http-equiv="refresh" content="0; url=${targetCalendarUrl}">
+            <title>Redirigiendo a Agenda Afinitive</title>
+            <style>
+              body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background-color: #0D1B2A; color: #FFFFFF; text-align: center; padding: 60px 20px; margin: 0; }
+              .card { max-width: 440px; margin: 0 auto; background: #1B2A4A; padding: 40px 30px; border-radius: 16px; box-shadow: 0 10px 30px rgba(0,0,0,0.3); border: 1px solid rgba(201, 168, 76, 0.3); }
+              .icon { font-size: 48px; margin-bottom: 15px; }
+              h2 { margin: 0 0 10px 0; color: #FFFFFF; font-size: 20px; font-weight: 600; }
+              p { color: #94A3B8; font-size: 14px; line-height: 1.5; margin: 0 0 20px 0; }
+              .spinner { width: 36px; height: 36px; border: 3px solid rgba(255,255,255,0.15); border-top: 3px solid #C9A84C; border-radius: 50%; animation: spin 0.8s linear infinite; margin: 20px auto; }
+              @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+              a.btn { display: inline-block; background-color: #C9A84C; color: #0D1B2A; padding: 12px 28px; font-weight: bold; border-radius: 8px; text-decoration: none; font-size: 14px; transition: background 0.2s; box-shadow: 0 4px 12px rgba(201, 168, 76, 0.3); }
+              a.btn:hover { background-color: #DFBA58; }
+            </style>
+          </head>
+          <body>
+            <div class="card">
+              <div class="icon">📅</div>
+              <h2>Cargando Calendario...</h2>
+              <p>Te estamos redirigiendo para que elijas tu horario disponible con <strong>Afinitive Wealth Management</strong>.</p>
+              <div class="spinner"></div>
+              <p style="font-size: 12px; color: #64748B; margin-top: 15px;">Si no abre automáticamente en unos segundos:</p>
+              <a href="${targetCalendarUrl}" class="btn">Abrir Calendario</a>
+            </div>
+            <script>
+              window.location.href = "${targetCalendarUrl}";
+            </script>
+          </body>
+        </html>
+      `;
+    }
 
     try {
       const auth = this.getGoogleAuth(['https://www.googleapis.com/auth/calendar']);

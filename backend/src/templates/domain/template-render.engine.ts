@@ -138,16 +138,70 @@ export class TemplateRenderEngine {
     if (template.type === 'full_html') {
       let finalFullHtml = processedContent;
       
+      // Auto-detección y reemplazo universal de enlaces de Agenda / Calendario (incluye afinitive.com.pe/agenda)
+      finalFullHtml = finalFullHtml.replace(
+        /href=["']https?:\/\/(?:www\.)?afinitive\.com(?:\.pe)?\/(?:agenda|agendar|calendario|booking|cita|reservar)[^"']*["']/gi,
+        `href="${confirmMeetingLink}"`
+      );
+
+      finalFullHtml = finalFullHtml.replace(
+        /href=["'](#agendar|#agenda|#calendario|#cita|#booking|#confirmar-cita|#confirm-demo|#calendar-demo)["']/gi,
+        `href="${confirmMeetingLink}"`
+      );
+
+      // Reemplazo de enlaces cuyo texto sea agendar / cita / confirmar
+      finalFullHtml = finalFullHtml.replace(
+        /<a\s+([^>]*?)href=["'][^"']*["']([^>]*?>\s*(?:<[^>]+>\s*)*(?:Agenda|Agendar|Confirmar|Reservar)[^<]*?<\/a>)/gi,
+        (match, p1, p2) => {
+          if (match.includes(confirmMeetingLink)) return match;
+          return `<a ${p1}href="${confirmMeetingLink}"${p2}`;
+        }
+      );
+
       // Auto-detección y reemplazo inteligente de enlaces existentes de WhatsApp
       finalFullHtml = finalFullHtml.replace(
-        /href=["'](https:\/\/(?:wa\.me|api\.whatsapp\.com)\/[^"']*)["']/gi,
+        /href=["']https?:\/\/(?:wa\.me|api\.whatsapp\.com|web\.whatsapp\.com)\/[^"']*["']/gi,
         `href="${whatsappTrackingLink}"`
       );
 
-      // Auto-detección y reemplazo de enlaces con comodín de agendar (#agendar, #calendario, #cita)
       finalFullHtml = finalFullHtml.replace(
-        /href=["'](#agendar|#calendario|#cita|#booking)["']/gi,
-        `href="${confirmMeetingLink}"`
+        /href=["'](#whatsapp|#chat|#whatsapp-demo)["']/gi,
+        `href="${whatsappTrackingLink}"`
+      );
+
+      finalFullHtml = finalFullHtml.replace(
+        /<a\s+([^>]*?)href=["'][^"']*["']([^>]*?>\s*(?:<[^>]+>\s*)*(?:Chat|WhatsApp|Especialistas)[^<]*?<\/a>)/gi,
+        (match, p1, p2) => {
+          if (match.includes(whatsappTrackingLink)) return match;
+          return `<a ${p1}href="${whatsappTrackingLink}"${p2}`;
+        }
+      );
+
+      // Normalizar imágenes del Logo Afinitive (eliminar base64 roto o rutas relativas)
+      finalFullHtml = finalFullHtml.replace(
+        /<img\s+([^>]*?(?:alt=["'][^"']*(?:afinitive|logo)[^"']*["'])[^>]*?)>/gi,
+        (match) => {
+          if (match.includes('links.afinitive.com.pe/img/afinitive_logo.png')) return match;
+          return match.replace(/src=["'][^"']*["']/gi, 'src="https://links.afinitive.com.pe/img/afinitive_logo.png"');
+        }
+      );
+
+      // Normalizar foto de Ricardo Bertalmio / Johana / Asesor
+      finalFullHtml = finalFullHtml.replace(
+        /<img\s+([^>]*?(?:alt=["'][^"']*(?:ricardo|johana|rubi[ñn]os|asesor)[^"']*["'])[^>]*?)>/gi,
+        (match) => {
+          if (match.includes('dashbportal.com/afinitive/rbertalmio.png')) return match;
+          return match.replace(/src=["'][^"']*["']/gi, 'src="https://dashbportal.com/afinitive/rbertalmio.png"');
+        }
+      );
+
+      // Normalizar icono de WhatsApp
+      finalFullHtml = finalFullHtml.replace(
+        /<img\s+([^>]*?(?:alt=["'][^"']*(?:whatsapp|wa\b|chat)[^"']*["'])[^>]*?)>/gi,
+        (match) => {
+          if (match.includes('flaticon.com/512/733/733585.png')) return match;
+          return match.replace(/src=["'][^"']*["']/gi, 'src="https://cdn-icons-png.flaticon.com/512/733/733585.png"');
+        }
       );
 
       // Si el diseño contiene marcadores explícitos de botones

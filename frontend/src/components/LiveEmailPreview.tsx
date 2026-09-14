@@ -110,12 +110,16 @@ export const LiveEmailPreview: React.FC<LiveEmailPreviewProps> = ({
   const operatorRole = 'Soy economista de la Universidad del Pacífico y dirijo Afinitive Wealth Management';
 
   // Renderizar HTML dinámico con reemplazo de comodines
+  // Renderizar HTML dinámico con reemplazo de comodines
   const renderedFullHtml = useMemo(() => {
     if (!rawHtmlOrBody) return '<div style="padding:40px;text-align:center;color:#999;">Sin contenido</div>';
 
     let content = rawHtmlOrBody;
 
-    // Sustitución de variables dinámicas
+    const calendarBookingLink = `/agendar?name=${encodeURIComponent(simulatedName)}`;
+    const whatsappDemoLink = `https://wa.me/51982100208?text=${encodeURIComponent(`Hola, soy ${simulatedName} y deseo información de inversión en Afinitive`)}`;
+
+    // Sustitución de variables dinámicas estándar
     content = content
       .replace(/\{\{\s*nombre\s*\}\}/gi, simulatedName)
       .replace(/\{\{\s*saludo\s*\}\}/gi, greeting)
@@ -123,13 +127,91 @@ export const LiveEmailPreview: React.FC<LiveEmailPreviewProps> = ({
       .replace(/\{\{\s*fecha\s*\}\}/gi, formattedDate)
       .replace(/\{\{\s*firma_nombre\s*\}\}/gi, operatorName)
       .replace(/\{\{\s*firma_cargo\s*\}\}/gi, operatorRole)
-      .replace(/\{\{\s*whatsapp_link\s*\}\}/gi, '#whatsapp-demo')
-      .replace(/\{\{\s*confirmar_cita_link\s*\}\}/gi, '#calendar-demo');
+      .replace(/\{\{\s*whatsapp_link\s*\}\}/gi, whatsappDemoLink)
+      .replace(/\{\{\s*agendar_link\s*\}\}/gi, calendarBookingLink)
+      .replace(/\{\{\s*calendario_link\s*\}\}/gi, calendarBookingLink)
+      .replace(/\{\{\s*confirmar_cita_link\s*\}\}/gi, calendarBookingLink);
+
+    // Función de normalización de imágenes institucionales
+    const normalizeImages = (html: string): string => {
+      return html
+        // Logo Afinitive
+        .replace(
+          /<img\s+([^>]*?(?:alt=["'][^"']*(?:afinitive|logo)[^"']*["'])[^>]*?)>/gi,
+          (match) => {
+            if (match.includes('links.afinitive.com.pe/img/afinitive_logo.png')) return match;
+            return match.replace(/src=["'][^"']*["']/gi, 'src="https://links.afinitive.com.pe/img/afinitive_logo.png"');
+          }
+        )
+        // Foto Ricardo / Johana / Asesor
+        .replace(
+          /<img\s+([^>]*?(?:alt=["'][^"']*(?:ricardo|johana|rubi[ñn]os|asesor)[^"']*["'])[^>]*?)>/gi,
+          (match) => {
+            if (match.includes('dashbportal.com/afinitive/rbertalmio.png')) return match;
+            return match.replace(/src=["'][^"']*["']/gi, 'src="https://dashbportal.com/afinitive/rbertalmio.png"');
+          }
+        )
+        // Icono WhatsApp
+        .replace(
+          /<img\s+([^>]*?(?:alt=["'][^"']*(?:whatsapp|wa\b|chat)[^"']*["'])[^>]*?)>/gi,
+          (match) => {
+            if (match.includes('flaticon.com/512/733/733585.png')) return match;
+            return match.replace(/src=["'][^"']*["']/gi, 'src="https://cdn-icons-png.flaticon.com/512/733/733585.png"');
+          }
+        );
+    };
+
+    // Función de normalización y reemplazo de enlaces de conversión
+    const normalizeLinks = (html: string): string => {
+      let res = html;
+
+      // 1. Enlaces directos de agenda (incluye https://afinitive.com.pe/agenda)
+      res = res.replace(
+        /href=["']https?:\/\/(?:www\.)?afinitive\.com(?:\.pe)?\/(?:agenda|agendar|calendario|booking|cita|reservar)[^"']*["']/gi,
+        `href="${calendarBookingLink}" target="_blank"`
+      );
+
+      // 2. Anclas de agenda
+      res = res.replace(
+        /href=["'](#agendar|#agenda|#calendario|#cita|#booking|#confirmar-cita|#confirm-demo|#calendar-demo)["']/gi,
+        `href="${calendarBookingLink}" target="_blank"`
+      );
+
+      // 3. Enlaces con texto de agendar/cita
+      res = res.replace(
+        /<a\s+([^>]*?)href=["'][^"']*["']([^>]*?>\s*(?:<[^>]+>\s*)*(?:Agenda|Agendar|Confirmar|Reservar)[^<]*?<\/a>)/gi,
+        (match, p1, p2) => {
+          if (match.includes(calendarBookingLink)) return match;
+          return `<a ${p1}href="${calendarBookingLink}" target="_blank"${p2}`;
+        }
+      );
+
+      // 4. Enlaces de WhatsApp
+      res = res.replace(
+        /href=["']https?:\/\/(?:wa\.me|api\.whatsapp\.com|web\.whatsapp\.com)\/[^"']*["']/gi,
+        `href="${whatsappDemoLink}" target="_blank"`
+      );
+
+      res = res.replace(
+        /href=["'](#whatsapp|#chat|#whatsapp-demo)["']/gi,
+        `href="${whatsappDemoLink}" target="_blank"`
+      );
+
+      res = res.replace(
+        /<a\s+([^>]*?)href=["'][^"']*["']([^>]*?>\s*(?:<[^>]+>\s*)*(?:Chat|WhatsApp|Especialistas)[^<]*?<\/a>)/gi,
+        (match, p1, p2) => {
+          if (match.includes(whatsappDemoLink)) return match;
+          return `<a ${p1}href="${whatsappDemoLink}" target="_blank"${p2}`;
+        }
+      );
+
+      return res;
+    };
 
     // MODO FULL HTML (Landing completa autónoma)
     const isFull = templateType === 'full_html' || content.toLowerCase().includes('<!doctype') || content.toLowerCase().includes('<html');
     if (isFull) {
-      return content;
+      return normalizeLinks(normalizeImages(content));
     }
 
     // MODO STANDARD WRAPPER
@@ -141,7 +223,7 @@ export const LiveEmailPreview: React.FC<LiveEmailPreviewProps> = ({
     const actionButtons = `
       <div style="text-align: center; margin: 30px 0 25px 0;">
         <div style="margin-bottom: 18px;">
-          <a href="#confirm-demo" style="display: inline-block; background-color: #0D1B2A; color: #FFFFFF; padding: 12px 30px; font-weight: bold; font-size: 14px; text-decoration: none; border-radius: 6px; letter-spacing: 0.5px; font-family: Arial, sans-serif;">
+          <a href="${calendarBookingLink}" target="_blank" style="display: inline-block; background-color: #0D1B2A; color: #FFFFFF; padding: 12px 30px; font-weight: bold; font-size: 14px; text-decoration: none; border-radius: 6px; letter-spacing: 0.5px; font-family: Arial, sans-serif;">
             📅 CONFIRMAR CITA
           </a>
         </div>
@@ -149,7 +231,7 @@ export const LiveEmailPreview: React.FC<LiveEmailPreviewProps> = ({
           <p style="font-size: 13px; color: #64748B; margin: 0 0 10px 0; text-align: center; font-family: Arial, sans-serif;">
             Si deseas más información o cambiar la cita contáctanos aquí:
           </p>
-          <a href="#whatsapp-demo" style="display: inline-block; background-color: #25D366; color: #FFFFFF; padding: 10px 24px; font-weight: bold; font-size: 13px; text-decoration: none; border-radius: 6px; letter-spacing: 0.5px; font-family: Arial, sans-serif;">
+          <a href="${whatsappDemoLink}" target="_blank" style="display: inline-block; background-color: #25D366; color: #FFFFFF; padding: 10px 24px; font-weight: bold; font-size: 13px; text-decoration: none; border-radius: 6px; letter-spacing: 0.5px; font-family: Arial, sans-serif;">
             💬 Chatear por WhatsApp
           </a>
         </div>
@@ -167,7 +249,7 @@ export const LiveEmailPreview: React.FC<LiveEmailPreviewProps> = ({
     const activeSig = SIGNATURES_PREVIEW.ricardo;
     const logoUrl = 'https://links.afinitive.com.pe/img/afinitive_logo.png';
 
-    return `
+    const wrappedHtml = `
       <!DOCTYPE html>
       <html>
       <head>
@@ -216,6 +298,8 @@ export const LiveEmailPreview: React.FC<LiveEmailPreviewProps> = ({
       </body>
       </html>
     `;
+
+    return normalizeLinks(normalizeImages(wrappedHtml));
   }, [rawHtmlOrBody, templateType, simulatedName, greeting, formattedDate, operatorName, operatorRole, signatureId]);
 
   return (
