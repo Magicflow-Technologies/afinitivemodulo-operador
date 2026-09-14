@@ -19,7 +19,7 @@ const SIGNATURES_PREVIEW = {
     <table cellpadding="0" cellspacing="0" border="0" style="font-family: Arial, Helvetica, sans-serif; max-width: 100%; background-color: #ffffff;">
       <tr>
         <td valign="middle" style="padding-right: 15px;">
-          <img src="https://dashbportal.com/afinitive/afi.jpeg" alt="Afinitive" width="120" style="display: block; border: none;">
+          <img src="https://links.afinitive.com.pe/img/afinitive_logo.png" alt="Afinitive" width="100" style="display: block; border: none;">
         </td>
         <td valign="middle" style="padding-right: 20px;">
           <img src="https://dashbportal.com/afinitive/rbertalmio.png" alt="Ricardo Bertalmio Ruibal" width="90" style="display: block; border-radius: 50%; box-shadow: 0px 0px 5px rgba(0,0,0,0.15);">

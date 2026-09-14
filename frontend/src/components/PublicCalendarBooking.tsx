@@ -101,6 +101,9 @@ export default function PublicCalendarBooking({ onBackToDashboard }: PublicCalen
     if (mode === 'whatsapp' || source === 'whatsapp') {
       setIsWhatsAppMode(true);
       setCurrentStep('investment');
+      document.title = 'Afinitive | WhatsApp Directo';
+    } else {
+      document.title = 'Afinitive | Agendar Asesoría Patrimonial';
     }
 
     fetchSlots();
@@ -371,12 +374,12 @@ export default function PublicCalendarBooking({ onBackToDashboard }: PublicCalen
         {/* PANEL IZQUIERDO: Perfil y Datos del Asesor */}
         <div className="w-full md:w-[320px] bg-white border-b md:border-b-0 md:border-r border-zinc-100 p-6 md:p-8 flex flex-col justify-between">
           <div>
-            {/* Logo Afinitive */}
-            <div className="flex items-center gap-2 mb-6">
+            {/* Logo Afinitive (Arbolito Oficial) */}
+            <div className="flex items-center gap-2.5 mb-6">
               <img 
                 src="https://links.afinitive.com.pe/img/afinitive_logo.png" 
-                alt="Afinitive Logo" 
-                className="w-8 h-8 object-contain"
+                alt="Afinitive Wealth Management" 
+                className="w-10 h-10 object-contain shrink-0"
               />
               <div className="leading-tight">
                 <span className="text-[10px] tracking-widest text-zinc-400 font-semibold uppercase block">AFINITIVE</span>

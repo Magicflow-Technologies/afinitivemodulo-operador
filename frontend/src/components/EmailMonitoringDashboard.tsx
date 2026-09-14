@@ -122,6 +122,10 @@ export default function EmailMonitoringDashboard({ onNavigateToBooking }: EmailM
   const [senderName, setSenderName] = useState('Ricardo Bertalmio');
   const [senderEmail, setSenderEmail] = useState('rbertalmio@afinitive.com.pe');
 
+  useEffect(() => {
+    document.title = 'Afinitive | Módulo Operador';
+  }, []);
+
   const [copiedBookingUrl, setCopiedBookingUrl] = useState(false);
 
   const [subject, setSubject] = useState('Invitación Exclusiva - Afinitive');
@@ -764,9 +768,13 @@ export default function EmailMonitoringDashboard({ onNavigateToBooking }: EmailM
       {/* Cabecera Premium Full-Width */}
       <header className="border-b border-brand-gold/30 bg-[#0D1B2A] py-5 px-4 sm:px-8 shadow-lg shadow-black/40 sticky top-0 z-50 backdrop-blur-md bg-opacity-95">
         <div className="max-w-[1780px] w-full mx-auto flex flex-col md:flex-row justify-between items-center gap-4">
-          <div className="flex items-center gap-3">
-            <div className="p-2.5 bg-brand-gold/10 border border-brand-gold/40 rounded-xl text-brand-gold shadow-md shadow-brand-gold/10">
-              <Mail className="w-7 h-7 animate-pulse-gold" />
+          <div className="flex items-center gap-3.5">
+            <div className="p-2 bg-brand-gold/10 border border-brand-gold/40 rounded-xl shadow-md shadow-brand-gold/10 shrink-0 flex items-center justify-center">
+              <img 
+                src="https://links.afinitive.com.pe/img/afinitive_logo.png" 
+                alt="Afinitive Wealth Management" 
+                className="w-8 h-8 object-contain"
+              />
             </div>
             <div>
               <div className="flex items-center gap-3">

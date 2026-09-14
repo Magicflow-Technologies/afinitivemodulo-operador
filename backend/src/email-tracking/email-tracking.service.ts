@@ -16,7 +16,7 @@ const SIGNATURES = {
                 <tr>
                   <!-- 1. Columna del Logo -->
                   <td valign="middle" style="padding-right: 15px;">
-                    <img src="https://dashbportal.com/afinitive/afi.jpeg" alt="Afinitive" width="120" style="display: block; border: none;">
+                    <img src="https://links.afinitive.com.pe/img/afinitive_logo.png" alt="Afinitive" width="100" style="display: block; border: none;">
                   </td>
 
                   <!-- 2. Columna de la Foto de Perfil -->
@@ -1052,11 +1052,12 @@ export class EmailTrackingService {
             <meta charset="UTF-8">
             <meta name="viewport" content="width=device-width, initial-scale=1.0">
             <meta http-equiv="refresh" content="0; url=${targetCalendarUrl}">
-            <title>Redirigiendo a Agenda Afinitive</title>
+            <title>Afinitive | Agendar Asesoría</title>
             <style>
               body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background-color: #0D1B2A; color: #FFFFFF; text-align: center; padding: 60px 20px; margin: 0; }
               .card { max-width: 440px; margin: 0 auto; background: #1B2A4A; padding: 40px 30px; border-radius: 16px; box-shadow: 0 10px 30px rgba(0,0,0,0.3); border: 1px solid rgba(201, 168, 76, 0.3); }
-              .icon { font-size: 48px; margin-bottom: 15px; }
+              .logo { margin-bottom: 20px; }
+              .icon { font-size: 36px; margin-bottom: 12px; }
               h2 { margin: 0 0 10px 0; color: #FFFFFF; font-size: 20px; font-weight: 600; }
               p { color: #94A3B8; font-size: 14px; line-height: 1.5; margin: 0 0 20px 0; }
               .spinner { width: 36px; height: 36px; border: 3px solid rgba(255,255,255,0.15); border-top: 3px solid #C9A84C; border-radius: 50%; animation: spin 0.8s linear infinite; margin: 20px auto; }
@@ -1067,6 +1068,9 @@ export class EmailTrackingService {
           </head>
           <body>
             <div class="card">
+              <div class="logo">
+                <img src="https://links.afinitive.com.pe/img/afinitive_logo.png" alt="Afinitive Logo" width="70">
+              </div>
               <div class="icon">📅</div>
               <h2>Cargando Calendario...</h2>
               <p>Te estamos redirigiendo para que elijas tu horario disponible con <strong>Afinitive Wealth Management</strong>.</p>
@@ -1154,7 +1158,7 @@ export class EmailTrackingService {
         <html>
           <head>
             <meta charset="UTF-8">
-            <title>Cita Confirmada | Afinitive</title>
+            <title>Afinitive | Cita Confirmada</title>
             <style>
               body { font-family: Arial, sans-serif; background-color: #F8FAFC; color: #0F2942; text-align: center; padding: 50px 20px; }
               .card { max-width: 500px; margin: 0 auto; background: #FFFFFF; padding: 40px; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.05); border: 1px solid #E2E8F0; }
@@ -1167,7 +1171,7 @@ export class EmailTrackingService {
           <body>
             <div class="card">
               <div class="logo">
-                <img src="https://dashbportal.com/afinitive/afi.jpeg" alt="Afinitive Logo" width="100">
+                <img src="https://links.afinitive.com.pe/img/afinitive_logo.png" alt="Afinitive Wealth Management" width="90">
               </div>
               <div class="icon">📅</div>
               <h1>¡Reunión Confirmada!</h1>
@@ -1466,11 +1470,12 @@ export class EmailTrackingService {
           <meta charset="UTF-8">
           <meta name="viewport" content="width=device-width, initial-scale=1.0">
           <meta http-equiv="refresh" content="0; url=${targetUrl}">
-          <title>Redirigiendo a Afinitive | WhatsApp</title>
+          <title>Afinitive | WhatsApp Directo</title>
           <style>
             body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background-color: #0D1B2A; color: #FFFFFF; text-align: center; padding: 60px 20px; margin: 0; }
             .card { max-width: 440px; margin: 0 auto; background: #1B2A4A; padding: 40px 30px; border-radius: 16px; box-shadow: 0 10px 30px rgba(0,0,0,0.3); border: 1px solid rgba(201, 168, 76, 0.3); }
-            .icon { font-size: 48px; margin-bottom: 15px; }
+            .logo { margin-bottom: 20px; }
+            .icon { font-size: 36px; margin-bottom: 12px; }
             h2 { margin: 0 0 10px 0; color: #FFFFFF; font-size: 20px; font-weight: 600; }
             p { color: #94A3B8; font-size: 14px; line-height: 1.5; margin: 0 0 20px 0; }
             .spinner { width: 36px; height: 36px; border: 3px solid rgba(255,255,255,0.15); border-top: 3px solid #25D366; border-radius: 50%; animation: spin 0.8s linear infinite; margin: 20px auto; }
@@ -1481,6 +1486,9 @@ export class EmailTrackingService {
         </head>
         <body>
           <div class="card">
+            <div class="logo">
+              <img src="https://links.afinitive.com.pe/img/afinitive_logo.png" alt="Afinitive Logo" width="70">
+            </div>
             <div class="icon">💬</div>
             <h2>Conectando con WhatsApp...</h2>
             <p>Te estamos redirigiendo para completar tus preferencias y coordinar con <strong>Afinitive Wealth Management</strong>.</p>
