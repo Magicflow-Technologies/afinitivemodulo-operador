@@ -62,6 +62,7 @@ export class EmailTrackingController {
       afternoon_end: string;
       send_interval: number;
       send_interval_unit: string;
+      whatsapp_number?: string;
     }
   ) {
     return await this.emailTrackingService.saveCalendarSettings(body);

@@ -50,6 +50,7 @@ export default function PublicCalendarBooking({ onBackToDashboard }: PublicCalen
 
   // Estado de Inversión (Imagen 1)
   const [selectedInvestmentRange, setSelectedInvestmentRange] = useState<string>('S/350,000 – S/450,000');
+  const [configuredWhatsAppNumber, setConfiguredWhatsAppNumber] = useState<string>('51982100208');
 
   // Estado de Datos de Contacto para Enlazar la Llamada
   const [fullName, setFullName] = useState('');
@@ -112,6 +113,17 @@ export default function PublicCalendarBooking({ onBackToDashboard }: PublicCalen
   const fetchSlots = async () => {
     try {
       setLoadingSlots(true);
+      
+      // Consultar configuración dinámica (incluye número de WhatsApp)
+      fetch(`${API_BASE_URL}/api/test-email/settings`)
+        .then(res => res.json())
+        .then(data => {
+          if (data?.whatsapp_number) {
+            setConfiguredWhatsAppNumber(data.whatsapp_number);
+          }
+        })
+        .catch(() => {});
+
       const res = await fetch(`${API_BASE_URL}/api/test-email/free-slots?signatureId=ricardo`);
       if (res.ok) {
         const data = await res.json();
@@ -240,8 +252,9 @@ export default function PublicCalendarBooking({ onBackToDashboard }: PublicCalen
 
       const resData = await response.json().catch(() => ({ success: true }));
 
+      const waPhone = configuredWhatsAppNumber.replace(/\D/g, '') || '51982100208';
       const whatsappMsg = `Hola Ricardo, deseo coordinar sobre asesoría patrimonial estratégica.\n\n👤 Nombre: ${fullName.trim()}\n✉️ Correo: ${email.trim()}\n📱 Celular: ${phone.trim()}\n💰 Rango de Inversión: ${selectedInvestmentRange}${notes.trim() ? `\n📝 Consulta: ${notes.trim()}` : ''}`;
-      const whatsappUrl = `https://wa.me/51982100208?text=${encodeURIComponent(whatsappMsg)}`;
+      const whatsappUrl = `https://wa.me/${waPhone}?text=${encodeURIComponent(whatsappMsg)}`;
 
       setConfirmedBooking({
         name: fullName.trim(),
@@ -983,7 +996,7 @@ export default function PublicCalendarBooking({ onBackToDashboard }: PublicCalen
                     </a>
 
                     <a
-                      href={`https://wa.me/51982100208?text=${encodeURIComponent(`Hola Ricardo, acabo de agendar una sesión de asesoría patrimonial en tu calendario oficial (${confirmedBooking.name}).`)}`}
+                      href={`https://wa.me/${configuredWhatsAppNumber.replace(/\D/g, '') || '51982100208'}?text=${encodeURIComponent(`Hola Ricardo, acabo de agendar una sesión de asesoría patrimonial en tu calendario oficial (${confirmedBooking.name}).`)}`}
                       target="_blank"
                       rel="noopener noreferrer"
                       className="w-full sm:w-auto px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-xl shadow-sm flex items-center justify-center gap-2 transition-all"

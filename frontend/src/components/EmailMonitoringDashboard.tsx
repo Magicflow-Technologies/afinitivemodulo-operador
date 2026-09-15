@@ -152,6 +152,7 @@ export default function EmailMonitoringDashboard({ onNavigateToBooking }: EmailM
   const [afternoonEnd, setAfternoonEnd] = useState('17:00');
   const [sendInterval, setSendInterval] = useState(5);
   const [sendIntervalUnit, setSendIntervalUnit] = useState('minutes');
+  const [whatsappNumber, setWhatsappNumber] = useState('51982100208');
   const [settingsLoading, setSettingsLoading] = useState(false);
 
   const [queueItems, setQueueItems] = useState<QueueItem[]>([]);
@@ -366,13 +367,16 @@ export default function EmailMonitoringDashboard({ onNavigateToBooking }: EmailM
         setAfternoonEnd(data.afternoon_end);
         setSendInterval(data.send_interval);
         setSendIntervalUnit(data.send_interval_unit);
+        if (data.whatsapp_number) {
+          setWhatsappNumber(data.whatsapp_number);
+        }
       }
     } catch (err) {
       console.error('Error al cargar configuración:', err);
     }
   }, [BACKEND_URL]);
 
-  // Guardar Configuraciones de Agenda y Envíos
+  // Guardar Configuraciones de Agenda, Envíos y WhatsApp
   const handleSaveSettings = async (e: React.FormEvent) => {
     e.preventDefault();
     setSettingsLoading(true);
@@ -390,11 +394,12 @@ export default function EmailMonitoringDashboard({ onNavigateToBooking }: EmailM
           afternoon_end: afternoonEnd,
           send_interval: Number(sendInterval),
           send_interval_unit: sendIntervalUnit,
+          whatsapp_number: whatsappNumber.trim(),
         }),
       });
       if (response.ok) {
         const unitLabel = sendIntervalUnit === 'minutes' ? 'minuto(s)' : sendIntervalUnit === 'seconds' ? 'segundo(s)' : 'hora(s)';
-        setSuccessMsg(`¡Configuraciones guardadas con éxito! Intervalo de envío establecido en ${sendInterval} ${unitLabel}.`);
+        setSuccessMsg(`¡Configuraciones guardadas con éxito! Intervalo: ${sendInterval} ${unitLabel}, WhatsApp: +${whatsappNumber.replace(/\D/g, '') || '51982100208'}.`);
         await fetchSettings();
       } else {
         const errData = await response.json();
@@ -898,7 +903,7 @@ export default function EmailMonitoringDashboard({ onNavigateToBooking }: EmailM
             </button>
 
             <a
-              href={`https://wa.me/?text=${encodeURIComponent(`Hola, puedes agendar una reunión directamente en mi calendario en el siguiente enlace: ${typeof window !== 'undefined' ? window.location.origin : ''}/agendar`)}`}
+              href={`https://wa.me/${whatsappNumber.replace(/\D/g, '') || '51982100208'}?text=${encodeURIComponent(`Hola, puedes agendar una reunión directamente en mi calendario en el siguiente enlace: ${typeof window !== 'undefined' ? window.location.origin : ''}/agendar`)}`}
               target="_blank"
               rel="noopener noreferrer"
               className="flex items-center gap-1.5 px-3.5 py-2 bg-[#25D366] hover:bg-[#20BA56] text-white font-bold rounded-xl text-xs shadow-md transition-all cursor-pointer"
@@ -2462,6 +2467,62 @@ export default function EmailMonitoringDashboard({ onNavigateToBooking }: EmailM
                     </div>
                   </div>
 
+                </div>
+
+                {/* Fila 3: Configuración Dinámica del Número de WhatsApp */}
+                <div className="bg-[#08101A]/80 border border-[#25D366]/30 hover:border-[#25D366]/60 rounded-xl p-5 space-y-4 transition-all duration-200 shadow-lg shadow-[#25D366]/5">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-800/80 pb-3">
+                    <div className="space-y-0.5">
+                      <h3 className="text-xs font-semibold text-emerald-400 uppercase tracking-wider flex items-center gap-2">
+                        <MessageCircle className="w-4 h-4 text-[#25D366]" />
+                        Número de Atención WhatsApp (Chat Directo)
+                      </h3>
+                      <p className="text-xs text-slate-400">
+                        Los prospectos que hagan clic en el botón de WhatsApp desde el correo serán redirigidos de inmediato a este chat.
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-[11px] text-slate-400">Número activo:</span>
+                      <span className="inline-flex items-center gap-1.5 px-3 py-1 bg-[#25D366]/15 border border-[#25D366]/40 text-[#25D366] font-mono text-xs font-bold rounded-lg shadow-sm">
+                        <span className="w-2 h-2 rounded-full bg-[#25D366] animate-pulse"></span>
+                        +{whatsappNumber.replace(/\D/g, '') || '51982100208'}
+                      </span>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-end">
+                    <div className="space-y-1.5 md:col-span-2">
+                      <label className="text-xs text-slate-300 font-medium flex items-center gap-1.5">
+                        <Phone className="w-3.5 h-3.5 text-[#25D366]" />
+                        Modificar Celular / WhatsApp de Atención
+                      </label>
+                      <div className="relative">
+                        <input
+                          type="text"
+                          required
+                          value={whatsappNumber}
+                          onChange={(e) => setWhatsappNumber(e.target.value)}
+                          placeholder="Ej: 51982100208 o +51 982 100 208"
+                          className="w-full px-4 py-3 bg-[#0D1B2A] border border-brand-gold/20 focus:border-[#25D366] rounded-xl text-slate-100 placeholder-slate-600 outline-none transition-all duration-200 text-sm font-mono"
+                        />
+                      </div>
+                      <p className="text-[11px] text-slate-500">
+                        💡 Incluye el código de país (Ejemplo Perú: <strong className="text-slate-400 font-mono">51</strong> seguido de los 9 dígitos de celular).
+                      </p>
+                    </div>
+
+                    <div className="flex gap-2">
+                      <a
+                        href={`https://wa.me/${whatsappNumber.replace(/\D/g, '') || '51982100208'}?text=${encodeURIComponent('Hola Ricardo, prueba de enlace dinámico desde Afinitive.')}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="w-full py-3 bg-[#25D366]/20 hover:bg-[#25D366]/30 border border-[#25D366]/50 text-[#25D366] hover:text-emerald-300 font-semibold rounded-xl text-xs flex items-center justify-center gap-2 transition-all cursor-pointer shadow-sm"
+                      >
+                        <ExternalLink className="w-3.5 h-3.5" />
+                        <span>Probar Enlace WhatsApp</span>
+                      </a>
+                    </div>
+                  </div>
                 </div>
 
                 {/* Botón de Guardado */}

@@ -453,6 +453,7 @@ export class EmailTrackingService {
         afternoon_end: '17:00',
         send_interval: 2,
         send_interval_unit: 'minutes',
+        whatsapp_number: '51982100208',
       };
     }
 
@@ -461,6 +462,7 @@ export class EmailTrackingService {
       slot_duration: Number(data.slot_duration) || 60,
       send_interval: Number(data.send_interval) || 2,
       send_interval_unit: data.send_interval_unit || 'minutes',
+      whatsapp_number: data.whatsapp_number || '51982100208',
     };
   }
 
@@ -472,12 +474,15 @@ export class EmailTrackingService {
     afternoon_end: string;
     send_interval: number;
     send_interval_unit: string;
+    whatsapp_number?: string;
   }) {
     if (!this.supabase) {
       throw new HttpException('El servicio de Supabase no está configurado', HttpStatus.INTERNAL_SERVER_ERROR);
     }
 
-    const payload = {
+    const cleanWhatsapp = (settings.whatsapp_number || '51982100208').trim();
+
+    const payload: any = {
       id: 1,
       slot_duration: Number(settings.slot_duration) || 60,
       morning_start: settings.morning_start,
@@ -486,6 +491,7 @@ export class EmailTrackingService {
       afternoon_end: settings.afternoon_end,
       send_interval: Number(settings.send_interval) || 2,
       send_interval_unit: settings.send_interval_unit || 'minutes',
+      whatsapp_number: cleanWhatsapp,
       updated_at: new Date().toISOString(),
     };
 
@@ -495,11 +501,25 @@ export class EmailTrackingService {
       .select();
 
     if (error) {
-      this.logger.error(`Error al guardar configuraciones en Supabase: ${error.message}`);
-      throw new HttpException(`Error al guardar configuraciones: ${error.message}`, HttpStatus.INTERNAL_SERVER_ERROR);
+      this.logger.warn(`Error al guardar configuraciones en Supabase con whatsapp_number: ${error.message}. Intentando fallback.`);
+      // Si la columna whatsapp_number no existe aún en Supabase, reintentar sin ella
+      const fallbackPayload = { ...payload };
+      delete fallbackPayload.whatsapp_number;
+      const { data: fallbackData, error: fallbackError } = await this.supabase
+        .from('calendar_settings')
+        .upsert(fallbackPayload)
+        .select();
+
+      if (fallbackError) {
+        this.logger.error(`Error crítico al guardar configuraciones en Supabase: ${fallbackError.message}`);
+        throw new HttpException(`Error al guardar configuraciones: ${fallbackError.message}`, HttpStatus.INTERNAL_SERVER_ERROR);
+      }
+
+      this.logger.log(`Configuraciones guardadas con éxito (fallback): intervalo=${payload.send_interval} ${payload.send_interval_unit}, duración=${payload.slot_duration}min`);
+      return { ...(fallbackData?.[0] || fallbackPayload), whatsapp_number: cleanWhatsapp };
     }
 
-    this.logger.log(`Configuraciones guardadas con éxito: intervalo=${payload.send_interval} ${payload.send_interval_unit}, duración=${payload.slot_duration}min`);
+    this.logger.log(`Configuraciones guardadas con éxito: intervalo=${payload.send_interval} ${payload.send_interval_unit}, duración=${payload.slot_duration}min, whatsapp=${payload.whatsapp_number}`);
     return data[0];
   }
 
@@ -1377,7 +1397,7 @@ export class EmailTrackingService {
                 </div>
 
                 <p style="font-size: 13px; color: #475569; line-height: 1.6; text-align: justify; margin-bottom: 25px;">
-                  Estimado(a) <strong>${name}</strong>, nos pondremos en contacto contigo a la fecha y hora acordada. Si requieres reprogramar o necesitas atención inmediata, puedes escribirnos por WhatsApp al <a href="https://wa.me/51982100208" style="color: #25D366; font-weight: bold;">(511) 982100208</a>.
+                  Estimado(a) <strong>${name}</strong>, nos pondremos en contacto contigo a la fecha y hora acordada. Si requieres reprogramar o necesitas atención inmediata, puedes escribirnos por WhatsApp al <a href="https://wa.me/${(settings?.whatsapp_number || '51982100208').replace(/\D/g, '')}" style="color: #25D366; font-weight: bold;">+${(settings?.whatsapp_number || '51982100208').replace(/\D/g, '')}</a>.
                 </p>
 
                 <div style="border-top: 1px solid #E2E8F0; padding-top: 20px; text-align: center; font-size: 11px; color: #94A3B8;">
@@ -1411,15 +1431,32 @@ export class EmailTrackingService {
   async trackWhatsAppClick(email?: string, name?: string, signatureId?: string): Promise<string> {
     this.logger.log(`Registrando clic en WhatsApp para el destinatario: ${email || 'Desconocido'}`);
 
-    const frontendUrl = (this.configService.get<string>('FRONTEND_URL') || process.env.FRONTEND_URL || 'http://localhost:5173').replace(/\/+$/, '');
-    const targetUrl = `${frontendUrl}/agendar?mode=whatsapp&email=${encodeURIComponent(email || '')}&name=${encodeURIComponent(name || '')}`;
+    // 1. Obtener número de WhatsApp activo configurado en el sistema
+    let waPhone = '51982100208';
+    try {
+      const settings = await this.getCalendarSettings();
+      if (settings?.whatsapp_number) {
+        const cleaned = settings.whatsapp_number.replace(/\D/g, '');
+        if (cleaned) waPhone = cleaned;
+      }
+    } catch (err) {
+      this.logger.warn(`No se pudo obtener whatsapp_number de calendar_settings: ${err}`);
+    }
+
+    // 2. Mensaje inicial personalizado para abrir chat directo
+    const clientName = name?.trim();
+    const waText = clientName
+      ? `Hola Ricardo, soy ${clientName} y me contacto desde el correo de Afinitive Wealth Management para recibir información de asesoría patrimonial.`
+      : `Hola Ricardo, me contacto desde el correo de Afinitive Wealth Management para recibir información de asesoría patrimonial.`;
+
+    const targetUrl = `https://wa.me/${waPhone}?text=${encodeURIComponent(waText)}`;
 
     if (this.supabase && email) {
       try {
         const emailClean = email.trim().toLowerCase();
         const nowIso = new Date().toISOString();
 
-        // 1. Actualizar en email_tracking_test
+        // Actualizar en email_tracking_test
         const { data: existingRecords, error: fetchErr } = await this.supabase
           .from('email_tracking_test')
           .select('id, status, opened_at, whatsapp_clicked_at')
@@ -1445,7 +1482,7 @@ export class EmailTrackingService {
           this.logger.log(`Cliente ${emailClean} registrado con clic de WhatsApp en email_tracking_test.`);
         }
 
-        // 2. Actualizar en email_queue si existe
+        // Actualizar en email_queue si existe
         const { error: queueErr } = await this.supabase
           .from('email_queue')
           .update({
@@ -1470,7 +1507,7 @@ export class EmailTrackingService {
           <meta charset="UTF-8">
           <meta name="viewport" content="width=device-width, initial-scale=1.0">
           <meta http-equiv="refresh" content="0; url=${targetUrl}">
-          <title>Afinitive | WhatsApp Directo</title>
+          <title>Afinitive | Conectando a WhatsApp</title>
           <style>
             body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background-color: #0D1B2A; color: #FFFFFF; text-align: center; padding: 60px 20px; margin: 0; }
             .card { max-width: 440px; margin: 0 auto; background: #1B2A4A; padding: 40px 30px; border-radius: 16px; box-shadow: 0 10px 30px rgba(0,0,0,0.3); border: 1px solid rgba(201, 168, 76, 0.3); }
@@ -1490,11 +1527,11 @@ export class EmailTrackingService {
               <img src="https://links.afinitive.com.pe/img/afinitive_logo.png" alt="Afinitive Logo" width="70">
             </div>
             <div class="icon">💬</div>
-            <h2>Conectando con WhatsApp...</h2>
-            <p>Te estamos redirigiendo para completar tus preferencias y coordinar con <strong>Afinitive Wealth Management</strong>.</p>
+            <h2>Abriendo WhatsApp Directo...</h2>
+            <p>Te estamos redirigiendo directamente a la conversación oficial de WhatsApp con <strong>Afinitive Wealth Management</strong>.</p>
             <div class="spinner"></div>
-            <p style="font-size: 12px; color: #64748B; margin-top: 15px;">Si no abre automáticamente en unos segundos:</p>
-            <a href="${targetUrl}" class="btn">Continuar</a>
+            <p style="font-size: 12px; color: #64748B; margin-top: 15px;">Si la aplicación no abre automáticamente:</p>
+            <a href="${targetUrl}" class="btn">Abrir Chat de WhatsApp</a>
           </div>
           <script>
             window.location.href = "${targetUrl}";
