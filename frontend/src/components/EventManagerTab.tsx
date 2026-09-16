@@ -16,7 +16,10 @@ import {
   MessageCircle,
   X,
   Upload,
-  Loader2
+  Loader2,
+  AlertTriangle,
+  AlertCircle,
+  CheckCircle2
 } from 'lucide-react';
 
 interface Evento {
@@ -58,6 +61,18 @@ export default function EventManagerTab() {
   const [loadingAttendees, setLoadingAttendees] = useState(false);
   const [attendeeSearch, setAttendeeSearch] = useState('');
 
+  // Delete Confirmation Modal State
+  const [deleteModal, setDeleteModal] = useState<{ isOpen: boolean; id: string; nombre: string } | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
+
+  // Toast Notification State
+  const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' | 'info' } | null>(null);
+
+  const showToast = (message: string, type: 'success' | 'error' | 'info' = 'success') => {
+    setToast({ message, type });
+    setTimeout(() => setToast(null), 4000);
+  };
+
   // Storage Image Upload State
   const [uploadingImage, setUploadingImage] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
@@ -93,12 +108,14 @@ export default function EventManagerTab() {
       const result = await res.json();
       if (res.ok && result.success && result.url) {
         setEditingEvento(prev => prev ? { ...prev, imagen_url: result.url } : prev);
+        showToast('Flyer subido correctamente a Supabase Storage', 'success');
       } else {
         throw new Error(result.message || 'Error al subir la imagen a Supabase Storage');
       }
     } catch (err: any) {
       console.error('Error al subir imagen:', err);
       setUploadError(err.message || 'No se pudo subir la imagen al Storage');
+      showToast(err.message || 'Error al subir la imagen', 'error');
     } finally {
       setUploadingImage(false);
       // Reset input
@@ -160,7 +177,7 @@ export default function EventManagerTab() {
   const handleSaveEvento = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!editingEvento || !editingEvento.nombre || !editingEvento.fecha_inicio || !editingEvento.link_reunion) {
-      alert('Por favor completa todos los campos requeridos');
+      showToast('Por favor completa todos los campos requeridos', 'error');
       return;
     }
 
@@ -178,27 +195,34 @@ export default function EventManagerTab() {
       const result = await res.json();
       if (res.ok && result.success) {
         setIsEditModalOpen(false);
+        showToast(isUpdating ? 'Evento actualizado correctamente' : 'Evento creado exitosamente', 'success');
         fetchEventos();
       } else {
-        alert(result.error || result.message || 'Error al guardar el evento');
+        showToast(result.error || result.message || 'Error al guardar el evento', 'error');
       }
     } catch (err: any) {
-      alert('Error de conexión con el servidor: ' + err.message);
+      showToast('Error de conexión con el servidor: ' + err.message, 'error');
     }
   };
 
-  const handleDeleteEvento = async (id: string, nombre: string) => {
-    if (!confirm(`¿Estás seguro de eliminar el evento "${nombre}"? Se borrarán también los registros de asistentes asociados.`)) {
-      return;
-    }
+  const handleConfirmDelete = async () => {
+    if (!deleteModal) return;
 
+    setIsDeleting(true);
     try {
-      const res = await fetch(`${backendUrl}/api/eventos/${id}`, { method: 'DELETE' });
-      if (res.ok) {
+      const res = await fetch(`${backendUrl}/api/eventos/${deleteModal.id}`, { method: 'DELETE' });
+      const result = await res.json();
+      if (res.ok && result.success) {
+        showToast('Evento eliminado definitivamente', 'success');
+        setDeleteModal(null);
         fetchEventos();
+      } else {
+        showToast(result.error || result.message || 'Error al eliminar el evento', 'error');
       }
-    } catch (err) {
-      alert('Error al eliminar evento');
+    } catch (err: any) {
+      showToast('Error de conexión al eliminar: ' + err.message, 'error');
+    } finally {
+      setIsDeleting(false);
     }
   };
 
@@ -556,7 +580,7 @@ export default function EventManagerTab() {
                           <Edit3 className="w-4 h-4" />
                         </button>
                         <button
-                          onClick={() => handleDeleteEvento(ev.id, ev.nombre)}
+                          onClick={() => setDeleteModal({ isOpen: true, id: ev.id, nombre: ev.nombre })}
                           className="p-1.5 text-slate-400 hover:text-red-400 rounded-lg hover:bg-slate-800 transition-colors"
                           title="Eliminar evento"
                         >
@@ -925,6 +949,98 @@ export default function EventManagerTab() {
               )}
             </div>
 
+          </div>
+        </div>
+      )}
+
+      {/* ================= MODAL: CONFIRM DELETE EVENT ================= */}
+      {deleteModal && deleteModal.isOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-in fade-in duration-200">
+          <div className="bg-slate-900 border border-slate-700/80 rounded-2xl w-full max-w-md p-6 shadow-2xl relative overflow-hidden">
+            {/* Top Accent Line */}
+            <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-red-500 via-rose-500 to-amber-500" />
+            
+            <div className="flex items-start gap-4">
+              <div className="w-12 h-12 rounded-xl bg-red-500/10 border border-red-500/20 text-red-400 flex items-center justify-center flex-shrink-0">
+                <AlertTriangle className="w-6 h-6 text-red-400" />
+              </div>
+              <div>
+                <h3 className="text-base font-bold text-white tracking-tight">
+                  Confirmar Eliminación
+                </h3>
+                <p className="text-xs text-slate-400 mt-1 leading-relaxed">
+                  ¿Estás seguro de que deseas eliminar este evento del sistema?
+                </p>
+              </div>
+            </div>
+
+            {/* Target Event Highlight Box */}
+            <div className="my-5 p-3.5 bg-slate-950/80 rounded-xl border border-slate-800">
+              <div className="flex items-center gap-2.5">
+                <Building2 className="w-4 h-4 text-amber-400 flex-shrink-0" />
+                <span className="text-xs font-bold text-white line-clamp-1">
+                  {deleteModal.nombre}
+                </span>
+              </div>
+              <p className="text-[11px] text-red-300/80 mt-2 flex items-center gap-1.5">
+                <span className="w-1.5 h-1.5 rounded-full bg-red-400 flex-shrink-0 animate-pulse" />
+                Esta acción no se puede deshacer y borrará los asistentes inscritos.
+              </p>
+            </div>
+
+            {/* Action Buttons */}
+            <div className="flex items-center justify-end gap-3 pt-2">
+              <button
+                type="button"
+                disabled={isDeleting}
+                onClick={() => setDeleteModal(null)}
+                className="px-4 py-2.5 text-xs font-semibold text-slate-300 hover:text-white rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 transition-colors cursor-pointer disabled:opacity-50"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                disabled={isDeleting}
+                onClick={handleConfirmDelete}
+                className="px-5 py-2.5 text-xs font-bold text-white rounded-xl bg-gradient-to-r from-red-600 to-rose-600 hover:from-red-500 hover:to-rose-500 shadow-lg shadow-red-900/40 transition-all cursor-pointer flex items-center gap-2 disabled:opacity-50"
+              >
+                {isDeleting ? (
+                  <>
+                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                    <span>Eliminando...</span>
+                  </>
+                ) : (
+                  <>
+                    <Trash2 className="w-3.5 h-3.5" />
+                    <span>Eliminar Evento</span>
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ================= TOAST NOTIFICATION ================= */}
+      {toast && (
+        <div className="fixed bottom-6 right-6 z-50 animate-in slide-in-from-bottom-5 duration-300">
+          <div className={`px-4 py-3 rounded-xl shadow-2xl border flex items-center gap-3 text-xs font-medium backdrop-blur-md ${
+            toast.type === 'error'
+              ? 'bg-red-950/95 border-red-500/50 text-red-200'
+              : toast.type === 'info'
+              ? 'bg-sky-950/95 border-sky-500/50 text-sky-200'
+              : 'bg-slate-900/95 border-emerald-500/50 text-emerald-300'
+          }`}>
+            {toast.type === 'error' && <AlertCircle className="w-4 h-4 text-red-400 flex-shrink-0" />}
+            {toast.type === 'info' && <AlertTriangle className="w-4 h-4 text-sky-400 flex-shrink-0" />}
+            {toast.type === 'success' && <CheckCircle2 className="w-4 h-4 text-emerald-400 flex-shrink-0" />}
+            <span>{toast.message}</span>
+            <button 
+              onClick={() => setToast(null)} 
+              className="ml-2 text-slate-400 hover:text-white p-0.5 rounded"
+            >
+              <X className="w-3.5 h-3.5" />
+            </button>
           </div>
         </div>
       )}
