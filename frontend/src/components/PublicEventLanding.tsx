@@ -80,13 +80,22 @@ export default function PublicEventLanding({ eventId: propEventId, onBackToDashb
   // Calendar Links from API Response
   const [calendarLinks, setCalendarLinks] = useState<{ google_calendar?: string; zoom_url?: string }>({});
 
+  // Helper para resolver la URL del backend dinámicamente
+  const getBackendUrl = () => {
+    if (import.meta.env.VITE_BACKEND_URL) return import.meta.env.VITE_BACKEND_URL;
+    if (typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')) {
+      return 'http://localhost:3080';
+    }
+    return '';
+  };
+
   useEffect(() => {
     fetchEventDetails();
   }, [eventId]);
 
   const fetchEventDetails = async () => {
     try {
-      const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:3080';
+      const backendUrl = getBackendUrl();
       const res = await fetch(`${backendUrl}/api/eventos/${eventId}`);
       if (res.ok) {
         const data = await res.json();
@@ -115,7 +124,7 @@ export default function PublicEventLanding({ eventId: propEventId, onBackToDashb
     setErrorMsg(null);
 
     try {
-      const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:3080';
+      const backendUrl = getBackendUrl();
       const res = await fetch(`${backendUrl}/api/eventos/${evento.id}/registro`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -166,7 +175,7 @@ export default function PublicEventLanding({ eventId: propEventId, onBackToDashb
   };
 
   const handleDownloadIcs = () => {
-    const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:3080';
+    const backendUrl = getBackendUrl();
     window.open(`${backendUrl}/api/eventos/${evento.id}/ics`, '_blank');
   };
 
