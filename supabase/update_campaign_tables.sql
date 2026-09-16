@@ -35,9 +35,11 @@ CREATE TABLE IF NOT EXISTS afinitivebd.email_queue (
 -- Sentencia de migración rápida si las tablas ya existen
 ALTER TABLE afinitivebd.email_queue ADD COLUMN IF NOT EXISTS recipient_phone VARCHAR(50);
 ALTER TABLE afinitivebd.email_queue ADD COLUMN IF NOT EXISTS whatsapp_clicked_at TIMESTAMPTZ;
+ALTER TABLE afinitivebd.email_queue ADD COLUMN IF NOT EXISTS tag VARCHAR(255);
 ALTER TABLE afinitivebd.email_tracking_test ADD COLUMN IF NOT EXISTS proposed_time TIMESTAMPTZ;
 ALTER TABLE afinitivebd.email_tracking_test ADD COLUMN IF NOT EXISTS recipient_name TEXT;
 ALTER TABLE afinitivebd.email_tracking_test ADD COLUMN IF NOT EXISTS whatsapp_clicked_at TIMESTAMPTZ;
+ALTER TABLE afinitivebd.email_tracking_test ADD COLUMN IF NOT EXISTS tag VARCHAR(255);
 
 -- Habilitar permisos públicos para lectura/escritura simples en el Sandbox de pruebas
 ALTER TABLE afinitivebd.calendar_settings DISABLE ROW LEVEL SECURITY;

@@ -13,6 +13,8 @@ CREATE TABLE IF NOT EXISTS afinitivebd.email_tracking_test (
     status TEXT NOT NULL DEFAULT 'Enviado',
     resend_email_id TEXT NOT NULL UNIQUE,
     proposed_time TIMESTAMP WITH TIME ZONE,
+    tag VARCHAR(255),
+    whatsapp_clicked_at TIMESTAMP WITH TIME ZONE,
     sent_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
     opened_at TIMESTAMP WITH TIME ZONE
 );

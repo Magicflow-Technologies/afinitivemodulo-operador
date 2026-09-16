@@ -26,7 +26,8 @@ import {
   LayoutTemplate,
   FolderOpen,
   Copy,
-  Check
+  Check,
+  Tag
 } from 'lucide-react';
 import { LiveEmailPreview } from './LiveEmailPreview';
 import { TemplateManagerModal } from './TemplateManagerModal';
@@ -44,6 +45,7 @@ interface EmailRecord {
   opened_at: string | null;
   proposed_time?: string | null;
   whatsapp_clicked_at?: string | null;
+  tag?: string | null;
 }
 
 interface QueueItem {
@@ -55,6 +57,7 @@ interface QueueItem {
   status: string;
   error_message: string | null;
   whatsapp_clicked_at?: string | null;
+  tag?: string | null;
 }
 
 interface SkippedContact {
@@ -145,6 +148,8 @@ export default function EmailMonitoringDashboard({ onNavigateToBooking }: EmailM
 
   // --- Estados de Campañas y Cola (Nuevos) ---
   const [activeTab, setActiveTab] = useState<'individual' | 'campanas' | 'agenda'>('individual');
+  const [campaignTag, setCampaignTag] = useState('');
+  const [individualTag, setIndividualTag] = useState('');
   const [slotDuration, setSlotDuration] = useState(60);
   const [morningStart, setMorningStart] = useState('09:00');
   const [morningEnd, setMorningEnd] = useState('12:00');
@@ -183,6 +188,7 @@ export default function EmailMonitoringDashboard({ onNavigateToBooking }: EmailM
 
   // Estados para Filtros y Búsqueda
   const [filterStatus, setFilterStatus] = useState('Todos');
+  const [filterTag, setFilterTag] = useState('Todas');
   const [filterStartDate, setFilterStartDate] = useState('');
   const [filterEndDate, setFilterEndDate] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
@@ -202,7 +208,15 @@ export default function EmailMonitoringDashboard({ onNavigateToBooking }: EmailM
         return false;
       }
     }
-    // 2. Filtro por Fechas
+    // 2. Filtro por Etiqueta
+    if (filterTag !== 'Todas') {
+      if (filterTag === 'Sin Etiqueta') {
+        if (email.tag && email.tag.trim() !== '') return false;
+      } else if (!email.tag || email.tag.trim().toLowerCase() !== filterTag.trim().toLowerCase()) {
+        return false;
+      }
+    }
+    // 3. Filtro por Fechas
     if (filterStartDate) {
       const start = new Date(filterStartDate);
       start.setHours(0, 0, 0, 0);
@@ -215,14 +229,15 @@ export default function EmailMonitoringDashboard({ onNavigateToBooking }: EmailM
       const sentDate = new Date(email.sent_at);
       if (sentDate > end) return false;
     }
-    // 3. Filtro por Búsqueda de Texto (Nombre, Correo o Asunto)
+    // 4. Filtro por Búsqueda de Texto (Nombre, Correo, Asunto o Etiqueta)
     if (searchQuery.trim()) {
       const q = searchQuery.toLowerCase().trim();
       const matchEmail = email.recipient_email?.toLowerCase().includes(q);
       const matchName = email.recipient_name?.toLowerCase().includes(q);
       const matchSubject = email.subject?.toLowerCase().includes(q);
       const matchPhone = email.recipient_phone?.toLowerCase().includes(q);
-      if (!matchEmail && !matchName && !matchSubject && !matchPhone) return false;
+      const matchTag = email.tag?.toLowerCase().includes(q);
+      if (!matchEmail && !matchName && !matchSubject && !matchPhone && !matchTag) return false;
     }
     return true;
   });
@@ -240,12 +255,12 @@ export default function EmailMonitoringDashboard({ onNavigateToBooking }: EmailM
         throw trackingError;
       }
 
-      // Enriquecer con datos de la cola (proposed_time / recipient_name / recipient_phone / whatsapp_clicked_at) para compatibilidad inmediata
+      // Enriquecer con datos de la cola (proposed_time / recipient_name / recipient_phone / whatsapp_clicked_at / tag) para compatibilidad inmediata
       const { data: queueData } = await supabase
         .from('email_queue')
-        .select('recipient_email, recipient_name, recipient_phone, proposed_time, whatsapp_clicked_at');
+        .select('recipient_email, recipient_name, recipient_phone, proposed_time, whatsapp_clicked_at, tag');
 
-      const queueMap = new Map<string, { recipient_name?: string; recipient_phone?: string; proposed_time?: string; whatsapp_clicked_at?: string }>();
+      const queueMap = new Map<string, { recipient_name?: string; recipient_phone?: string; proposed_time?: string; whatsapp_clicked_at?: string; tag?: string }>();
       if (queueData) {
         queueData.forEach((q: any) => {
           if (q.recipient_email) {
@@ -254,6 +269,7 @@ export default function EmailMonitoringDashboard({ onNavigateToBooking }: EmailM
               recipient_phone: q.recipient_phone,
               proposed_time: q.proposed_time,
               whatsapp_clicked_at: q.whatsapp_clicked_at,
+              tag: q.tag,
             });
           }
         });
@@ -267,6 +283,7 @@ export default function EmailMonitoringDashboard({ onNavigateToBooking }: EmailM
           recipient_phone: queueMatch?.recipient_phone || null,
           proposed_time: item.proposed_time || queueMatch?.proposed_time || null,
           whatsapp_clicked_at: item.whatsapp_clicked_at || queueMatch?.whatsapp_clicked_at || null,
+          tag: item.tag || queueMatch?.tag || null,
         };
       });
 
@@ -515,7 +532,7 @@ export default function EmailMonitoringDashboard({ onNavigateToBooking }: EmailM
         const response = await fetch(`${BACKEND_URL}/api/test-email/queue/load`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ contacts }),
+          body: JSON.stringify({ contacts, tag: campaignTag.trim() || undefined }),
         });
 
         if (!response.ok) {
@@ -549,12 +566,12 @@ export default function EmailMonitoringDashboard({ onNavigateToBooking }: EmailM
   };
 
   // Modificar slot sugerido o excluir contacto
-  const handleUpdateQueueItem = async (id: string, proposedTime?: string, status?: string) => {
+  const handleUpdateQueueItem = async (id: string, proposedTime?: string, status?: string, tag?: string) => {
     try {
       const response = await fetch(`${BACKEND_URL}/api/test-email/queue/${id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ proposedTime, status }),
+        body: JSON.stringify({ proposedTime, status, tag }),
       });
       if (response.ok) {
         await fetchPendingQueue();
@@ -591,6 +608,7 @@ export default function EmailMonitoringDashboard({ onNavigateToBooking }: EmailM
           customSubject: subject,
           customBody: emailBody,
           customTemplateType: selectedTemplate?.type || undefined,
+          tag: campaignTag.trim() || undefined,
         }),
       });
       if (response.ok) {
@@ -712,6 +730,7 @@ export default function EmailMonitoringDashboard({ onNavigateToBooking }: EmailM
           attachment: attachmentData,
           templateId: selectedTemplateId || undefined,
           templateType: selectedTemplate?.type || undefined,
+          tag: individualTag.trim() || undefined,
         }),
       });
 
@@ -1098,8 +1117,8 @@ export default function EmailMonitoringDashboard({ onNavigateToBooking }: EmailM
                     </div>
                   </div>
 
-                  {/* Fila 2: Datos del Destinatario */}
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {/* Fila 2: Datos del Destinatario & Etiqueta */}
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                     <div className="space-y-1.5">
                       <label className="text-xs text-brand-gold font-medium uppercase tracking-wider">Nombre del Contacto (Para)</label>
                       <input
@@ -1128,6 +1147,20 @@ export default function EmailMonitoringDashboard({ onNavigateToBooking }: EmailM
                           className="w-full pl-11 pr-4 py-3 bg-brand-navy-dark border border-brand-gold/20 hover:border-brand-gold/40 focus:border-brand-gold/90 focus:ring-1 focus:ring-brand-gold/50 rounded-xl text-slate-100 placeholder-slate-500 outline-none transition-all duration-200 text-sm font-sans"
                         />
                       </div>
+                    </div>
+
+                    <div className="space-y-1.5">
+                      <label className="text-xs text-brand-gold font-medium uppercase tracking-wider flex items-center gap-1.5">
+                        <Tag className="w-3.5 h-3.5 text-brand-gold" />
+                        Etiqueta (Opcional)
+                      </label>
+                      <input
+                        type="text"
+                        placeholder="Ej: Directo, VIP, Directivos..."
+                        value={individualTag}
+                        onChange={(e) => setIndividualTag(e.target.value)}
+                        className="w-full px-4 py-3 bg-brand-navy-dark border border-brand-gold/20 hover:border-brand-gold/40 focus:border-brand-gold/90 focus:ring-1 focus:ring-brand-gold/50 rounded-xl text-slate-100 placeholder-slate-500 outline-none transition-all duration-200 text-sm font-sans"
+                      />
                     </div>
                   </div>
 
@@ -1523,9 +1556,9 @@ export default function EmailMonitoringDashboard({ onNavigateToBooking }: EmailM
                   </div>
                 </div>
 
-                {/* Filtros de Estado y Fechas */}
+                {/* Filtros de Estado, Etiqueta y Fechas */}
                 <div className="flex flex-wrap sm:flex-nowrap gap-3 items-end w-full lg:w-auto">
-                  <div className="w-full sm:w-52 space-y-1.5">
+                  <div className="w-full sm:w-44 space-y-1.5">
                     <label className="text-xs text-slate-400 font-bold uppercase tracking-wider">Estado</label>
                     <select
                       value={filterStatus}
@@ -1540,7 +1573,31 @@ export default function EmailMonitoringDashboard({ onNavigateToBooking }: EmailM
                     </select>
                   </div>
 
-                  <div className="w-full sm:w-36 space-y-1.5">
+                  <div className="w-full sm:w-48 space-y-1.5">
+                    <label className="text-xs text-slate-400 font-bold uppercase tracking-wider flex items-center gap-1.5">
+                      <Tag className="w-3.5 h-3.5 text-brand-gold" />
+                      Etiqueta
+                    </label>
+                    <select
+                      value={filterTag}
+                      onChange={(e) => setFilterTag(e.target.value)}
+                      className="w-full px-3 py-2.5 bg-[#08101A] border border-brand-gold/20 hover:border-brand-gold/40 focus:border-brand-gold/90 focus:ring-1 focus:ring-brand-gold/50 rounded-xl text-slate-100 placeholder-slate-500 outline-none transition-all duration-200 text-sm font-sans"
+                    >
+                      <option value="Todas">Todas las Etiquetas ({emails.length})</option>
+                      {Array.from(new Set(emails.map(e => e.tag?.trim()).filter(Boolean) as string[])).sort().map((t) => (
+                        <option key={t} value={t}>
+                          🏷️ {t} ({emails.filter(e => e.tag?.trim().toLowerCase() === t.toLowerCase()).length})
+                        </option>
+                      ))}
+                      {emails.some(e => !e.tag || e.tag.trim() === '') && (
+                        <option value="Sin Etiqueta">
+                          Sin Etiqueta ({emails.filter(e => !e.tag || e.tag.trim() === '').length})
+                        </option>
+                      )}
+                    </select>
+                  </div>
+
+                  <div className="w-full sm:w-32 space-y-1.5">
                     <label className="text-xs text-slate-400 font-bold uppercase tracking-wider">Desde</label>
                     <input
                       type="date"
@@ -1550,7 +1607,7 @@ export default function EmailMonitoringDashboard({ onNavigateToBooking }: EmailM
                     />
                   </div>
 
-                  <div className="w-full sm:w-36 space-y-1.5">
+                  <div className="w-full sm:w-32 space-y-1.5">
                     <label className="text-xs text-slate-400 font-bold uppercase tracking-wider">Hasta</label>
                     <input
                       type="date"
@@ -1560,10 +1617,11 @@ export default function EmailMonitoringDashboard({ onNavigateToBooking }: EmailM
                     />
                   </div>
 
-                  {(filterStatus !== 'Todos' || filterStartDate || filterEndDate || searchQuery) && (
+                  {(filterStatus !== 'Todos' || filterTag !== 'Todas' || filterStartDate || filterEndDate || searchQuery) && (
                     <button
                       onClick={() => {
                         setFilterStatus('Todos');
+                        setFilterTag('Todas');
                         setFilterStartDate('');
                         setFilterEndDate('');
                         setSearchQuery('');
@@ -1579,42 +1637,53 @@ export default function EmailMonitoringDashboard({ onNavigateToBooking }: EmailM
               </div>
 
               {/* Banner visual de Filtro Activo */}
-              {filterStatus !== 'Todos' && (
+              {(filterStatus !== 'Todos' || filterTag !== 'Todas') && (
                 <div className="px-6 py-3 bg-brand-gold/10 border-b border-brand-gold/20 flex flex-wrap items-center justify-between gap-3 text-xs">
                   <div className="flex items-center gap-2 flex-wrap">
                     <span className="text-slate-400 font-medium">Mostrando únicamente:</span>
-                    <span className="font-bold text-white px-2.5 py-1 rounded-lg bg-slate-900 border border-brand-gold/40 flex items-center gap-1.5">
-                      {filterStatus === 'WhatsApp' && (
-                        <>
-                          <MessageCircle className="w-3.5 h-3.5 text-[#25D366]" />
-                          <span>Prospectos que hicieron clic en WhatsApp</span>
-                        </>
-                      )}
-                      {filterStatus === 'Agendado' && (
-                        <>
-                          <CheckCircle className="w-3.5 h-3.5 text-purple-400" />
-                          <span>Prospectos con Cita Agendada</span>
-                        </>
-                      )}
-                      {filterStatus === 'Leído' && (
-                        <>
-                          <Eye className="w-3.5 h-3.5 text-emerald-400" />
-                          <span>Prospectos que abrieron el correo</span>
-                        </>
-                      )}
-                      {filterStatus === 'Enviado' && (
-                        <>
-                          <Mail className="w-3.5 h-3.5 text-blue-400" />
-                          <span>Prospectos en estado enviado</span>
-                        </>
-                      )}
-                    </span>
+                    {filterStatus !== 'Todos' && (
+                      <span className="font-bold text-white px-2.5 py-1 rounded-lg bg-slate-900 border border-brand-gold/40 flex items-center gap-1.5">
+                        {filterStatus === 'WhatsApp' && (
+                          <>
+                            <MessageCircle className="w-3.5 h-3.5 text-[#25D366]" />
+                            <span>Prospectos que hicieron clic en WhatsApp</span>
+                          </>
+                        )}
+                        {filterStatus === 'Agendado' && (
+                          <>
+                            <CheckCircle className="w-3.5 h-3.5 text-purple-400" />
+                            <span>Prospectos con Cita Agendada</span>
+                          </>
+                        )}
+                        {filterStatus === 'Leído' && (
+                          <>
+                            <Eye className="w-3.5 h-3.5 text-emerald-400" />
+                            <span>Prospectos que abrieron el correo</span>
+                          </>
+                        )}
+                        {filterStatus === 'Enviado' && (
+                          <>
+                            <Mail className="w-3.5 h-3.5 text-blue-400" />
+                            <span>Prospectos en estado enviado</span>
+                          </>
+                        )}
+                      </span>
+                    )}
+                    {filterTag !== 'Todas' && (
+                      <span className="font-bold text-brand-gold px-2.5 py-1 rounded-lg bg-slate-900 border border-brand-gold/40 flex items-center gap-1.5">
+                        <Tag className="w-3.5 h-3.5 text-brand-gold" />
+                        <span>Etiqueta: {filterTag}</span>
+                      </span>
+                    )}
                     <span className="px-2.5 py-0.5 rounded-full bg-brand-gold/20 text-brand-gold font-mono font-bold">
                       {filteredEmails.length} {filteredEmails.length === 1 ? 'prospecto encontrado' : 'prospectos encontrados'}
                     </span>
                   </div>
                   <button
-                    onClick={() => setFilterStatus('Todos')}
+                    onClick={() => {
+                      setFilterStatus('Todos');
+                      setFilterTag('Todas');
+                    }}
                     className="text-brand-gold hover:text-white font-semibold underline cursor-pointer text-xs transition-colors"
                   >
                     Mostrar todos los registros
@@ -1662,6 +1731,7 @@ export default function EmailMonitoringDashboard({ onNavigateToBooking }: EmailM
                     <thead>
                       <tr className="bg-[#07111D] text-slate-300 text-xs font-bold tracking-wider uppercase border-b border-brand-gold/20">
                         <th className="py-4 px-6 md:px-8">Prospecto / Lead</th>
+                        <th className="py-4 px-6">Etiqueta</th>
                         <th className="py-4 px-6">Interacción y Estado</th>
                         <th className="py-4 px-6">Agenda Propuesta (Calendar)</th>
                         <th className="py-4 px-6">Fecha de Envío</th>
@@ -1716,6 +1786,18 @@ export default function EmailMonitoringDashboard({ onNavigateToBooking }: EmailM
                                 )}
                               </div>
                             </div>
+                          </td>
+
+                          {/* Columna 2: Etiqueta */}
+                          <td className="py-4 px-6 whitespace-nowrap">
+                            {email.tag ? (
+                              <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-semibold bg-brand-gold/10 border border-brand-gold/30 text-brand-gold shadow-sm">
+                                <Tag className="w-3 h-3 text-brand-gold shrink-0" />
+                                <span className="truncate max-w-[150px]" title={email.tag}>{email.tag}</span>
+                              </span>
+                            ) : (
+                              <span className="text-slate-600 font-mono text-xs italic">—</span>
+                            )}
                           </td>
 
                           {/* Columna 2: Interacciones y Estado */}
@@ -1902,20 +1984,49 @@ export default function EmailMonitoringDashboard({ onNavigateToBooking }: EmailM
                   onRefresh={() => fetchTemplates()}
                 />
 
-                {/* Paso 2: Subidor de Archivo Drag & Drop */}
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-center">
-                  <div className="border-2 border-dashed border-brand-gold/25 hover:border-brand-gold/50 rounded-xl p-8 text-center bg-slate-950/20 transition-all duration-200 relative group">
-                    <input
-                      type="file"
-                      accept=".csv"
-                      onChange={handleCsvUpload}
-                      disabled={queueLoading || queueStatus.isProcessing}
-                      className="absolute inset-0 w-full h-full opacity-0 cursor-pointer disabled:cursor-not-allowed"
-                    />
-                    <Upload className="w-10 h-10 text-brand-gold/60 group-hover:text-brand-gold mx-auto mb-3 transition-colors duration-205" />
-                    <p className="text-sm font-medium text-slate-300">Arrastra tu archivo CSV o haz clic aquí</p>
-                    <p className="text-xs text-slate-500 mt-1">Formato admitido: .csv (Nombre, Correo, Celular)</p>
+                {/* Paso 2: Definir Etiqueta y Subir Archivo CSV */}
+                <div className="space-y-4">
+                  <div className="bg-[#09131E] border border-brand-gold/25 rounded-xl p-4 space-y-2">
+                    <div className="flex items-center justify-between">
+                      <label className="text-xs text-brand-gold font-bold uppercase tracking-wider flex items-center gap-1.5">
+                        <Tag className="w-4 h-4 text-brand-gold" />
+                        Paso 2: Asignar Nombre de Etiqueta a esta Campaña (Para Filtrado)
+                      </label>
+                      <span className="text-[10px] px-2 py-0.5 rounded-full bg-brand-gold/10 text-brand-gold border border-brand-gold/20 font-medium">
+                        Recomendado
+                      </span>
+                    </div>
+                    <div className="relative">
+                      <input
+                        type="text"
+                        placeholder="Ej: Inversores Marzo 2026, Leads LinkedIn, Conferencia Lima, Clientes VIP..."
+                        value={campaignTag}
+                        onChange={(e) => setCampaignTag(e.target.value)}
+                        disabled={queueLoading || queueStatus.isProcessing}
+                        className="w-full pl-10 pr-4 py-2.5 bg-brand-navy-dark border border-brand-gold/20 hover:border-brand-gold/40 focus:border-brand-gold/90 focus:ring-1 focus:ring-brand-gold/50 rounded-xl text-slate-100 placeholder-slate-500 outline-none transition-all duration-200 text-sm font-sans"
+                      />
+                      <Tag className="w-4 h-4 text-slate-500 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+                    </div>
+                    <p className="text-[11px] text-slate-400">
+                      💡 Todos los contactos procesados desde este CSV quedarán asociados a esta etiqueta para poder filtrarlos y monitorearlos en el panel en tiempo real.
+                    </p>
                   </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-center">
+                    <div className="border-2 border-dashed border-brand-gold/25 hover:border-brand-gold/50 rounded-xl p-8 text-center bg-slate-950/20 transition-all duration-200 relative group">
+                      <input
+                        type="file"
+                        accept=".csv"
+                        onChange={handleCsvUpload}
+                        disabled={queueLoading || queueStatus.isProcessing}
+                        className="absolute inset-0 w-full h-full opacity-0 cursor-pointer disabled:cursor-not-allowed"
+                      />
+                      <Upload className="w-10 h-10 text-brand-gold/60 group-hover:text-brand-gold mx-auto mb-3 transition-colors duration-205" />
+                      <p className="text-sm font-medium text-slate-300">Arrastra tu archivo CSV o haz clic aquí</p>
+                      <p className="text-xs text-slate-500 mt-1">
+                        Formato admitido: .csv (Nombre, Correo, Celular) {campaignTag.trim() ? `• Etiqueta: "${campaignTag.trim()}"` : ''}
+                      </p>
+                    </div>
 
                   {/* Panel de Estado / Progreso del Envió */}
                   <div className="bg-[#08101A] border border-brand-gold/10 rounded-xl p-6 space-y-4">
@@ -2033,7 +2144,8 @@ export default function EmailMonitoringDashboard({ onNavigateToBooking }: EmailM
                   </div>
                 </div>
               </div>
-            </section>
+            </div>
+          </section>
 
             {/* Banner de Resumen de Duplicados / Enfriamiento */}
             {uploadSummary && uploadSummary.skippedCount > 0 && (
@@ -2122,6 +2234,7 @@ export default function EmailMonitoringDashboard({ onNavigateToBooking }: EmailM
                     <thead>
                       <tr className="bg-slate-950/40 text-slate-400 text-xs font-semibold tracking-wider uppercase border-b border-slate-800">
                         <th className="py-4 px-6">Cliente</th>
+                        <th className="py-4 px-6">Etiqueta</th>
                         <th className="py-4 px-6">Correo</th>
                         <th className="py-4 px-6">Teléfono</th>
                         <th className="py-4 px-6">Cita Sugerida (Edición Libre)</th>
@@ -2137,6 +2250,16 @@ export default function EmailMonitoringDashboard({ onNavigateToBooking }: EmailM
                         >
                           <td className="py-4 px-6 font-medium text-slate-200">
                             {item.recipient_name}
+                          </td>
+                          <td className="py-4 px-6 whitespace-nowrap">
+                            {item.tag ? (
+                              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold bg-brand-gold/10 border border-brand-gold/30 text-brand-gold">
+                                <Tag className="w-3 h-3 text-brand-gold shrink-0" />
+                                <span className="truncate max-w-[130px]" title={item.tag}>{item.tag}</span>
+                              </span>
+                            ) : (
+                              <span className="text-slate-600 font-mono text-xs italic">—</span>
+                            )}
                           </td>
                           <td className="py-4 px-6 text-slate-400">
                             {item.recipient_email}

@@ -121,8 +121,9 @@ export class EmailTrackingService {
     recipientName?: string,
     templateId?: string,
     customTemplateType?: string,
+    tag?: string,
   ) {
-    this.logger.log(`Intentando enviar correo a: ${recipientEmail} desde: ${customSender || this.senderEmail} con firma: ${signatureId || 'default (ricardo)'}${templateId ? ` con plantilla: ${templateId}` : ''}${attachment ? ` con adjunto: ${attachment.filename}` : ''}`);
+    this.logger.log(`Intentando enviar correo a: ${recipientEmail} desde: ${customSender || this.senderEmail} con firma: ${signatureId || 'default (ricardo)'}${tag ? ` [Etiqueta: ${tag}]` : ''}${templateId ? ` con plantilla: ${templateId}` : ''}${attachment ? ` con adjunto: ${attachment.filename}` : ''}`);
 
     if (!this.resend) {
       throw new HttpException('El servicio de Resend no está configurado', HttpStatus.INTERNAL_SERVER_ERROR);
@@ -206,10 +207,6 @@ export class EmailTrackingService {
         mailOptions.attachments = attachments;
       }
 
-      if (attachments.length > 0) {
-        mailOptions.attachments = attachments;
-      }
-
       // Enviamos el correo usando el SDK de Resend.
       const response = await this.resend.emails.send(mailOptions);
 
@@ -240,6 +237,9 @@ export class EmailTrackingService {
       if (recipientName) {
         insertRecord.recipient_name = recipientName;
       }
+      if (tag) {
+        insertRecord.tag = tag;
+      }
 
       let { data, error } = await this.supabase
         .from('email_tracking_test')
@@ -247,7 +247,7 @@ export class EmailTrackingService {
         .select();
 
       // En caso de que las nuevas columnas no existan todavía en Supabase, reintentar inserción básica
-      if (error && (insertRecord.proposed_time || insertRecord.recipient_name)) {
+      if (error && (insertRecord.proposed_time || insertRecord.recipient_name || insertRecord.tag)) {
         this.logger.warn(`Inserción enriquecida falló (${error.message}). Reintentando inserción básica...`);
         const fallback = await this.supabase
           .from('email_tracking_test')
@@ -638,7 +638,7 @@ export class EmailTrackingService {
     return this.createLimaDate(fallbackDay.year, fallbackDay.month, fallbackDay.day + 1, morningS.hours || 9, morningS.minutes || 0);
   }
 
-  async loadContactsIntoQueue(contacts: { name: string; email: string; phone?: string }[]) {
+  async loadContactsIntoQueue(contacts: { name: string; email: string; phone?: string; tag?: string }[], tag?: string) {
     if (!this.supabase) {
       throw new HttpException('El servicio de Supabase no está configurado', HttpStatus.INTERNAL_SERVER_ERROR);
     }
@@ -679,7 +679,7 @@ export class EmailTrackingService {
     const COOLDOWN_DAYS = 60;
     const now = new Date();
     const seenInCsv = new Set<string>();
-    const validContacts: { name: string; email: string; phone?: string }[] = [];
+    const validContacts: { name: string; email: string; phone?: string; tag?: string }[] = [];
     const skippedContacts: { name: string; email: string; reason: string; lastSentAt?: string; daysAgo?: number }[] = [];
 
     for (const contact of contacts) {
@@ -760,6 +760,7 @@ export class EmailTrackingService {
         recipient_email: contact.email,
         recipient_phone: contact.phone || null,
         proposed_time: slotTime.toISOString(),
+        tag: contact.tag || tag || null,
         status: 'pending'
       });
     }
@@ -767,10 +768,21 @@ export class EmailTrackingService {
     // 7. Guardar en base de datos
     let insertedData: any[] = [];
     if (queueItems.length > 0) {
-      const { data, error } = await this.supabase
+      let { data, error } = await this.supabase
         .from('email_queue')
         .insert(queueItems)
         .select();
+
+      if (error && (tag || queueItems.some(q => q.tag))) {
+        this.logger.warn(`Inserción con tag en email_queue falló (${error.message}). Reintentando sin columna tag...`);
+        const fallbackItems = queueItems.map(({ tag: _, ...rest }) => rest);
+        const retry = await this.supabase
+          .from('email_queue')
+          .insert(fallbackItems)
+          .select();
+        data = retry.data;
+        error = retry.error;
+      }
 
       if (error) {
         throw new HttpException(`Error al guardar contactos en cola: ${error.message}`, HttpStatus.INTERNAL_SERVER_ERROR);
@@ -806,7 +818,7 @@ export class EmailTrackingService {
     return data || [];
   }
 
-  async updateQueueItem(id: string, proposedTime?: string, status?: string) {
+  async updateQueueItem(id: string, proposedTime?: string, status?: string, tag?: string) {
     if (!this.supabase) {
       throw new HttpException('El servicio de Supabase no está configurado', HttpStatus.INTERNAL_SERVER_ERROR);
     }
@@ -814,6 +826,7 @@ export class EmailTrackingService {
     const updateData: any = {};
     if (proposedTime) updateData.proposed_time = proposedTime;
     if (status) updateData.status = status;
+    if (tag !== undefined) updateData.tag = tag;
 
     const { data, error } = await this.supabase
       .from('email_queue')
@@ -889,6 +902,7 @@ export class EmailTrackingService {
     customSubject: null as string | null,
     customBody: null as string | null,
     customTemplateType: null as string | null,
+    tag: null as string | null,
   };
 
   getQueueStatus() {
@@ -903,7 +917,8 @@ export class EmailTrackingService {
     templateId?: string,
     customSubject?: string,
     customBody?: string,
-    customTemplateType?: string
+    customTemplateType?: string,
+    tag?: string
   ) {
     if (this.queueProgress.isProcessing) {
       return { success: true, message: 'La cola ya se está procesando actualmente.' };
@@ -929,6 +944,7 @@ export class EmailTrackingService {
     this.queueProgress.customSubject = customSubject || null;
     this.queueProgress.customBody = customBody || null;
     this.queueProgress.customTemplateType = customTemplateType || null;
+    this.queueProgress.tag = tag || null;
     this.queueProgress.total = count;
     this.queueProgress.sent = 0;
     this.queueProgress.failed = 0;
@@ -1015,6 +1031,7 @@ export class EmailTrackingService {
         item.recipient_name,
         this.queueProgress.templateId || undefined,
         this.queueProgress.customTemplateType || undefined,
+        item.tag || this.queueProgress.tag || undefined,
       );
 
       await this.supabase

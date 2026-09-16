@@ -19,6 +19,8 @@ export class EmailTrackingController {
       recipientName?: string;
       templateId?: string;
       templateType?: string;
+      tag?: string;
+      etiqueta?: string;
     }
   ) {
     return await this.emailTrackingService.sendEmail(
@@ -31,7 +33,8 @@ export class EmailTrackingController {
       body.proposedTime,
       body.recipientName,
       body.templateId,
-      body.templateType
+      body.templateType,
+      body.tag || body.etiqueta
     );
   }
 
@@ -70,8 +73,8 @@ export class EmailTrackingController {
 
   // --- Endpoints de Gestión de la Cola ---
   @Post('queue/load')
-  async loadQueue(@Body() body: { contacts: { name: string; email: string; phone?: string }[] }) {
-    return await this.emailTrackingService.loadContactsIntoQueue(body.contacts);
+  async loadQueue(@Body() body: { contacts: { name: string; email: string; phone?: string; tag?: string }[]; tag?: string; etiqueta?: string }) {
+    return await this.emailTrackingService.loadContactsIntoQueue(body.contacts, body.tag || body.etiqueta);
   }
 
   @Get('queue/pending')
@@ -82,9 +85,9 @@ export class EmailTrackingController {
   @Put('queue/:id')
   async updateItem(
     @Param('id') id: string,
-    @Body() body: { proposedTime?: string; status?: string }
+    @Body() body: { proposedTime?: string; status?: string; tag?: string }
   ) {
-    return await this.emailTrackingService.updateQueueItem(id, body.proposedTime, body.status);
+    return await this.emailTrackingService.updateQueueItem(id, body.proposedTime, body.status, body.tag);
   }
 
   @Post('queue/process')
@@ -98,6 +101,7 @@ export class EmailTrackingController {
       customSubject?: string;
       customBody?: string;
       customTemplateType?: string;
+      tag?: string;
     }
   ) {
     return await this.emailTrackingService.processEmailQueue(
@@ -108,7 +112,8 @@ export class EmailTrackingController {
       body.templateId,
       body.customSubject,
       body.customBody,
-      body.customTemplateType
+      body.customTemplateType,
+      body.tag
     );
   }
 
