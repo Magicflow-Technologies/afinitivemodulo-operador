@@ -661,73 +661,81 @@ export default function EventManagerTab() {
               </div>
 
               {/* Image Upload & Storage Section */}
-              <div className="space-y-2">
-                <label className="block text-xs font-semibold text-slate-300">
-                  Imagen / Flyer del Evento (Guardado en Supabase Storage)
-                </label>
+              <div className="space-y-3 bg-slate-950/80 border border-slate-800 p-4 rounded-xl">
+                <div className="flex items-center justify-between">
+                  <label className="text-xs font-bold text-amber-400 uppercase tracking-wider flex items-center gap-1.5">
+                    <Upload className="w-4 h-4 text-amber-400" />
+                    Flyer / Imagen del Evento (Supabase Storage)
+                  </label>
+                  {editingEvento.imagen_url && (
+                    <span className="text-[10px] font-bold text-emerald-400 bg-emerald-500/10 border border-emerald-500/30 px-2 py-0.5 rounded-full">
+                      ✓ Imagen Cargada
+                    </span>
+                  )}
+                </div>
 
                 {uploadError && (
-                  <div className="p-2 rounded-lg bg-red-900/30 border border-red-500/40 text-red-300 text-xs">
+                  <div className="p-2.5 rounded-lg bg-red-900/40 border border-red-500/50 text-red-200 text-xs">
                     {uploadError}
                   </div>
                 )}
 
-                {/* Upload Action Box */}
-                <div className="flex flex-col sm:flex-row items-center gap-3">
-                  <label className={`flex-1 w-full border-2 border-dashed rounded-xl p-4 text-center cursor-pointer transition-colors flex flex-col items-center justify-center gap-2 ${
+                {/* Botón de Subida Principal */}
+                <div className="flex flex-col gap-2">
+                  <label className={`w-full border-2 border-dashed rounded-xl p-5 text-center cursor-pointer transition-all flex flex-col items-center justify-center gap-2 ${
                     uploadingImage 
-                      ? 'border-amber-500/50 bg-amber-500/5' 
-                      : 'border-slate-700 hover:border-amber-400/80 bg-slate-950/60 hover:bg-slate-950'
+                      ? 'border-amber-400 bg-amber-500/10' 
+                      : 'border-amber-500/40 hover:border-amber-400 bg-slate-900/90 hover:bg-slate-900 shadow-md'
                   }`}>
                     <input
                       type="file"
-                      accept="image/*"
+                      accept="image/png, image/jpeg, image/webp, image/jpg"
                       disabled={uploadingImage}
                       onChange={handleUploadImageFile}
                       className="hidden"
                     />
                     {uploadingImage ? (
-                      <>
-                        <Loader2 className="w-6 h-6 text-amber-400 animate-spin" />
-                        <span className="text-xs text-amber-300 font-medium">Subiendo imagen a Supabase Storage...</span>
-                      </>
+                      <div className="flex flex-col items-center gap-2 py-1">
+                        <Loader2 className="w-7 h-7 text-amber-400 animate-spin" />
+                        <span className="text-xs text-amber-300 font-bold">Subiendo archivo a Supabase Storage...</span>
+                      </div>
                     ) : (
-                      <>
-                        <Upload className="w-6 h-6 text-amber-400" />
-                        <div>
-                          <span className="text-xs text-slate-200 font-semibold block">
-                            Haz clic para subir imagen o flyer
-                          </span>
-                          <span className="text-[10px] text-slate-400 block mt-0.5">
-                            Soporta JPG, PNG, WEBP (hasta 10MB)
-                          </span>
+                      <div className="flex flex-col items-center gap-1.5 py-1">
+                        <div className="w-10 h-10 rounded-full bg-amber-500/20 text-amber-400 flex items-center justify-center mb-0.5">
+                          <Upload className="w-5 h-5" />
                         </div>
-                      </>
+                        <span className="text-sm text-white font-bold block">
+                          📁 Haz clic aquí para Seleccionar y Subir Imagen / Flyer
+                        </span>
+                        <span className="text-xs text-slate-400 block">
+                          Se guardará directamente en tu Supabase Storage (JPG, PNG, WEBP)
+                        </span>
+                      </div>
                     )}
                   </label>
                 </div>
 
-                {/* Preview and URL Box */}
+                {/* Preview de la imagen si ya existe */}
                 {editingEvento.imagen_url && (
-                  <div className="relative rounded-xl overflow-hidden border border-slate-700 bg-slate-950 p-2 flex items-center gap-3">
+                  <div className="relative rounded-xl overflow-hidden border border-slate-700 bg-slate-900 p-3 flex items-center gap-3">
                     <img 
                       src={editingEvento.imagen_url} 
-                      alt="Preview" 
-                      className="w-20 h-14 object-cover rounded-lg flex-shrink-0 border border-slate-800" 
+                      alt="Preview del Flyer" 
+                      className="w-24 h-16 object-cover rounded-lg flex-shrink-0 border border-slate-700 shadow-md" 
                     />
-                    <div className="flex-1 min-w-0">
-                      <span className="text-[10px] font-semibold text-emerald-400 uppercase tracking-wider block">
-                        ✓ Imagen Guardada
+                    <div className="flex-1 min-w-0 space-y-1">
+                      <span className="text-[11px] font-bold text-emerald-400 block truncate">
+                        URL en Supabase Storage:
                       </span>
-                      <p className="text-xs text-slate-400 truncate font-mono">
+                      <p className="text-[11px] text-slate-400 truncate font-mono bg-slate-950 px-2 py-1 rounded border border-slate-800">
                         {editingEvento.imagen_url}
                       </p>
                     </div>
                     <button
                       type="button"
                       onClick={() => setEditingEvento({ ...editingEvento, imagen_url: '' })}
-                      className="p-1.5 text-slate-400 hover:text-red-400 rounded-lg hover:bg-slate-800 transition-colors"
-                      title="Quitar imagen"
+                      className="p-2 text-slate-400 hover:text-red-400 rounded-lg hover:bg-slate-800 transition-colors"
+                      title="Eliminar imagen"
                     >
                       <Trash2 className="w-4 h-4" />
                     </button>
