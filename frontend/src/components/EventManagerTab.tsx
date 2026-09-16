@@ -222,6 +222,19 @@ export default function EventManagerTab() {
   };
 
   const getPublicLandingUrl = (eventoId: string) => {
+    // Si hay una variable de entorno definida para la URL de eventos públicos
+    const configuredEventsBase = import.meta.env.VITE_PUBLIC_EVENTS_URL;
+    if (configuredEventsBase) {
+      return `${configuredEventsBase.replace(/\/$/, '')}/?id=${eventoId}`;
+    }
+
+    const hostname = window.location.hostname.toLowerCase();
+    // En producción de Afinitive, usar el subdominio oficial de eventos
+    if (hostname.includes('afinitive.com.pe')) {
+      return `https://eventos.afinitive.com.pe/?id=${eventoId}`;
+    }
+
+    // En desarrollo local
     const origin = window.location.origin;
     return `${origin}/evento?id=${eventoId}`;
   };

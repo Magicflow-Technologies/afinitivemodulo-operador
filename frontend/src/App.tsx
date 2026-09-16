@@ -8,15 +8,21 @@ function App() {
     const path = window.location.pathname.toLowerCase();
     const hash = window.location.hash.toLowerCase();
     const search = window.location.search.toLowerCase();
+    const hostname = window.location.hostname.toLowerCase();
 
-    // 1. Detectar si es ruta de Evento Público
+    // 1. Detectar si el subdominio es eventos.afinitive.com.pe
+    if (hostname.startsWith('eventos.') || hostname.includes('eventos.afinitive')) {
+      return 'evento';
+    }
+
+    // 2. Detectar si es ruta de Evento Público en otros dominios o localhost
     if (
       path.includes('/evento') ||
       path.includes('/eventos') ||
       path.includes('/e/') ||
       hash.includes('evento') ||
       search.includes('evento') ||
-      search.includes('id=the-new-york-tower')
+      search.includes('id=')
     ) {
       return 'evento';
     }
