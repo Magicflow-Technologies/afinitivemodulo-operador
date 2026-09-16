@@ -27,10 +27,12 @@ import {
   FolderOpen,
   Copy,
   Check,
-  Tag
+  Tag,
+  Building2
 } from 'lucide-react';
 import { LiveEmailPreview } from './LiveEmailPreview';
 import { TemplateManagerModal } from './TemplateManagerModal';
+import EventManagerTab from './EventManagerTab';
 import type { EmailTemplateItem } from './TemplateManagerModal';
 
 interface EmailRecord {
@@ -147,7 +149,7 @@ export default function EmailMonitoringDashboard({ onNavigateToBooking }: EmailM
   const [showTemplateModal, setShowTemplateModal] = useState(false);
 
   // --- Estados de Campañas y Cola (Nuevos) ---
-  const [activeTab, setActiveTab] = useState<'individual' | 'campanas' | 'agenda'>('individual');
+  const [activeTab, setActiveTab] = useState<'individual' | 'campanas' | 'agenda' | 'eventos'>('individual');
   const [campaignTag, setCampaignTag] = useState('');
   const [individualTag, setIndividualTag] = useState('');
   const [slotDuration, setSlotDuration] = useState(60);
@@ -974,7 +976,21 @@ export default function EmailMonitoringDashboard({ onNavigateToBooking }: EmailM
             }`}
           >
             <Sliders className="w-4 h-4" />
-            <span>Configuración y Tiempos de Envío</span>
+            <span>Configuración y Tiempos</span>
+          </button>
+
+          <button
+            onClick={() => {
+              setActiveTab('eventos');
+            }}
+            className={`flex items-center gap-2 px-6 py-3.5 font-semibold text-sm transition-all duration-200 border-b-2 cursor-pointer whitespace-nowrap ${
+              activeTab === 'eventos'
+                ? 'border-brand-gold text-brand-gold bg-brand-gold/5'
+                : 'border-transparent text-slate-400 hover:text-slate-200 hover:border-slate-700'
+            }`}
+          >
+            <Building2 className="w-4 h-4 text-amber-400" />
+            <span className="text-amber-400 font-bold">📅 Eventos & Landings</span>
           </button>
         </div>
 
@@ -2671,6 +2687,11 @@ export default function EmailMonitoringDashboard({ onNavigateToBooking }: EmailM
               </form>
             </div>
           </section>
+        )}
+
+        {/* Pestaña: Gestor de Eventos & Landings */}
+        {activeTab === 'eventos' && (
+          <EventManagerTab />
         )}
 
         {/* Modal de Gestión y Carga de Plantillas */}

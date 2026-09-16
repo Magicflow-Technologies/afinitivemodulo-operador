@@ -4,6 +4,7 @@ import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { EmailTrackingModule } from './email-tracking/email-tracking.module';
 import { TemplatesModule } from './templates/templates.module';
+import { EventosModule } from './eventos/eventos.module';
 
 @Module({
   imports: [
@@ -12,9 +13,11 @@ import { TemplatesModule } from './templates/templates.module';
     }),
     TemplatesModule,
     EmailTrackingModule,
+    EventosModule,
   ],
   controllers: [AppController],
   providers: [AppService],
 })
 export class AppModule {}
+
 

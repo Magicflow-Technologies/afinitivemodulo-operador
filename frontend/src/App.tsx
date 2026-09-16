@@ -1,48 +1,73 @@
 import { useState, useEffect } from 'react';
 import EmailMonitoringDashboard from './components/EmailMonitoringDashboard';
 import PublicCalendarBooking from './components/PublicCalendarBooking';
+import PublicEventLanding from './components/PublicEventLanding';
 
 function App() {
-  const checkIsBookingRoute = () => {
+  const getActiveRoute = () => {
     const path = window.location.pathname.toLowerCase();
     const hash = window.location.hash.toLowerCase();
-    return (
+    const search = window.location.search.toLowerCase();
+
+    // 1. Detectar si es ruta de Evento Público
+    if (
+      path.includes('/evento') ||
+      path.includes('/eventos') ||
+      path.includes('/e/') ||
+      hash.includes('evento') ||
+      search.includes('evento') ||
+      search.includes('id=the-new-york-tower')
+    ) {
+      return 'evento';
+    }
+
+    // 2. Detectar si es ruta de Agendamiento Público
+    if (
       path.includes('/agendar') || 
       path.includes('/booking') || 
       path.includes('/agenda') ||
       path.includes('/reservar') ||
       hash.includes('agendar') ||
       hash.includes('booking')
-    );
+    ) {
+      return 'booking';
+    }
+
+    // 3. Por defecto Dashboard del Operador
+    return 'dashboard';
   };
 
-  const [isBookingRoute, setIsBookingRoute] = useState(checkIsBookingRoute);
+  const [currentRoute, setCurrentRoute] = useState(getActiveRoute);
 
   useEffect(() => {
-    const handlePopState = () => {
-      setIsBookingRoute(checkIsBookingRoute());
+    const handleRouteChanges = () => {
+      setCurrentRoute(getActiveRoute());
     };
 
-    window.addEventListener('popstate', handlePopState);
-    window.addEventListener('hashchange', handlePopState);
+    window.addEventListener('popstate', handleRouteChanges);
+    window.addEventListener('hashchange', handleRouteChanges);
 
     return () => {
-      window.removeEventListener('popstate', handlePopState);
-      window.removeEventListener('hashchange', handlePopState);
+      window.removeEventListener('popstate', handleRouteChanges);
+      window.removeEventListener('hashchange', handleRouteChanges);
     };
   }, []);
 
   const navigateToBooking = () => {
     window.history.pushState({}, '', '/agendar');
-    setIsBookingRoute(true);
+    setCurrentRoute('booking');
   };
 
   const navigateToDashboard = () => {
     window.history.pushState({}, '', '/');
-    setIsBookingRoute(false);
+    setCurrentRoute('dashboard');
   };
 
-  if (isBookingRoute) {
+  if (currentRoute === 'evento') {
+    return <PublicEventLanding onBackToDashboard={navigateToDashboard} />;
+  }
+
+  if (currentRoute === 'booking') {
     return <PublicCalendarBooking onBackToDashboard={navigateToDashboard} />;
   }
 
@@ -50,4 +75,3 @@ function App() {
 }
 
 export default App;
-
