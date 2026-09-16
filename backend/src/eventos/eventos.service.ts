@@ -189,11 +189,23 @@ export class EventosService implements OnModuleInit {
       imagen_url: data.imagen_url || null,
     };
 
-    const { data: created, error } = await this.supabase
+    let { data: created, error } = await this.supabase
       .from('eventos')
       .insert(payload)
       .select()
       .single();
+
+    if (error && error.message?.includes('imagen_url')) {
+      // Fallback si la columna imagen_url no existe aún en la tabla de Supabase
+      delete (payload as any).imagen_url;
+      const retry = await this.supabase
+        .from('eventos')
+        .insert(payload)
+        .select()
+        .single();
+      created = retry.data;
+      error = retry.error;
+    }
 
     if (error) {
       this.logger.error(`Error al crear evento: ${error.message}`);
@@ -215,12 +227,24 @@ export class EventosService implements OnModuleInit {
       updatePayload.duracion_minutos = Number(updatePayload.duracion_minutos);
     }
 
-    const { data: updated, error } = await this.supabase
+    let { data: updated, error } = await this.supabase
       .from('eventos')
       .update(updatePayload)
       .eq('id', id)
       .select()
       .single();
+
+    if (error && error.message?.includes('imagen_url')) {
+      delete updatePayload.imagen_url;
+      const retry = await this.supabase
+        .from('eventos')
+        .update(updatePayload)
+        .eq('id', id)
+        .select()
+        .single();
+      updated = retry.data;
+      error = retry.error;
+    }
 
     if (error) {
       throw new BadRequestException(`No se pudo actualizar el evento: ${error.message}`);
@@ -537,5 +561,68 @@ export class EventosService implements OnModuleInit {
     ]
       .filter(Boolean)
       .join('\r\n');
+  }
+
+  // 8. Subir imagen / flyer a Supabase Storage
+  async uploadImageToStorage(file: any): Promise<{ success: boolean; url: string; fileName: string }> {
+    if (!this.supabase) {
+      throw new BadRequestException('Supabase no está configurado');
+    }
+
+    if (!file || !file.buffer) {
+      throw new BadRequestException('No se ha proporcionado ningún archivo');
+    }
+
+    const bucketName = 'eventos';
+
+    // Asegurar que el bucket exista y sea público
+    try {
+      const { data: buckets } = await this.supabase.storage.listBuckets();
+      const exists = buckets?.some((b: any) => b.name === bucketName);
+      if (!exists) {
+        await this.supabase.storage.createBucket(bucketName, {
+          public: true,
+          fileSizeLimit: 10485760, // 10MB
+        });
+        this.logger.log(`Bucket '${bucketName}' creado en Supabase Storage`);
+      }
+    } catch (bErr) {
+      this.logger.warn(`Nota sobre verificación de bucket: ${bErr.message}`);
+    }
+
+    // Generar nombre de archivo único y limpio
+    const originalExt = path.extname(file.originalname || '').toLowerCase() || '.jpg';
+    const cleanBaseName = (file.originalname || 'imagen')
+      .toLowerCase()
+      .replace(originalExt, '')
+      .replace(/[^a-z0-9]/g, '-')
+      .replace(/-+/g, '-')
+      .substring(0, 30);
+
+    const fileName = `${cleanBaseName}-${Date.now()}${originalExt}`;
+
+    // Subir a Supabase Storage
+    const { error: uploadError } = await this.supabase.storage
+      .from(bucketName)
+      .upload(fileName, file.buffer, {
+        contentType: file.mimetype || 'image/jpeg',
+        upsert: true,
+      });
+
+    if (uploadError) {
+      this.logger.error(`Error al subir imagen a Supabase Storage: ${uploadError.message}`);
+      throw new BadRequestException(`No se pudo subir la imagen: ${uploadError.message}`);
+    }
+
+    // Obtener URL pública directa
+    const { data: urlData } = this.supabase.storage
+      .from(bucketName)
+      .getPublicUrl(fileName);
+
+    return {
+      success: true,
+      url: urlData.publicUrl,
+      fileName: fileName,
+    };
   }
 }

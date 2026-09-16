@@ -8,7 +8,11 @@ import {
   Body,
   Res,
   HttpStatus,
+  UseInterceptors,
+  UploadedFile,
+  BadRequestException,
 } from '@nestjs/common';
+import { FileInterceptor } from '@nestjs/platform-express';
 import type { Response } from 'express';
 import { EventosService } from './eventos.service';
 
@@ -39,6 +43,17 @@ export class EventosController {
   async getAllEvents() {
     const eventos = await this.eventosService.findAllEvents();
     return { success: true, data: eventos };
+  }
+
+  // Subir imagen / flyer a Supabase Storage
+  @Post('upload-imagen')
+  @UseInterceptors(FileInterceptor('file'))
+  async uploadImagen(@UploadedFile() file: any) {
+    if (!file) {
+      throw new BadRequestException('No se ha enviado ningún archivo de imagen');
+    }
+    const result = await this.eventosService.uploadImageToStorage(file);
+    return result;
   }
 
   // Obtener un evento por ID

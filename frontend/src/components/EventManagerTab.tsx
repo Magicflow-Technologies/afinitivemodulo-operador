@@ -14,7 +14,9 @@ import {
   Building2, 
   Image as ImageIcon,
   MessageCircle,
-  X
+  X,
+  Upload,
+  Loader2
 } from 'lucide-react';
 
 interface Evento {
@@ -56,7 +58,53 @@ export default function EventManagerTab() {
   const [loadingAttendees, setLoadingAttendees] = useState(false);
   const [attendeeSearch, setAttendeeSearch] = useState('');
 
+  // Storage Image Upload State
+  const [uploadingImage, setUploadingImage] = useState(false);
+  const [uploadError, setUploadError] = useState<string | null>(null);
+
   const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:3080';
+
+  const handleUploadImageFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (!file.type.startsWith('image/')) {
+      setUploadError('Por favor selecciona un archivo de imagen válido (JPG, PNG, WEBP)');
+      return;
+    }
+
+    if (file.size > 10 * 1024 * 1024) {
+      setUploadError('La imagen no debe superar los 10MB');
+      return;
+    }
+
+    setUploadingImage(true);
+    setUploadError(null);
+
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+
+      const res = await fetch(`${backendUrl}/api/eventos/upload-imagen`, {
+        method: 'POST',
+        body: formData,
+      });
+
+      const result = await res.json();
+      if (res.ok && result.success && result.url) {
+        setEditingEvento(prev => prev ? { ...prev, imagen_url: result.url } : prev);
+      } else {
+        throw new Error(result.message || 'Error al subir la imagen a Supabase Storage');
+      }
+    } catch (err: any) {
+      console.error('Error al subir imagen:', err);
+      setUploadError(err.message || 'No se pudo subir la imagen al Storage');
+    } finally {
+      setUploadingImage(false);
+      // Reset input
+      e.target.value = '';
+    }
+  };
 
   useEffect(() => {
     fetchEventos();
@@ -612,21 +660,77 @@ export default function EventManagerTab() {
                 />
               </div>
 
-              {/* Image URL / Flyer */}
-              <div>
-                <label className="block text-xs font-semibold text-slate-300 mb-1">
-                  URL de Imagen / Flyer del Evento
+              {/* Image Upload & Storage Section */}
+              <div className="space-y-2">
+                <label className="block text-xs font-semibold text-slate-300">
+                  Imagen / Flyer del Evento (Guardado en Supabase Storage)
                 </label>
-                <input
-                  type="url"
-                  value={editingEvento.imagen_url || ''}
-                  onChange={(e) => setEditingEvento({ ...editingEvento, imagen_url: e.target.value })}
-                  placeholder="https://images.unsplash.com/... o enlace de tu imagen"
-                  className="w-full bg-slate-950 border border-slate-700 rounded-xl py-2 px-3 text-xs text-white focus:outline-none focus:border-amber-400"
-                />
+
+                {uploadError && (
+                  <div className="p-2 rounded-lg bg-red-900/30 border border-red-500/40 text-red-300 text-xs">
+                    {uploadError}
+                  </div>
+                )}
+
+                {/* Upload Action Box */}
+                <div className="flex flex-col sm:flex-row items-center gap-3">
+                  <label className={`flex-1 w-full border-2 border-dashed rounded-xl p-4 text-center cursor-pointer transition-colors flex flex-col items-center justify-center gap-2 ${
+                    uploadingImage 
+                      ? 'border-amber-500/50 bg-amber-500/5' 
+                      : 'border-slate-700 hover:border-amber-400/80 bg-slate-950/60 hover:bg-slate-950'
+                  }`}>
+                    <input
+                      type="file"
+                      accept="image/*"
+                      disabled={uploadingImage}
+                      onChange={handleUploadImageFile}
+                      className="hidden"
+                    />
+                    {uploadingImage ? (
+                      <>
+                        <Loader2 className="w-6 h-6 text-amber-400 animate-spin" />
+                        <span className="text-xs text-amber-300 font-medium">Subiendo imagen a Supabase Storage...</span>
+                      </>
+                    ) : (
+                      <>
+                        <Upload className="w-6 h-6 text-amber-400" />
+                        <div>
+                          <span className="text-xs text-slate-200 font-semibold block">
+                            Haz clic para subir imagen o flyer
+                          </span>
+                          <span className="text-[10px] text-slate-400 block mt-0.5">
+                            Soporta JPG, PNG, WEBP (hasta 10MB)
+                          </span>
+                        </div>
+                      </>
+                    )}
+                  </label>
+                </div>
+
+                {/* Preview and URL Box */}
                 {editingEvento.imagen_url && (
-                  <div className="mt-2 h-24 rounded-lg overflow-hidden border border-slate-800">
-                    <img src={editingEvento.imagen_url} alt="Preview" className="w-full h-full object-cover" />
+                  <div className="relative rounded-xl overflow-hidden border border-slate-700 bg-slate-950 p-2 flex items-center gap-3">
+                    <img 
+                      src={editingEvento.imagen_url} 
+                      alt="Preview" 
+                      className="w-20 h-14 object-cover rounded-lg flex-shrink-0 border border-slate-800" 
+                    />
+                    <div className="flex-1 min-w-0">
+                      <span className="text-[10px] font-semibold text-emerald-400 uppercase tracking-wider block">
+                        ✓ Imagen Guardada
+                      </span>
+                      <p className="text-xs text-slate-400 truncate font-mono">
+                        {editingEvento.imagen_url}
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setEditingEvento({ ...editingEvento, imagen_url: '' })}
+                      className="p-1.5 text-slate-400 hover:text-red-400 rounded-lg hover:bg-slate-800 transition-colors"
+                      title="Quitar imagen"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
                   </div>
                 )}
               </div>
