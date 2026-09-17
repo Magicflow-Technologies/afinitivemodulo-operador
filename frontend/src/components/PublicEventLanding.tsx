@@ -561,13 +561,14 @@ export default function PublicEventLanding({ eventId: propEventId }: PublicEvent
               </div>
             </div>
 
-            {/* Flyer Image Card - IMAGEN COMPLETA SIN RECORTES */}
+            {/* Flyer Image Card - IMAGEN 100% COMPLETA SIN RECORTES */}
             {evento.imagen_url && (
-              <div className="rounded-2xl sm:rounded-3xl overflow-hidden border border-gray-100 shadow-md bg-white">
+              <div className="w-full rounded-2xl sm:rounded-3xl overflow-hidden border border-gray-200/80 shadow-md bg-white p-0">
                 <img 
                   src={evento.imagen_url} 
                   alt={evento.nombre}
-                  className="w-full h-auto object-contain block"
+                  className="w-full h-auto max-w-full block rounded-2xl sm:rounded-3xl"
+                  style={{ width: '100%', height: 'auto', maxHeight: 'none', objectFit: 'contain', display: 'block' }}
                   onError={(e) => {
                     (e.target as HTMLElement).style.display = 'none';
                   }}
