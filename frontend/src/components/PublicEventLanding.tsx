@@ -348,45 +348,45 @@ export default function PublicEventLanding({ eventId: propEventId }: PublicEvent
               </div>
             </div>
 
-            {/* Registration Card (High-Conversion Instagram Style) */}
-            <div className="bg-white border-2 border-[#C9A84C]/40 rounded-3xl p-5 sm:p-7 shadow-xl shadow-slate-200/70 relative overflow-hidden">
+            {/* Registration Card (High-Conversion Instagram / Mobile First Style) */}
+            <div className="bg-white border-2 border-[#C9A84C]/70 rounded-3xl p-5 sm:p-7 shadow-2xl shadow-slate-300/70 relative overflow-hidden">
               
               {/* Subtle Gold Accent Bar */}
-              <div className="absolute top-0 left-0 right-0 h-1.5 bg-gradient-to-r from-[#C9A84C] via-[#E2C775] to-[#B38E36]" />
+              <div className="absolute top-0 left-0 right-0 h-1.5 bg-gradient-to-r from-[#D4AF37] via-[#F3DE9A] to-[#B38E36]" />
 
               {/* Card Title */}
-              <div className="mb-4 text-center sm:text-left">
-                <div className="flex items-center justify-between mb-1">
-                  <span className="text-[10px] font-extrabold uppercase tracking-wider text-[#9E7B29] bg-[#FFF9E6] border border-[#F3DE9A] px-2.5 py-0.5 rounded-full">
+              <div className="mb-5 text-center sm:text-left">
+                <div className="flex items-center justify-between mb-1.5">
+                  <span className="text-[11px] font-black uppercase tracking-wider text-[#8C6D1F] bg-[#FEF3C7] border border-[#F3DE9A] px-3 py-0.5 rounded-full shadow-xs">
                     Cupos Limitados
                   </span>
-                  <span className="text-[10px] text-slate-400 font-medium flex items-center gap-1">
-                    <Lock className="w-3 h-3 text-slate-400" /> Registro Inmediato
+                  <span className="text-[11px] text-slate-500 font-semibold flex items-center gap-1">
+                    <Lock className="w-3.5 h-3.5 text-slate-400" /> Registro Inmediato
                   </span>
                 </div>
-                <h2 className="text-xl font-black text-slate-900 tracking-tight">
+                <h2 className="text-2xl font-black text-slate-900 tracking-tight">
                   Confirma tu Asistencia
                 </h2>
-                <p className="text-xs text-slate-500 mt-1">
+                <p className="text-xs sm:text-sm text-slate-600 mt-1">
                   Ingresa tus datos para acceder a la sala privada de Zoom y conocer los detalles del proyecto.
                 </p>
               </div>
 
               {errorMsg && (
-                <div className="p-3 mb-4 rounded-xl bg-red-50 border border-red-200 text-red-700 text-xs font-medium">
+                <div className="p-3.5 mb-4 rounded-2xl bg-red-50 border-2 border-red-200 text-red-700 text-xs font-bold">
                   {errorMsg}
                 </div>
               )}
 
-              <form onSubmit={handleSubmit} className="space-y-3.5">
+              <form onSubmit={handleSubmit} className="space-y-4">
                 
-                {/* Full Name Input */}
+                {/* Full Name Input (Contraste alto & Touch Friendly 52px) */}
                 <div>
-                  <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider mb-1">
-                    Nombres y Apellidos <span className="text-[#C9A84C]">*</span>
+                  <label className="block text-xs font-black text-slate-800 uppercase tracking-wide mb-1.5">
+                    Nombres y Apellidos <span className="text-[#C9A84C] font-black">*</span>
                   </label>
                   <div className="relative">
-                    <User className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+                    <User className="w-5 h-5 text-slate-500 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
                     <input
                       type="text"
                       name="nombre"
@@ -394,18 +394,18 @@ export default function PublicEventLanding({ eventId: propEventId }: PublicEvent
                       onChange={handleInputChange}
                       placeholder="Ej. Marielisa Valdivia"
                       required
-                      className="w-full bg-slate-50/70 hover:bg-white focus:bg-white border border-gray-200 rounded-xl py-2.5 pl-10 pr-3 text-xs sm:text-sm text-slate-900 placeholder-slate-400 focus:outline-none focus:border-[#C9A84C] focus:ring-3 focus:ring-[#C9A84C]/15 transition-all shadow-xs"
+                      className="w-full bg-[#F8FAFC] hover:bg-white focus:bg-white border-2 border-slate-300 hover:border-slate-400 focus:border-[#C9A84C] rounded-2xl py-3.5 pl-11 pr-4 text-sm sm:text-base text-slate-900 placeholder-slate-400 font-medium focus:outline-none focus:ring-4 focus:ring-[#C9A84C]/20 transition-all shadow-xs"
                     />
                   </div>
                 </div>
 
-                {/* Email Input */}
+                {/* Email Input (Contraste alto & Touch Friendly 52px) */}
                 <div>
-                  <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider mb-1">
-                    Correo Electrónico <span className="text-[#C9A84C]">*</span>
+                  <label className="block text-xs font-black text-slate-800 uppercase tracking-wide mb-1.5">
+                    Correo Electrónico <span className="text-[#C9A84C] font-black">*</span>
                   </label>
                   <div className="relative">
-                    <Mail className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+                    <Mail className="w-5 h-5 text-slate-500 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
                     <input
                       type="email"
                       name="correo"
@@ -413,18 +413,18 @@ export default function PublicEventLanding({ eventId: propEventId }: PublicEvent
                       onChange={handleInputChange}
                       placeholder="ejemplo@correo.com"
                       required
-                      className="w-full bg-slate-50/70 hover:bg-white focus:bg-white border border-gray-200 rounded-xl py-2.5 pl-10 pr-3 text-xs sm:text-sm text-slate-900 placeholder-slate-400 focus:outline-none focus:border-[#C9A84C] focus:ring-3 focus:ring-[#C9A84C]/15 transition-all shadow-xs"
+                      className="w-full bg-[#F8FAFC] hover:bg-white focus:bg-white border-2 border-slate-300 hover:border-slate-400 focus:border-[#C9A84C] rounded-2xl py-3.5 pl-11 pr-4 text-sm sm:text-base text-slate-900 placeholder-slate-400 font-medium focus:outline-none focus:ring-4 focus:ring-[#C9A84C]/20 transition-all shadow-xs"
                     />
                   </div>
                 </div>
 
-                {/* Phone / WhatsApp Input */}
+                {/* Phone / WhatsApp Input (Contraste alto & Touch Friendly 52px) */}
                 <div>
-                  <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider mb-1">
-                    Celular / WhatsApp <span className="text-[#C9A84C]">*</span>
+                  <label className="block text-xs font-black text-slate-800 uppercase tracking-wide mb-1.5">
+                    Celular / WhatsApp <span className="text-[#C9A84C] font-black">*</span>
                   </label>
                   <div className="relative">
-                    <Phone className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+                    <Phone className="w-5 h-5 text-slate-500 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
                     <input
                       type="tel"
                       name="celular"
@@ -432,15 +432,15 @@ export default function PublicEventLanding({ eventId: propEventId }: PublicEvent
                       onChange={handleInputChange}
                       placeholder="+51 982 100 208"
                       required
-                      className="w-full bg-slate-50/70 hover:bg-white focus:bg-white border border-gray-200 rounded-xl py-2.5 pl-10 pr-3 text-xs sm:text-sm text-slate-900 placeholder-slate-400 focus:outline-none focus:border-[#C9A84C] focus:ring-3 focus:ring-[#C9A84C]/15 transition-all shadow-xs"
+                      className="w-full bg-[#F8FAFC] hover:bg-white focus:bg-white border-2 border-slate-300 hover:border-slate-400 focus:border-[#C9A84C] rounded-2xl py-3.5 pl-11 pr-4 text-sm sm:text-base text-slate-900 placeholder-slate-400 font-medium focus:outline-none focus:ring-4 focus:ring-[#C9A84C]/20 transition-all shadow-xs"
                     />
                   </div>
                 </div>
 
                 {/* Contact Person / Advisor (Optional) */}
                 <div>
-                  <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider mb-1">
-                    Persona de Contacto / Asesor <span className="text-slate-400 font-normal lowercase">(opcional)</span>
+                  <label className="block text-xs font-black text-slate-800 uppercase tracking-wide mb-1.5">
+                    Persona de Contacto / Asesor <span className="text-slate-400 font-normal lowercase text-[11px]">(opcional)</span>
                   </label>
                   <input
                     type="text"
@@ -448,7 +448,7 @@ export default function PublicEventLanding({ eventId: propEventId }: PublicEvent
                     value={formData.persona_contacto}
                     onChange={handleInputChange}
                     placeholder="Nombre de quien te compartió la invitación"
-                    className="w-full bg-slate-50/70 hover:bg-white focus:bg-white border border-gray-200 rounded-xl py-2 px-3 text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:border-[#C9A84C] focus:ring-3 focus:ring-[#C9A84C]/15 transition-all shadow-xs"
+                    className="w-full bg-[#F8FAFC] hover:bg-white focus:bg-white border-2 border-slate-300 hover:border-slate-400 focus:border-[#C9A84C] rounded-2xl py-3 px-4 text-xs sm:text-sm text-slate-900 placeholder-slate-400 font-medium focus:outline-none focus:ring-4 focus:ring-[#C9A84C]/20 transition-all shadow-xs"
                   />
                 </div>
 
@@ -456,27 +456,27 @@ export default function PublicEventLanding({ eventId: propEventId }: PublicEvent
                 <button
                   type="submit"
                   disabled={submitting}
-                  className="w-full py-4 px-5 rounded-2xl bg-gradient-to-r from-[#D4AF37] via-[#C9A84C] to-[#B38E36] hover:from-[#C9A84C] hover:to-[#9E7B29] text-slate-950 font-black text-xs sm:text-sm tracking-wide shadow-lg shadow-[#C9A84C]/30 hover:shadow-xl transition-all transform active:scale-98 disabled:opacity-50 flex items-center justify-center gap-2.5 mt-4 cursor-pointer"
+                  className="w-full py-4 px-5 rounded-2xl bg-gradient-to-r from-[#D4AF37] via-[#C9A84C] to-[#B38E36] hover:from-[#C9A84C] hover:to-[#9E7B29] text-slate-950 font-black text-sm sm:text-base tracking-wide shadow-xl shadow-[#C9A84C]/35 hover:shadow-2xl transition-all transform active:scale-98 disabled:opacity-50 flex items-center justify-center gap-2.5 mt-5 cursor-pointer"
                 >
                   {submitting ? (
                     <span>Registrando y abriendo calendario...</span>
                   ) : (
                     <>
-                      <CalendarPlus className="w-4 h-4 text-slate-950" />
+                      <CalendarPlus className="w-5 h-5 text-slate-950" />
                       <span>Confirmar Asistencia y Agendar</span>
-                      <ArrowRight className="w-4 h-4" />
+                      <ArrowRight className="w-5 h-5" />
                     </>
                   )}
                 </button>
 
                 {/* Micro-indicación de auto apertura */}
-                <p className="text-[10.5px] text-center text-slate-500 font-medium pt-0.5">
+                <p className="text-xs text-center text-slate-600 font-semibold pt-1">
                   ⚡ Tu Google Calendar se abrirá automáticamente para guardar el evento.
                 </p>
 
                 {/* Security Trust Note */}
-                <div className="flex items-center justify-center gap-1.5 text-[10px] text-slate-400 pt-1">
-                  <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />
+                <div className="flex items-center justify-center gap-1.5 text-xs text-slate-500 pt-1">
+                  <ShieldCheck className="w-4 h-4 text-emerald-600" />
                   <span>Registro seguro con Afinitive Wealth Management.</span>
                 </div>
 
