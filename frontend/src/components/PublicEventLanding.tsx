@@ -20,6 +20,15 @@ import {
   Award
 } from 'lucide-react';
 
+import { createClient } from '@supabase/supabase-js';
+
+// Cliente Supabase para lectura directa de respaldo
+const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || 'https://mqsupabase.dashbportal.com';
+const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+const supabaseDirect = (supabaseUrl && supabaseKey)
+  ? createClient(supabaseUrl, supabaseKey, { db: { schema: 'afinitivebd' } })
+  : null;
+
 interface EventoDetails {
   id: string;
   nombre: string;
@@ -36,7 +45,7 @@ interface PublicEventLandingProps {
   onBackToDashboard?: () => void;
 }
 
-export default function PublicEventLanding({ eventId: propEventId, onBackToDashboard }: PublicEventLandingProps) {
+export default function PublicEventLanding({ eventId: propEventId }: PublicEventLandingProps) {
   // Obtener ID del evento desde query params o hash si no viene en props
   const getEventIdFromUrl = () => {
     if (propEventId) return propEventId;
@@ -84,11 +93,35 @@ export default function PublicEventLanding({ eventId: propEventId, onBackToDashb
 
   // Helper para resolver la URL del backend dinámicamente
   const getBackendUrl = () => {
-    if (import.meta.env.VITE_BACKEND_URL) return import.meta.env.VITE_BACKEND_URL;
-    if (typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')) {
-      return 'http://localhost:3080';
+    if (typeof window !== 'undefined') {
+      const hostname = window.location.hostname;
+      if (hostname === 'localhost' || hostname === '127.0.0.1') {
+        return import.meta.env.VITE_BACKEND_URL || 'http://localhost:3080';
+      }
+      return '';
     }
     return '';
+  };
+
+  // Parser para extraer imagen_url si está embebida en la descripción
+  const parseEventData = (data: any): EventoDetails => {
+    if (!data) return data;
+    let imagen_url = data.imagen_url;
+    let descripcion = data.descripcion || '';
+
+    if (!imagen_url && descripcion && descripcion.includes('[IMG_URL:')) {
+      const match = descripcion.match(/\[IMG_URL:(.*?)\]/);
+      if (match) {
+        imagen_url = match[1];
+        descripcion = descripcion.replace(/\[IMG_URL:.*?\]\n?/, '');
+      }
+    }
+
+    return {
+      ...data,
+      imagen_url: imagen_url || data.imagen_url,
+      descripcion,
+    };
   };
 
   useEffect(() => {
@@ -96,17 +129,37 @@ export default function PublicEventLanding({ eventId: propEventId, onBackToDashb
   }, [eventId]);
 
   const fetchEventDetails = async () => {
+    // 1. Intentar obtener desde Backend API
     try {
       const backendUrl = getBackendUrl();
       const res = await fetch(`${backendUrl}/api/eventos/${eventId}`);
       if (res.ok) {
         const data = await res.json();
         if (data.success && data.data) {
-          setEvento(data.data);
+          setEvento(parseEventData(data.data));
+          return;
         }
       }
     } catch (err) {
-      console.warn('Usando datos de respaldo para el evento');
+      console.warn('Backend API falló o no disponible, intentando Supabase directo...', err);
+    }
+
+    // 2. Fallback: Consultar directamente a Supabase
+    if (supabaseDirect) {
+      try {
+        const { data, error } = await supabaseDirect
+          .from('eventos')
+          .select('*')
+          .eq('id', eventId)
+          .maybeSingle();
+
+        if (!error && data) {
+          setEvento(parseEventData(data));
+          return;
+        }
+      } catch (sbErr) {
+        console.error('Error al consultar Supabase directamente:', sbErr);
+      }
     }
   };
 
@@ -214,14 +267,6 @@ export default function PublicEventLanding({ eventId: propEventId, onBackToDashb
 
           {/* Actions */}
           <div className="flex items-center gap-2">
-            {onBackToDashboard && (
-              <button 
-                onClick={onBackToDashboard}
-                className="text-xs text-slate-600 hover:text-slate-900 px-3 py-1.5 rounded-full border border-gray-200 hover:bg-gray-50 transition-colors font-medium"
-              >
-                ← Panel
-              </button>
-            )}
             <button
               onClick={handleCopyShareLink}
               className="inline-flex items-center gap-1.5 text-xs font-semibold px-3.5 py-1.5 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-700 transition-all active:scale-95"

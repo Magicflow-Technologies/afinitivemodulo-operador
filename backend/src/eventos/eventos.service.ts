@@ -93,6 +93,26 @@ export class EventosService implements OnModuleInit {
     }
   }
 
+  private parseEvent(ev: any): any {
+    if (!ev) return ev;
+    let imagen_url = ev.imagen_url;
+    let descripcion = ev.descripcion || '';
+
+    if (!imagen_url && descripcion && descripcion.includes('[IMG_URL:')) {
+      const match = descripcion.match(/\[IMG_URL:(.*?)\]/);
+      if (match) {
+        imagen_url = match[1];
+        descripcion = descripcion.replace(/\[IMG_URL:.*?\]\n?/, '');
+      }
+    }
+
+    return {
+      ...ev,
+      imagen_url,
+      descripcion,
+    };
+  }
+
   // 1. Obtener todos los eventos con conteo de asistentes
   async findAllEvents(): Promise<any[]> {
     if (!this.supabase) return [];
@@ -119,10 +139,13 @@ export class EventosService implements OnModuleInit {
         });
       }
 
-      return (eventos || []).map((ev: any) => ({
-        ...ev,
-        asistentes_count: countsMap[ev.id] || 0,
-      }));
+      return (eventos || []).map((ev: any) => {
+        const parsed = this.parseEvent(ev);
+        return {
+          ...parsed,
+          asistentes_count: countsMap[ev.id] || 0,
+        };
+      });
     } catch (err) {
       this.logger.error(`Error al listar eventos: ${err.message}`);
       throw new BadRequestException(`Error al consultar eventos: ${err.message}`);
@@ -151,7 +174,7 @@ export class EventosService implements OnModuleInit {
         .eq('evento_id', id);
 
       return {
-        ...evento,
+        ...this.parseEvent(evento),
         asistentes_count: count || 0,
       };
     } catch (err) {
@@ -195,9 +218,12 @@ export class EventosService implements OnModuleInit {
       .select()
       .single();
 
-    if (error && error.message?.includes('imagen_url')) {
-      // Fallback si la columna imagen_url no existe aún en la tabla de Supabase
+    if (error && (error.message?.includes('imagen_url') || error.code === 'PGRST204')) {
+      const imgUrl = (payload as any).imagen_url;
       delete (payload as any).imagen_url;
+      if (imgUrl) {
+        payload.descripcion = `[IMG_URL:${imgUrl}]\n${payload.descripcion || ''}`;
+      }
       const retry = await this.supabase
         .from('eventos')
         .insert(payload)
@@ -212,7 +238,7 @@ export class EventosService implements OnModuleInit {
       throw new BadRequestException(`No se pudo crear el evento: ${error.message}`);
     }
 
-    return created;
+    return this.parseEvent(created);
   }
 
   // 4. Actualizar evento existente
@@ -234,8 +260,13 @@ export class EventosService implements OnModuleInit {
       .select()
       .single();
 
-    if (error && error.message?.includes('imagen_url')) {
+    if (error && (error.message?.includes('imagen_url') || error.code === 'PGRST204')) {
+      const imgUrl = updatePayload.imagen_url;
       delete updatePayload.imagen_url;
+      if (imgUrl !== undefined) {
+        let cleanDesc = (updatePayload.descripcion || '').replace(/\[IMG_URL:.*?\]\n?/, '');
+        updatePayload.descripcion = imgUrl ? `[IMG_URL:${imgUrl}]\n${cleanDesc}` : cleanDesc;
+      }
       const retry = await this.supabase
         .from('eventos')
         .update(updatePayload)
@@ -250,7 +281,7 @@ export class EventosService implements OnModuleInit {
       throw new BadRequestException(`No se pudo actualizar el evento: ${error.message}`);
     }
 
-    return updated;
+    return this.parseEvent(updated);
   }
 
   // 5. Eliminar evento
