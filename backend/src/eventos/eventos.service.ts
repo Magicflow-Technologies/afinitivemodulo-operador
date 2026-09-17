@@ -437,62 +437,162 @@ export class EventosService implements OnModuleInit {
     }
   }
 
-  // Enviar correo de confirmación con Resend
+  // Enviar correo de confirmación con Resend (Fondo Blanco, Google Style)
   private async enviarCorreoConfirmacion(evento: any, asistente: { nombre: string; correo: string; celular: string }) {
     if (!this.resend) return;
 
     const fechaInicio = new Date(evento.fecha_inicio);
     const fechaFormateada = fechaInicio.toLocaleString('es-PE', {
       timeZone: 'America/Lima',
-      dateStyle: 'full',
-      timeStyle: 'short',
+      weekday: 'long',
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: true,
     });
+
+    const calendarLinks = this.generarEnlacesCalendario(evento, asistente.nombre);
 
     const html = `
 <!DOCTYPE html>
 <html lang="es">
 <head>
   <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
   <title>Confirmación de Asistencia - Afinitive</title>
+  <style>
+    body, table, td, a { -webkit-text-size-adjust: 100%; -ms-text-size-adjust: 100%; }
+    table, td { mso-table-lspace: 0pt; mso-table-rspace: 0pt; }
+    img { -ms-interpolation-mode: bicubic; border: 0; outline: none; text-decoration: none; }
+    body { height: 100% !important; margin: 0 !important; padding: 0 !important; width: 100% !important; font-family: 'Google Sans', Roboto, -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif; background-color: #f8f9fa; color: #202124; }
+  </style>
 </head>
-<body style="font-family: Arial, sans-serif; background-color: #0b1118; color: #f8fafc; margin: 0; padding: 20px;">
-  <table width="100%" cellpadding="0" cellspacing="0" style="max-width: 600px; margin: 0 auto; background-color: #131c27; border: 1px solid #c9a84c; border-radius: 12px; overflow: hidden;">
+<body style="background-color: #f8f9fa; color: #202124; margin: 0; padding: 32px 12px; font-family: 'Google Sans', Roboto, -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif;">
+  
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" align="center" style="max-width: 580px; margin: 0 auto; background-color: #ffffff; border: 1px solid #dadce0; border-radius: 16px; overflow: hidden; box-shadow: 0 1px 3px rgba(60,64,67,0.08), 0 4px 8px rgba(60,64,67,0.04);">
+    
+    <!-- Encabezado con Logo Afinitive para Fondo Blanco -->
     <tr>
-      <td style="background-color: #0d1b2a; padding: 24px; text-align: center; border-bottom: 2px solid #c9a84c;">
-        <h1 style="color: #c9a84c; margin: 0; font-size: 24px;">AFINITIVE</h1>
-        <p style="color: #94a3b8; margin: 5px 0 0 0; font-size: 13px;">Wealth Management</p>
+      <td style="background-color: #ffffff; padding: 32px 24px 20px 24px; text-align: center; border-bottom: 1px solid #f1f3f4;">
+        <img 
+          src="https://links.afinitive.com.pe/img/logo_arvol_oscuro_fondo_blanco.png" 
+          alt="Afinitive Wealth Management" 
+          width="170" 
+          style="display: block; margin: 0 auto; max-width: 170px; height: auto; border: 0;" 
+        />
       </td>
     </tr>
+
+    <!-- Contenido Principal -->
     <tr>
-      <td style="padding: 30px 24px;">
-        <h2 style="color: #ffffff; margin-top: 0;">¡Hola ${asistente.nombre}! Tu lugar está confirmado.</h2>
-        <p style="color: #cbd5e1; font-size: 15px; line-height: 1.6;">
-          Has completado con éxito tu registro para el evento exclusivo:
+      <td style="padding: 32px 32px 24px 32px; background-color: #ffffff;">
+        
+        <!-- Badge de Confirmación Estilo Google -->
+        <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin-bottom: 18px;">
+          <tr>
+            <td style="background-color: #e6f4ea; border-radius: 100px; padding: 6px 14px; font-size: 12px; font-weight: 700; color: #137333; letter-spacing: 0.3px;">
+              ✓ &nbsp;REGISTRO CONFIRMADO
+            </td>
+          </tr>
+        </table>
+
+        <!-- Título Saludo -->
+        <h1 style="color: #202124; margin: 0 0 14px 0; font-size: 22px; font-weight: 700; line-height: 1.35;">
+          ¡Hola ${asistente.nombre}! Tu lugar ha sido reservado.
+        </h1>
+
+        <!-- Párrafo Descriptivo -->
+        <p style="color: #5f6368; font-size: 14px; line-height: 1.6; margin: 0 0 24px 0;">
+          Has completado con éxito tu registro para la presentación privada exclusiva. A continuación tienes todos los detalles para conectarte:
         </p>
-        <div style="background-color: #1b263b; border-left: 4px solid #c9a84c; padding: 16px; border-radius: 6px; margin: 20px 0;">
-          <h3 style="color: #c9a84c; margin: 0 0 8px 0;">${evento.nombre}</h3>
-          <p style="color: #ffffff; margin: 0 0 6px 0;">📅 <strong>Fecha:</strong> ${fechaFormateada} (Hora Perú)</p>
-          <p style="color: #ffffff; margin: 0 0 6px 0;">⏱️ <strong>Duración:</strong> ${evento.duracion_minutos || 45} minutos</p>
-          <p style="color: #ffffff; margin: 0;">🔗 <strong>Enlace Zoom:</strong> <a href="${evento.link_reunion}" style="color: #38bdf8; text-decoration: none;">${evento.link_reunion}</a></p>
-        </div>
 
-        <div style="text-align: center; margin: 30px 0;">
-          <a href="${evento.link_reunion}" target="_blank" style="background-color: #c9a84c; color: #0d1b2a; padding: 14px 28px; text-decoration: none; font-weight: bold; border-radius: 6px; display: inline-block; font-size: 15px;">
-            Acceder al Zoom del Evento
-          </a>
-        </div>
+        <!-- Tarjeta de Detalles del Evento (Estilo Google Card / Material) -->
+        <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color: #f8f9fa; border: 1px solid #e8eaed; border-left: 4px solid #c9a84c; border-radius: 12px; margin-bottom: 28px;">
+          <tr>
+            <td style="padding: 20px 22px;">
+              
+              <div style="font-size: 16px; font-weight: 700; color: #202124; margin-bottom: 14px;">
+                ${evento.nombre}
+              </div>
 
-        <p style="color: #94a3b8; font-size: 13px; text-align: center;">
+              <!-- Fila Fecha -->
+              <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin-bottom: 10px;">
+                <tr>
+                  <td width="24" valign="top" style="font-size: 16px; line-height: 1.4;">📅</td>
+                  <td style="color: #3c4043; font-size: 14px; line-height: 1.5; padding-left: 8px;">
+                    <strong>Fecha y Hora:</strong> ${fechaFormateada} (Hora de Lima)
+                  </td>
+                </tr>
+              </table>
+
+              <!-- Fila Modalidad -->
+              <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin-bottom: 10px;">
+                <tr>
+                  <td width="24" valign="top" style="font-size: 16px; line-height: 1.4;">💻</td>
+                  <td style="color: #3c4043; font-size: 14px; line-height: 1.5; padding-left: 8px;">
+                    <strong>Modalidad:</strong> En vivo vía Zoom
+                  </td>
+                </tr>
+              </table>
+
+              <!-- Fila Enlace Directo -->
+              <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+                <tr>
+                  <td width="24" valign="top" style="font-size: 16px; line-height: 1.4;">🔗</td>
+                  <td style="color: #3c4043; font-size: 14px; line-height: 1.5; padding-left: 8px; word-break: break-all;">
+                    <strong>Enlace de Acceso:</strong><br>
+                    <a href="${evento.link_reunion}" target="_blank" style="color: #1a73e8; text-decoration: none; font-weight: 600;">${evento.link_reunion}</a>
+                  </td>
+                </tr>
+              </table>
+
+            </td>
+          </tr>
+        </table>
+
+        <!-- Botón Primario: Ingresar a la Sala Zoom (Dorado Luxury Afinitive) -->
+        <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" align="center" style="margin-bottom: 16px;">
+          <tr>
+            <td align="center">
+              <a href="${evento.link_reunion}" target="_blank" style="display: inline-block; background-color: #c9a84c; background-image: linear-gradient(135deg, #d4af37 0%, #b38e2d 100%); color: #ffffff !important; font-size: 15px; font-weight: 700; text-decoration: none; padding: 14px 36px; border-radius: 28px; box-shadow: 0 2px 6px rgba(201, 168, 76, 0.4); text-align: center;">
+                Ingresar a la Sala Zoom
+              </a>
+            </td>
+          </tr>
+        </table>
+
+        <!-- Botón Secundario: Añadir a Google Calendar (Google Style) -->
+        <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" align="center" style="margin-bottom: 28px;">
+          <tr>
+            <td align="center">
+              <a href="${calendarLinks.google_calendar}" target="_blank" style="display: inline-block; background-color: #ffffff; border: 1px solid #dadce0; color: #1a73e8 !important; font-size: 13px; font-weight: 600; text-decoration: none; padding: 10px 22px; border-radius: 20px; text-align: center;">
+                📅 &nbsp;Añadir a mi Google Calendar
+              </a>
+            </td>
+          </tr>
+        </table>
+
+        <!-- Nota de Cierre -->
+        <p style="color: #70757a; font-size: 13px; line-height: 1.6; text-align: center; margin: 0;">
           Ricardo Bertalmio y el equipo de Afinitive te esperan puntualmente.
         </p>
+
       </td>
     </tr>
+
+    <!-- Footer Corporativo Google Minimal -->
     <tr>
-      <td style="background-color: #0d1b2a; padding: 16px; text-align: center; border-top: 1px solid #243447; font-size: 12px; color: #64748b;">
-        © 2026 Afinitive Wealth Management • San Isidro, Lima, Perú.
+      <td style="background-color: #f8f9fa; padding: 24px; text-align: center; border-top: 1px solid #ebebeb; font-size: 12px; color: #80868b; line-height: 1.6;">
+        <strong style="color: #5f6368;">Afinitive Wealth Management</strong><br>
+        San Isidro, Lima, Perú • Todos los derechos reservados.
       </td>
     </tr>
+
   </table>
+
 </body>
 </html>
     `;
