@@ -355,19 +355,10 @@ export class EventosService implements OnModuleInit {
       throw new BadRequestException(`Error al guardar registro: ${insertError.message}`);
     }
 
-    // 3. Agendar en Google Calendar de Ricardo y del Cliente
-    let googleCalendarResult: any = null;
-    try {
-      googleCalendarResult = await this.iniciarAgendamientoGoogleCalendar(evento, {
-        nombre: nombreClean,
-        correo: emailClean,
-        celular: celularClean,
-      });
-    } catch (gErr) {
-      this.logger.warn(`Agendamiento automático en Google Calendar omitido: ${gErr.message}`);
-    }
+    // 3. Generar enlaces de calendario directos para el cliente
+    const calendarLinks = this.generarEnlacesCalendario(evento, nombreClean);
 
-    // 4. Enviar Correo de Confirmación con Enlace de Zoom e Invitación
+    // 4. Enviar Correo de Confirmación con Enlace de Zoom e Invitación al Cliente
     try {
       await this.enviarCorreoConfirmacion(evento, {
         nombre: nombreClean,
@@ -377,9 +368,6 @@ export class EventosService implements OnModuleInit {
     } catch (mailErr) {
       this.logger.warn(`No se pudo enviar correo de confirmación: ${mailErr.message}`);
     }
-
-    // 5. Generar enlaces de calendario directos para la UI
-    const calendarLinks = this.generarEnlacesCalendario(evento, nombreClean);
 
     return {
       success: true,
@@ -392,7 +380,6 @@ export class EventosService implements OnModuleInit {
         duracion_minutos: evento.duracion_minutos,
       },
       calendar_links: calendarLinks,
-      google_calendar: googleCalendarResult,
       message: '¡Asistencia confirmada con éxito! Tu lugar ha sido reservado.',
     };
   }
