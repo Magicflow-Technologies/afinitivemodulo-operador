@@ -132,6 +132,20 @@ export default function EmailMonitoringDashboard({ onNavigateToBooking }: EmailM
   }, []);
 
   const [copiedBookingUrl, setCopiedBookingUrl] = useState(false);
+  const [copiedKey, setCopiedKey] = useState<string | null>(null);
+
+  const handleCopyToClipboard = (text: string, key: string, e?: React.MouseEvent) => {
+    if (e) {
+      e.preventDefault();
+      e.stopPropagation();
+    }
+    if (!text) return;
+    navigator.clipboard.writeText(text);
+    setCopiedKey(key);
+    setTimeout(() => {
+      setCopiedKey((prev) => (prev === key ? null : prev));
+    }, 2000);
+  };
 
   const [subject, setSubject] = useState('Invitación Exclusiva - Afinitive');
   const [emailBody, setEmailBody] = useState(buildEmailTemplate('Marielisa', ''));
@@ -1839,18 +1853,51 @@ export default function EmailMonitoringDashboard({ onNavigateToBooking }: EmailM
                                     </span>
                                   )}
                                 </div>
-                                <div className="text-xs font-mono text-slate-400 mt-0.5 truncate">{email.recipient_email}</div>
-                                {email.recipient_phone ? (
-                                  <a
-                                    href={`https://wa.me/${email.recipient_phone.replace(/[^0-9]/g, '')}?text=${encodeURIComponent(`Hola ${email.recipient_name || ''}, te contacto de Afinitive Wealth Management.`)}`}
-                                    target="_blank"
-                                    rel="noopener noreferrer"
-                                    className="inline-flex items-center gap-1.5 px-2 py-0.5 mt-1 rounded-md bg-emerald-500/15 hover:bg-emerald-500/25 border border-emerald-500/40 text-emerald-400 font-mono text-xs font-bold transition-all shadow-xs w-fit"
-                                    title="Abrir chat de WhatsApp directo con este cliente"
+                                {/* Correo con botón de copiado rápido */}
+                                <div className="flex items-center gap-1.5 mt-0.5">
+                                  <span className="text-xs font-mono text-slate-400 truncate max-w-[200px]" title={email.recipient_email}>
+                                    {email.recipient_email}
+                                  </span>
+                                  <button
+                                    type="button"
+                                    onClick={(e) => handleCopyToClipboard(email.recipient_email, `email-${email.id}`, e)}
+                                    className="p-1 rounded-md hover:bg-slate-800 text-slate-500 hover:text-slate-200 transition-colors cursor-pointer shrink-0"
+                                    title="Copiar correo electrónico"
                                   >
-                                    <Phone className="w-3 h-3 text-emerald-400 shrink-0" />
-                                    <span>{email.recipient_phone}</span>
-                                  </a>
+                                    {copiedKey === `email-${email.id}` ? (
+                                      <Check className="w-3.5 h-3.5 text-emerald-400" />
+                                    ) : (
+                                      <Copy className="w-3.5 h-3.5 text-slate-400 hover:text-brand-gold" />
+                                    )}
+                                  </button>
+                                </div>
+
+                                {/* Celular con botón de copiado rápido y WhatsApp */}
+                                {email.recipient_phone ? (
+                                  <div className="flex items-center gap-1.5 mt-1">
+                                    <a
+                                      href={`https://wa.me/${email.recipient_phone.replace(/[^0-9]/g, '')}?text=${encodeURIComponent(`Hola ${email.recipient_name || ''}, te contacto de Afinitive Wealth Management.`)}`}
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                      className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-emerald-500/15 hover:bg-emerald-500/25 border border-emerald-500/40 text-emerald-400 font-mono text-xs font-bold transition-all shadow-xs w-fit"
+                                      title="Abrir chat de WhatsApp directo con este cliente"
+                                    >
+                                      <Phone className="w-3 h-3 text-emerald-400 shrink-0" />
+                                      <span>{email.recipient_phone}</span>
+                                    </a>
+                                    <button
+                                      type="button"
+                                      onClick={(e) => handleCopyToClipboard(email.recipient_phone || '', `phone-${email.id}`, e)}
+                                      className="p-1 rounded-md hover:bg-slate-800 text-slate-500 hover:text-slate-200 transition-colors cursor-pointer shrink-0"
+                                      title="Copiar número de celular"
+                                    >
+                                      {copiedKey === `phone-${email.id}` ? (
+                                        <Check className="w-3.5 h-3.5 text-emerald-400" />
+                                      ) : (
+                                        <Copy className="w-3.5 h-3.5 text-slate-400 hover:text-emerald-400" />
+                                      )}
+                                    </button>
+                                  </div>
                                 ) : (
                                   <div className="text-xxs font-mono text-slate-600 italic mt-0.5 flex items-center gap-1">
                                     <Phone className="w-2.5 h-2.5 opacity-30" />
@@ -2335,10 +2382,42 @@ export default function EmailMonitoringDashboard({ onNavigateToBooking }: EmailM
                             )}
                           </td>
                           <td className="py-4 px-6 text-slate-400">
-                            {item.recipient_email}
+                            <div className="flex items-center gap-1.5">
+                              <span className="font-mono text-xs">{item.recipient_email}</span>
+                              <button
+                                type="button"
+                                onClick={(e) => handleCopyToClipboard(item.recipient_email, `queue-email-${item.id}`, e)}
+                                className="p-1 rounded-md hover:bg-slate-800 text-slate-500 hover:text-slate-200 transition-colors cursor-pointer shrink-0"
+                                title="Copiar correo electrónico"
+                              >
+                                {copiedKey === `queue-email-${item.id}` ? (
+                                  <Check className="w-3.5 h-3.5 text-emerald-400" />
+                                ) : (
+                                  <Copy className="w-3.5 h-3.5 text-slate-400 hover:text-brand-gold" />
+                                )}
+                              </button>
+                            </div>
                           </td>
                           <td className="py-4 px-6 text-slate-400">
-                            {item.recipient_phone || <span className="text-slate-600 italic text-xs">No disponible</span>}
+                            {item.recipient_phone ? (
+                              <div className="flex items-center gap-1.5">
+                                <span className="font-mono text-xs text-emerald-400">{item.recipient_phone}</span>
+                                <button
+                                  type="button"
+                                  onClick={(e) => handleCopyToClipboard(item.recipient_phone || '', `queue-phone-${item.id}`, e)}
+                                  className="p-1 rounded-md hover:bg-slate-800 text-slate-500 hover:text-slate-200 transition-colors cursor-pointer shrink-0"
+                                  title="Copiar número de celular"
+                                >
+                                  {copiedKey === `queue-phone-${item.id}` ? (
+                                    <Check className="w-3.5 h-3.5 text-emerald-400" />
+                                  ) : (
+                                    <Copy className="w-3.5 h-3.5 text-slate-400 hover:text-emerald-400" />
+                                  )}
+                                </button>
+                              </div>
+                            ) : (
+                              <span className="text-slate-600 italic text-xs">No disponible</span>
+                            )}
                           </td>
                           <td className="py-4 px-6 relative">
                             {activePickerId === item.id ? (
