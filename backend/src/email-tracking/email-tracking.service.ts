@@ -122,8 +122,9 @@ export class EmailTrackingService {
     templateId?: string,
     customTemplateType?: string,
     tag?: string,
+    recipientPhone?: string,
   ) {
-    this.logger.log(`Intentando enviar correo a: ${recipientEmail} desde: ${customSender || this.senderEmail} con firma: ${signatureId || 'default (ricardo)'}${tag ? ` [Etiqueta: ${tag}]` : ''}${templateId ? ` con plantilla: ${templateId}` : ''}${attachment ? ` con adjunto: ${attachment.filename}` : ''}`);
+    this.logger.log(`Intentando enviar correo a: ${recipientEmail} desde: ${customSender || this.senderEmail} con firma: ${signatureId || 'default (ricardo)'}${tag ? ` [Etiqueta: ${tag}]` : ''}${recipientPhone ? ` [Tel: ${recipientPhone}]` : ''}${templateId ? ` con plantilla: ${templateId}` : ''}${attachment ? ` con adjunto: ${attachment.filename}` : ''}`);
 
     if (!this.resend) {
       throw new HttpException('El servicio de Resend no está configurado', HttpStatus.INTERNAL_SERVER_ERROR);
@@ -237,6 +238,9 @@ export class EmailTrackingService {
       if (recipientName) {
         insertRecord.recipient_name = recipientName;
       }
+      if (recipientPhone) {
+        insertRecord.recipient_phone = recipientPhone;
+      }
       if (tag) {
         insertRecord.tag = tag;
       }
@@ -247,7 +251,7 @@ export class EmailTrackingService {
         .select();
 
       // En caso de que las nuevas columnas no existan todavía en Supabase, reintentar inserción básica
-      if (error && (insertRecord.proposed_time || insertRecord.recipient_name || insertRecord.tag)) {
+      if (error && (insertRecord.proposed_time || insertRecord.recipient_name || insertRecord.recipient_phone || insertRecord.tag)) {
         this.logger.warn(`Inserción enriquecida falló (${error.message}). Reintentando inserción básica...`);
         const fallback = await this.supabase
           .from('email_tracking_test')
@@ -1032,6 +1036,7 @@ export class EmailTrackingService {
         this.queueProgress.templateId || undefined,
         this.queueProgress.customTemplateType || undefined,
         item.tag || this.queueProgress.tag || undefined,
+        item.recipient_phone || undefined,
       );
 
       await this.supabase

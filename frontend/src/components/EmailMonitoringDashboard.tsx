@@ -257,35 +257,81 @@ export default function EmailMonitoringDashboard({ onNavigateToBooking }: EmailM
         throw trackingError;
       }
 
-      // Enriquecer con datos de la cola (proposed_time / recipient_name / recipient_phone / whatsapp_clicked_at / tag) para compatibilidad inmediata
+      // 1. Enriquecer con datos de email_queue
       const { data: queueData } = await supabase
         .from('email_queue')
         .select('recipient_email, recipient_name, recipient_phone, proposed_time, whatsapp_clicked_at, tag');
 
-      const queueMap = new Map<string, { recipient_name?: string; recipient_phone?: string; proposed_time?: string; whatsapp_clicked_at?: string; tag?: string }>();
+      const phoneMap = new Map<string, string>();
+      const nameMap = new Map<string, string>();
+      const proposedTimeMap = new Map<string, string>();
+      const whatsappMap = new Map<string, string>();
+      const tagMap = new Map<string, string>();
+
       if (queueData) {
         queueData.forEach((q: any) => {
-          if (q.recipient_email) {
-            queueMap.set(q.recipient_email.toLowerCase(), {
-              recipient_name: q.recipient_name,
-              recipient_phone: q.recipient_phone,
-              proposed_time: q.proposed_time,
-              whatsapp_clicked_at: q.whatsapp_clicked_at,
-              tag: q.tag,
-            });
+          const key = q.recipient_email?.toLowerCase().trim();
+          if (key) {
+            if (q.recipient_phone) phoneMap.set(key, q.recipient_phone);
+            if (q.recipient_name) nameMap.set(key, q.recipient_name);
+            if (q.proposed_time) proposedTimeMap.set(key, q.proposed_time);
+            if (q.whatsapp_clicked_at) whatsappMap.set(key, q.whatsapp_clicked_at);
+            if (q.tag) tagMap.set(key, q.tag);
           }
         });
       }
 
+      // 2. Enriquecer con datos de asistentes_evento si existen
+      try {
+        const { data: asistentesData } = await supabase
+          .from('asistentes_evento')
+          .select('correo, celular, nombre');
+        if (asistentesData) {
+          asistentesData.forEach((a: any) => {
+            const key = a.correo?.toLowerCase().trim();
+            if (key) {
+              if (a.celular && !phoneMap.has(key)) phoneMap.set(key, a.celular);
+              if (a.nombre && !nameMap.has(key)) nameMap.set(key, a.nombre);
+            }
+          });
+        }
+      } catch (e) {
+        // Ignorar si la tabla no está accesible
+      }
+
+      // 3. Enriquecer con datos de public_appointments si existen
+      try {
+        const { data: appData } = await supabase
+          .from('public_appointments')
+          .select('recipient_email, recipient_phone, recipient_name');
+        if (appData) {
+          appData.forEach((ap: any) => {
+            const key = ap.recipient_email?.toLowerCase().trim();
+            if (key) {
+              if (ap.recipient_phone && !phoneMap.has(key)) phoneMap.set(key, ap.recipient_phone);
+              if (ap.recipient_name && !nameMap.has(key)) nameMap.set(key, ap.recipient_name);
+            }
+          });
+        }
+      } catch (e) {
+        // Ignorar si la tabla no está accesible
+      }
+
       const mergedEmails: EmailRecord[] = (trackingData || []).map((item: any) => {
-        const queueMatch = queueMap.get(item.recipient_email?.toLowerCase());
+        const key = item.recipient_email?.toLowerCase().trim();
+        const phone = item.recipient_phone || item.phone || item.celular || phoneMap.get(key) || null;
+        const name = item.recipient_name || nameMap.get(key) || null;
+        const proposed = item.proposed_time || proposedTimeMap.get(key) || null;
+        const waClick = item.whatsapp_clicked_at || whatsappMap.get(key) || null;
+        const tagVal = item.tag || tagMap.get(key) || null;
+
         return {
           ...item,
-          recipient_name: item.recipient_name || queueMatch?.recipient_name || null,
-          recipient_phone: queueMatch?.recipient_phone || null,
-          proposed_time: item.proposed_time || queueMatch?.proposed_time || null,
-          whatsapp_clicked_at: item.whatsapp_clicked_at || queueMatch?.whatsapp_clicked_at || null,
-          tag: item.tag || queueMatch?.tag || null,
+          recipient_name: name || item.recipient_name || null,
+          recipient_phone: phone,
+          proposed_time: proposed || item.proposed_time || null,
+          whatsapp_clicked_at: waClick || item.whatsapp_clicked_at || null,
+          tag: tagVal || item.tag || null,
         };
       });
 
@@ -1794,10 +1840,21 @@ export default function EmailMonitoringDashboard({ onNavigateToBooking }: EmailM
                                   )}
                                 </div>
                                 <div className="text-xs font-mono text-slate-400 mt-0.5 truncate">{email.recipient_email}</div>
-                                {email.recipient_phone && (
-                                  <div className="text-xxs font-mono text-brand-gold flex items-center gap-1 mt-0.5 font-semibold">
-                                    <Phone className="w-2.5 h-2.5" />
+                                {email.recipient_phone ? (
+                                  <a
+                                    href={`https://wa.me/${email.recipient_phone.replace(/[^0-9]/g, '')}?text=${encodeURIComponent(`Hola ${email.recipient_name || ''}, te contacto de Afinitive Wealth Management.`)}`}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="inline-flex items-center gap-1.5 px-2 py-0.5 mt-1 rounded-md bg-emerald-500/15 hover:bg-emerald-500/25 border border-emerald-500/40 text-emerald-400 font-mono text-xs font-bold transition-all shadow-xs w-fit"
+                                    title="Abrir chat de WhatsApp directo con este cliente"
+                                  >
+                                    <Phone className="w-3 h-3 text-emerald-400 shrink-0" />
                                     <span>{email.recipient_phone}</span>
+                                  </a>
+                                ) : (
+                                  <div className="text-xxs font-mono text-slate-600 italic mt-0.5 flex items-center gap-1">
+                                    <Phone className="w-2.5 h-2.5 opacity-30" />
+                                    <span>Sin teléfono</span>
                                   </div>
                                 )}
                               </div>
