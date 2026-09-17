@@ -174,6 +174,19 @@ export default function PublicEventLanding({ eventId: propEventId }: PublicEvent
     setFormData(prev => ({ ...prev, [name]: value }));
   };
 
+  const getGoogleCalendarUrl = (ev: EventoDetails) => {
+    const fecha = new Date(ev.fecha_inicio);
+    const dur = ev.duracion_minutos || 60;
+    const fechaFin = new Date(fecha.getTime() + dur * 60 * 1000);
+
+    const fGoogle = (d: Date) => d.toISOString().replace(/-|:|\.\d+/g, '');
+    return `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${encodeURIComponent(
+      ev.nombre,
+    )}&dates=${fGoogle(fecha)}/${fGoogle(fechaFin)}&details=${encodeURIComponent(
+      `${ev.descripcion || ''}\n\n💻 Enlace de acceso Zoom: ${ev.link_reunion}\n\nOrganizado por Ricardo Bertalmio - Afinitive Wealth Management.`,
+    )}&location=${encodeURIComponent(ev.link_reunion)}`;
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!formData.nombre || !formData.correo || !formData.celular) {
@@ -184,6 +197,21 @@ export default function PublicEventLanding({ eventId: propEventId }: PublicEvent
     setSubmitting(true);
     setErrorMsg(null);
 
+    // 1. Generar URL de Google Calendar y abrirla de inmediato en el mismo gesto de clic
+    // para evitar que el navegador móvil o WebView (Instagram/TikTok/WhatsApp) lo bloquee como popup
+    const gCalendarUrl = getGoogleCalendarUrl(evento);
+    setCalendarLinks({
+      google_calendar: gCalendarUrl,
+      zoom_url: evento.link_reunion,
+    });
+
+    try {
+      window.open(gCalendarUrl, '_blank');
+    } catch (popupErr) {
+      console.warn('No se pudo abrir automáticamente Google Calendar:', popupErr);
+    }
+
+    // 2. Enviar registro al backend en segundo plano
     try {
       const backendUrl = getBackendUrl();
       const res = await fetch(`${backendUrl}/api/eventos/${evento.id}/registro`, {
@@ -199,35 +227,16 @@ export default function PublicEventLanding({ eventId: propEventId }: PublicEvent
           setCalendarLinks(result.calendar_links);
         }
       } else {
-        throw new Error(result.message || 'Error al procesar el registro');
+        // Si hay error en la respuesta del backend pero tenemos los datos, mostramos confirmación visual
+        setRegistered(true);
       }
     } catch (err: any) {
-      console.error('Error al registrar:', err);
-      // Fallback: Si el backend no responde, registramos con éxito visual y generamos los links
+      console.error('Error al registrar en backend:', err);
       setRegistered(true);
-      generateFallbackCalendarLinks();
     } finally {
       setSubmitting(false);
       window.scrollTo({ top: 0, behavior: 'smooth' });
     }
-  };
-
-  const generateFallbackCalendarLinks = () => {
-    const fecha = new Date(evento.fecha_inicio);
-    const dur = evento.duracion_minutos || 60;
-    const fechaFin = new Date(fecha.getTime() + dur * 60 * 1000);
-
-    const fGoogle = (d: Date) => d.toISOString().replace(/-|:|\.\d+/g, '');
-    const gUrl = `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${encodeURIComponent(
-      evento.nombre,
-    )}&dates=${fGoogle(fecha)}/${fGoogle(fechaFin)}&details=${encodeURIComponent(
-      `${evento.descripcion || ''}\n\nEnlace de acceso: ${evento.link_reunion}\nOrganizador: Ricardo Bertalmio (Afinitive)`,
-    )}&location=${encodeURIComponent(evento.link_reunion)}`;
-
-    setCalendarLinks({
-      google_calendar: gUrl,
-      zoom_url: evento.link_reunion,
-    });
   };
 
   const handleCopyShareLink = () => {
@@ -439,24 +448,30 @@ export default function PublicEventLanding({ eventId: propEventId }: PublicEvent
                   />
                 </div>
 
-                {/* Instagram/Google Style Submit CTA Button */}
+                {/* Instagram/Google Style Submit CTA Button (1-Click Calendar Auto-Launch) */}
                 <button
                   type="submit"
                   disabled={submitting}
-                  className="w-full py-3.5 px-5 rounded-2xl bg-gradient-to-r from-[#D4AF37] via-[#C9A84C] to-[#B38E36] hover:from-[#C9A84C] hover:to-[#9E7B29] text-slate-950 font-black text-xs sm:text-sm tracking-wide shadow-lg shadow-[#C9A84C]/30 hover:shadow-xl transition-all transform active:scale-98 disabled:opacity-50 flex items-center justify-center gap-2 mt-4 cursor-pointer"
+                  className="w-full py-4 px-5 rounded-2xl bg-gradient-to-r from-[#D4AF37] via-[#C9A84C] to-[#B38E36] hover:from-[#C9A84C] hover:to-[#9E7B29] text-slate-950 font-black text-xs sm:text-sm tracking-wide shadow-lg shadow-[#C9A84C]/30 hover:shadow-xl transition-all transform active:scale-98 disabled:opacity-50 flex items-center justify-center gap-2.5 mt-4 cursor-pointer"
                 >
                   {submitting ? (
-                    <span>Procesando Registro...</span>
+                    <span>Registrando y abriendo calendario...</span>
                   ) : (
                     <>
-                      <span>Confirmar y Ver Acceso a Zoom</span>
+                      <CalendarPlus className="w-4 h-4 text-slate-950" />
+                      <span>Confirmar Asistencia y Agendar</span>
                       <ArrowRight className="w-4 h-4" />
                     </>
                   )}
                 </button>
 
+                {/* Micro-indicación de auto apertura */}
+                <p className="text-[10.5px] text-center text-slate-500 font-medium pt-0.5">
+                  ⚡ Tu Google Calendar se abrirá automáticamente para guardar el evento.
+                </p>
+
                 {/* Security Trust Note */}
-                <div className="flex items-center justify-center gap-1.5 text-[10px] text-slate-500 pt-1">
+                <div className="flex items-center justify-center gap-1.5 text-[10px] text-slate-400 pt-1">
                   <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />
                   <span>Registro seguro con Afinitive Wealth Management.</span>
                 </div>
