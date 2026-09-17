@@ -17,7 +17,8 @@ import {
   ArrowRight,
   Check,
   Lock,
-  Award
+  Award,
+  Building2
 } from 'lucide-react';
 
 import { createClient } from '@supabase/supabase-js';
@@ -202,6 +203,7 @@ export default function PublicEventLanding({ eventId: propEventId }: PublicEvent
       generateFallbackCalendarLinks();
     } finally {
       setSubmitting(false);
+      window.scrollTo({ top: 0, behavior: 'smooth' });
     }
   };
 
@@ -253,11 +255,11 @@ export default function PublicEventLanding({ eventId: propEventId }: PublicEvent
     <div className="min-h-screen bg-[#FDFDFD] text-slate-900 flex flex-col font-sans selection:bg-[#C9A84C]/20 selection:text-amber-900 antialiased">
       
       {/* ================= TOP HEADER (Google Minimalist) ================= */}
-      <header className="border-b border-gray-100 bg-white/90 backdrop-blur-md sticky top-0 z-50">
-        <div className="max-w-4xl mx-auto px-4 py-3 sm:py-3.5 flex items-center justify-between">
+      <header className="border-b border-gray-100 bg-white/95 backdrop-blur-md sticky top-0 z-50">
+        <div className="max-w-xl mx-auto px-4 py-3 flex items-center justify-between">
           
           {/* Logo Afinitive (Fondo Blanco) */}
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2">
             <img 
               src="https://links.afinitive.com.pe/img/logo_arvol_oscuro_fondo_blanco.png" 
               alt="Afinitive Wealth Management" 
@@ -265,11 +267,11 @@ export default function PublicEventLanding({ eventId: propEventId }: PublicEvent
             />
           </div>
 
-          {/* Actions */}
+          {/* Share Action */}
           <div className="flex items-center gap-2">
             <button
               onClick={handleCopyShareLink}
-              className="inline-flex items-center gap-1.5 text-xs font-semibold px-3.5 py-1.5 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-700 transition-all active:scale-95"
+              className="inline-flex items-center gap-1.5 text-xs font-semibold px-3.5 py-1.5 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-700 transition-all active:scale-95 cursor-pointer"
               title="Compartir enlace de invitación"
             >
               {copiedLink ? (
@@ -289,333 +291,348 @@ export default function PublicEventLanding({ eventId: propEventId }: PublicEvent
         </div>
       </header>
 
-      {/* ================= MAIN CONTENT CONTAINER ================= */}
-      <main className="flex-1 max-w-4xl mx-auto w-full px-4 py-6 sm:py-10">
+      {/* ================= MAIN CONTAINER ================= */}
+      <main className="flex-1 max-w-xl mx-auto w-full px-4 py-6 sm:py-8">
         
-        {registered ? (
-          /* ================= SUCCESS CONFIRMATION SCREEN (Google Card Style) ================= */
-          <div className="max-w-md mx-auto bg-white border border-gray-100 rounded-3xl p-6 sm:p-8 shadow-xl shadow-slate-200/50 animate-in fade-in zoom-in-95 duration-300 text-center">
+        {!registered ? (
+          /* ================= STEP 1: LEAD CAPTURE FORM (Instagram / Direct Registration Style) ================= */
+          <div className="space-y-5 animate-in fade-in duration-300">
             
-            <div className="w-16 h-16 bg-emerald-50 border border-emerald-200 rounded-full flex items-center justify-center mx-auto mb-4 text-emerald-600 shadow-sm">
-              <CheckCircle2 className="w-8 h-8" />
-            </div>
-
-            <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-amber-50 border border-amber-200 text-amber-800 text-[11px] font-bold uppercase tracking-wider mb-2">
-              <Sparkles className="w-3.5 h-3.5 text-amber-600" />
-              Registro Exitoso
-            </div>
-
-            <h2 className="text-2xl font-extrabold text-slate-900 mb-2">
-              ¡Tu cupo está confirmado!
-            </h2>
-            <p className="text-xs sm:text-sm text-slate-600 mb-6 leading-relaxed">
-              Te esperamos en la sesión privada de <strong className="text-slate-900">{evento.nombre}</strong>. Los detalles de acceso han sido registrados.
-            </p>
-
-            {/* Event Summary Card */}
-            <div className="bg-slate-50 border border-slate-100 rounded-2xl p-4 mb-5 text-left space-y-2.5 text-xs">
-              <div className="flex items-center gap-2.5 text-slate-700">
-                <Calendar className="w-4 h-4 text-[#C9A84C] flex-shrink-0" />
-                <span className="font-semibold capitalize text-slate-900">
-                  {dateInfo.diaSemana} {dateInfo.fecha}
-                </span>
-              </div>
-              <div className="flex items-center gap-2.5 text-slate-700">
-                <Clock className="w-4 h-4 text-[#C9A84C] flex-shrink-0" />
-                <span>{dateInfo.hora} (Hora Perú) • {evento.duracion_minutos || 45} min</span>
-              </div>
-              <div className="flex items-center gap-2.5 text-slate-700">
-                <Video className="w-4 h-4 text-blue-600 flex-shrink-0" />
-                <span className="text-blue-700 font-medium">Acceso Online vía Zoom</span>
-              </div>
-            </div>
-
-            {/* Zoom Direct Access Box */}
-            <div className="bg-gradient-to-br from-blue-50 to-sky-50 border border-blue-100 rounded-2xl p-4 mb-5">
-              <p className="text-[11px] text-blue-900 font-bold uppercase tracking-wider mb-2">
-                Enlace Directo de Acceso
-              </p>
-              <a
-                href={evento.link_reunion}
-                target="_blank"
-                rel="noreferrer"
-                className="inline-flex items-center justify-center gap-2 w-full py-3 px-4 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs shadow-md shadow-blue-600/20 transition-all transform active:scale-98"
-              >
-                <Video className="w-4 h-4" />
-                Ingresar a la Sala Zoom
-              </a>
-              <p className="text-[10px] text-slate-500 mt-2 truncate">
-                {evento.link_reunion}
-              </p>
-            </div>
-
-            {/* Calendar Injections Actions */}
-            <div className="space-y-2.5 mb-5">
-              <p className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">
-                Añade el evento a tu calendario
-              </p>
-              
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                <a
-                  href={calendarLinks.google_calendar || `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${encodeURIComponent(evento.nombre)}`}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="flex items-center justify-center gap-2 py-2.5 px-3 rounded-xl bg-white hover:bg-gray-50 text-slate-800 text-xs font-semibold border border-gray-200 shadow-xs transition-colors"
-                >
-                  <CalendarPlus className="w-4 h-4 text-[#C9A84C]" />
-                  Google Calendar
-                </a>
-
-                <button
-                  onClick={handleDownloadIcs}
-                  className="flex items-center justify-center gap-2 py-2.5 px-3 rounded-xl bg-white hover:bg-gray-50 text-slate-800 text-xs font-semibold border border-gray-200 shadow-xs transition-colors cursor-pointer"
-                >
-                  <Download className="w-4 h-4 text-slate-600" />
-                  Descargar (.ICS)
-                </button>
-              </div>
-            </div>
-
-            {/* Contact WhatsApp */}
-            <div className="pt-4 border-t border-gray-100">
-              <a
-                href={`https://wa.me/51982100208?text=${encodeURIComponent(`Hola Ricardo, me acabo de registrar al evento "${evento.nombre}".`)}`}
-                target="_blank"
-                rel="noreferrer"
-                className="inline-flex items-center gap-2 text-xs text-emerald-700 hover:text-emerald-800 transition-colors font-semibold"
-              >
-                <MessageCircle className="w-4 h-4 text-emerald-600" />
-                ¿Dudas sobre el evento? Escríbenos por WhatsApp
-              </a>
-            </div>
-
-          </div>
-        ) : (
-          /* ================= MOBILE-FIRST STREAMLINED LANDING (Google + Instagram Style) ================= */
-          <div className="space-y-6 sm:space-y-8">
-            
-            {/* Top Event Header & Flyer Hero */}
-            <div className="space-y-4 text-center sm:text-left">
-              
-              {/* Event Badge */}
-              <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-amber-50 border border-amber-200/80 text-amber-900 text-xs font-bold tracking-wide shadow-xs">
+            {/* Event Header Pill & Title */}
+            <div className="text-center space-y-2">
+              <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-amber-50 border border-amber-200/80 text-[#8C6D1F] text-[11px] font-extrabold tracking-wide shadow-xs">
                 <Sparkles className="w-3.5 h-3.5 text-[#C9A84C]" />
-                <span>Afinitive Wealth Management • Evento Privado</span>
+                <span>Sesión Privada Exclusiva</span>
               </div>
 
-              {/* Event Title */}
-              <h1 className="text-2xl sm:text-3xl md:text-4xl font-black text-slate-900 tracking-tight leading-tight">
+              <h1 className="text-2xl sm:text-3xl font-black text-slate-900 tracking-tight leading-tight">
                 {evento.nombre}
               </h1>
 
-              {/* Key Chips: Google Material Style */}
-              <div className="flex flex-wrap items-center justify-center sm:justify-start gap-2 pt-1">
-                <span className="inline-flex items-center gap-1.5 bg-[#FFF9E6] border border-[#F3DE9A] text-[#8C6D1F] px-3 py-1 rounded-full text-xs font-extrabold shadow-xs">
-                  <TrendingUp className="w-3.5 h-3.5 text-[#C9A84C]" />
+              {/* Fast Highlights Chips */}
+              <div className="flex flex-wrap items-center justify-center gap-1.5 pt-1 text-xs">
+                <span className="inline-flex items-center gap-1 bg-[#FFF9E6] border border-[#F3DE9A] text-[#8C6D1F] px-2.5 py-1 rounded-full font-bold shadow-xs">
+                  <TrendingUp className="w-3 h-3 text-[#C9A84C]" />
                   Retorno: +17%
                 </span>
-                <span className="inline-flex items-center gap-1.5 bg-slate-100 border border-slate-200 text-slate-800 px-3 py-1 rounded-full text-xs font-semibold">
-                  <Calendar className="w-3.5 h-3.5 text-slate-600" />
+                <span className="inline-flex items-center gap-1 bg-slate-100 border border-slate-200 text-slate-800 px-2.5 py-1 rounded-full font-semibold">
+                  <Calendar className="w-3 h-3 text-slate-600" />
                   <span className="capitalize">{dateInfo.diaSemana} {dateInfo.fecha}</span>
                 </span>
-                <span className="inline-flex items-center gap-1.5 bg-slate-100 border border-slate-200 text-slate-800 px-3 py-1 rounded-full text-xs font-semibold">
-                  <Clock className="w-3.5 h-3.5 text-slate-600" />
-                  <span>{dateInfo.hora} (Hora Perú)</span>
+                <span className="inline-flex items-center gap-1 bg-slate-100 border border-slate-200 text-slate-800 px-2.5 py-1 rounded-full font-semibold">
+                  <Clock className="w-3 h-3 text-slate-600" />
+                  <span>{dateInfo.hora}</span>
                 </span>
-                <span className="inline-flex items-center gap-1.5 bg-blue-50 border border-blue-200 text-blue-800 px-3 py-1 rounded-full text-xs font-semibold">
-                  <Video className="w-3.5 h-3.5 text-blue-600" />
+                <span className="inline-flex items-center gap-1 bg-blue-50 border border-blue-200 text-blue-800 px-2.5 py-1 rounded-full font-semibold">
+                  <Video className="w-3 h-3 text-blue-600" />
                   <span>Zoom Online ({evento.duracion_minutos || 45} min)</span>
                 </span>
               </div>
             </div>
 
-            {/* Main Content Layout: Grid for Desktop / Streamlined Flow for Mobile */}
-            <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+            {/* Registration Card (High-Conversion Instagram Style) */}
+            <div className="bg-white border-2 border-[#C9A84C]/40 rounded-3xl p-5 sm:p-7 shadow-xl shadow-slate-200/70 relative overflow-hidden">
               
-              {/* Left Column (Desktop) / Top Order (Mobile): Flyer & Event Details */}
-              <div className="lg:col-span-6 space-y-4">
+              {/* Subtle Gold Accent Bar */}
+              <div className="absolute top-0 left-0 right-0 h-1.5 bg-gradient-to-r from-[#C9A84C] via-[#E2C775] to-[#B38E36]" />
+
+              {/* Card Title */}
+              <div className="mb-4 text-center sm:text-left">
+                <div className="flex items-center justify-between mb-1">
+                  <span className="text-[10px] font-extrabold uppercase tracking-wider text-[#9E7B29] bg-[#FFF9E6] border border-[#F3DE9A] px-2.5 py-0.5 rounded-full">
+                    Cupos Limitados
+                  </span>
+                  <span className="text-[10px] text-slate-400 font-medium flex items-center gap-1">
+                    <Lock className="w-3 h-3 text-slate-400" /> Registro Inmediato
+                  </span>
+                </div>
+                <h2 className="text-xl font-black text-slate-900 tracking-tight">
+                  Confirma tu Asistencia
+                </h2>
+                <p className="text-xs text-slate-500 mt-1">
+                  Ingresa tus datos para acceder a la sala privada de Zoom y conocer los detalles del proyecto.
+                </p>
+              </div>
+
+              {errorMsg && (
+                <div className="p-3 mb-4 rounded-xl bg-red-50 border border-red-200 text-red-700 text-xs font-medium">
+                  {errorMsg}
+                </div>
+              )}
+
+              <form onSubmit={handleSubmit} className="space-y-3.5">
                 
-                {/* Flyer Image Card (Instagram Post Style) */}
-                {evento.imagen_url && (
-                  <div className="relative rounded-2xl sm:rounded-3xl overflow-hidden border border-gray-100 shadow-md bg-white group">
-                    <img 
-                      src={evento.imagen_url} 
-                      alt={evento.nombre}
-                      className="w-full h-52 sm:h-64 md:h-72 object-cover object-center group-hover:scale-102 transition-transform duration-500"
-                      onError={(e) => {
-                        (e.target as HTMLElement).style.display = 'none';
-                      }}
+                {/* Full Name Input */}
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider mb-1">
+                    Nombres y Apellidos <span className="text-[#C9A84C]">*</span>
+                  </label>
+                  <div className="relative">
+                    <User className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+                    <input
+                      type="text"
+                      name="nombre"
+                      value={formData.nombre}
+                      onChange={handleInputChange}
+                      placeholder="Ej. Marielisa Valdivia"
+                      required
+                      className="w-full bg-slate-50/70 hover:bg-white focus:bg-white border border-gray-200 rounded-xl py-2.5 pl-10 pr-3 text-xs sm:text-sm text-slate-900 placeholder-slate-400 focus:outline-none focus:border-[#C9A84C] focus:ring-3 focus:ring-[#C9A84C]/15 transition-all shadow-xs"
                     />
-                    <div className="absolute top-3 left-3 bg-slate-900/90 backdrop-blur-md text-[#C9A84C] font-black text-[10px] px-3 py-1 rounded-full uppercase tracking-wider border border-[#C9A84C]/40 shadow-md">
-                      Cupos Limitados
-                    </div>
-                  </div>
-                )}
-
-                {/* Event Highlights & Description (Google Card) */}
-                <div className="bg-white border border-gray-100 rounded-2xl p-5 sm:p-6 shadow-sm space-y-3">
-                  <h3 className="text-xs font-extrabold uppercase tracking-wider text-slate-400">
-                    Acerca de la Sesión
-                  </h3>
-                  <div className="text-slate-700 text-xs sm:text-sm leading-relaxed whitespace-pre-line space-y-2">
-                    {evento.descripcion || 'Te invitamos a esta sesión privada con Ricardo Bertalmio para descubrir las mejores oportunidades de inversión patrimonial.'}
                   </div>
                 </div>
 
-                {/* Host Presenter Card */}
-                <div className="flex items-center gap-3.5 bg-white border border-gray-100 rounded-2xl p-4 shadow-sm">
-                  <img 
-                    src="https://dashbportal.com/afinitive/rbertalmio.png" 
-                    alt="Ricardo Bertalmio" 
-                    className="w-12 h-12 rounded-full object-cover border-2 border-[#C9A84C] shadow-sm flex-shrink-0"
-                    onError={(e) => {
-                      (e.target as HTMLElement).style.display = 'none';
-                    }}
+                {/* Email Input */}
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider mb-1">
+                    Correo Electrónico <span className="text-[#C9A84C]">*</span>
+                  </label>
+                  <div className="relative">
+                    <Mail className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+                    <input
+                      type="email"
+                      name="correo"
+                      value={formData.correo}
+                      onChange={handleInputChange}
+                      placeholder="ejemplo@correo.com"
+                      required
+                      className="w-full bg-slate-50/70 hover:bg-white focus:bg-white border border-gray-200 rounded-xl py-2.5 pl-10 pr-3 text-xs sm:text-sm text-slate-900 placeholder-slate-400 focus:outline-none focus:border-[#C9A84C] focus:ring-3 focus:ring-[#C9A84C]/15 transition-all shadow-xs"
+                    />
+                  </div>
+                </div>
+
+                {/* Phone / WhatsApp Input */}
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider mb-1">
+                    Celular / WhatsApp <span className="text-[#C9A84C]">*</span>
+                  </label>
+                  <div className="relative">
+                    <Phone className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+                    <input
+                      type="tel"
+                      name="celular"
+                      value={formData.celular}
+                      onChange={handleInputChange}
+                      placeholder="+51 982 100 208"
+                      required
+                      className="w-full bg-slate-50/70 hover:bg-white focus:bg-white border border-gray-200 rounded-xl py-2.5 pl-10 pr-3 text-xs sm:text-sm text-slate-900 placeholder-slate-400 focus:outline-none focus:border-[#C9A84C] focus:ring-3 focus:ring-[#C9A84C]/15 transition-all shadow-xs"
+                    />
+                  </div>
+                </div>
+
+                {/* Contact Person / Advisor (Optional) */}
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider mb-1">
+                    Persona de Contacto / Asesor <span className="text-slate-400 font-normal lowercase">(opcional)</span>
+                  </label>
+                  <input
+                    type="text"
+                    name="persona_contacto"
+                    value={formData.persona_contacto}
+                    onChange={handleInputChange}
+                    placeholder="Nombre de quien te compartió la invitación"
+                    className="w-full bg-slate-50/70 hover:bg-white focus:bg-white border border-gray-200 rounded-xl py-2 px-3 text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:border-[#C9A84C] focus:ring-3 focus:ring-[#C9A84C]/15 transition-all shadow-xs"
                   />
-                  <div>
-                    <div className="flex items-center gap-1.5">
-                      <h4 className="text-xs sm:text-sm font-bold text-slate-900">Ricardo Bertalmio Ruibal</h4>
-                      <Award className="w-3.5 h-3.5 text-[#C9A84C]" />
-                    </div>
-                    <p className="text-[11px] text-[#A68227] font-semibold">CEO Afinitive Wealth Management</p>
-                    <p className="text-[10px] text-slate-500">Estructuración Patrimonial & Rentas Inmobiliarias</p>
-                  </div>
                 </div>
 
-              </div>
-
-              {/* Right Column: Registration Card (Instagram + Google Style Form) */}
-              <div className="lg:col-span-6 lg:sticky lg:top-20">
-                <div className="bg-white border-2 border-[#C9A84C]/40 rounded-3xl p-6 sm:p-7 shadow-xl shadow-slate-200/60 relative overflow-hidden">
-                  
-                  {/* Subtle Gold Accent Bar */}
-                  <div className="absolute top-0 left-0 right-0 h-1.5 bg-gradient-to-r from-[#C9A84C] via-[#E2C775] to-[#B38E36]" />
-
-                  {/* Header Form */}
-                  <div className="mb-5">
-                    <div className="flex items-center justify-between mb-1">
-                      <span className="text-[10px] font-extrabold uppercase tracking-wider text-[#9E7B29] bg-[#FFF9E6] border border-[#F3DE9A] px-2.5 py-0.5 rounded-full">
-                        Acceso Exclusivo
-                      </span>
-                      <span className="text-[10px] text-slate-400 font-medium flex items-center gap-1">
-                        <Lock className="w-3 h-3 text-slate-400" /> Privado
-                      </span>
-                    </div>
-                    <h2 className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight">
-                      Confirma tu Asistencia
-                    </h2>
-                    <p className="text-xs text-slate-500 mt-1">
-                      Ingresa tus datos para recibir el enlace exclusivo de Zoom y agendar en tu calendario.
-                    </p>
-                  </div>
-
-                  {errorMsg && (
-                    <div className="p-3 mb-4 rounded-xl bg-red-50 border border-red-200 text-red-700 text-xs font-medium">
-                      {errorMsg}
-                    </div>
+                {/* Instagram/Google Style Submit CTA Button */}
+                <button
+                  type="submit"
+                  disabled={submitting}
+                  className="w-full py-3.5 px-5 rounded-2xl bg-gradient-to-r from-[#D4AF37] via-[#C9A84C] to-[#B38E36] hover:from-[#C9A84C] hover:to-[#9E7B29] text-slate-950 font-black text-xs sm:text-sm tracking-wide shadow-lg shadow-[#C9A84C]/30 hover:shadow-xl transition-all transform active:scale-98 disabled:opacity-50 flex items-center justify-center gap-2 mt-4 cursor-pointer"
+                >
+                  {submitting ? (
+                    <span>Procesando Registro...</span>
+                  ) : (
+                    <>
+                      <span>Confirmar y Ver Acceso a Zoom</span>
+                      <ArrowRight className="w-4 h-4" />
+                    </>
                   )}
+                </button>
 
-                  <form onSubmit={handleSubmit} className="space-y-3.5">
-                    
-                    {/* Full Name Input */}
-                    <div>
-                      <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider mb-1">
-                        Nombres y Apellidos <span className="text-[#C9A84C]">*</span>
-                      </label>
-                      <div className="relative">
-                        <User className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
-                        <input
-                          type="text"
-                          name="nombre"
-                          value={formData.nombre}
-                          onChange={handleInputChange}
-                          placeholder="Ej. Marielisa Valdivia"
-                          required
-                          className="w-full bg-slate-50/60 hover:bg-white focus:bg-white border border-gray-200 rounded-xl py-2.5 pl-10 pr-3 text-xs sm:text-sm text-slate-900 placeholder-slate-400 focus:outline-none focus:border-[#C9A84C] focus:ring-3 focus:ring-[#C9A84C]/15 transition-all shadow-xs"
-                        />
-                      </div>
-                    </div>
+                {/* Security Trust Note */}
+                <div className="flex items-center justify-center gap-1.5 text-[10px] text-slate-500 pt-1">
+                  <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />
+                  <span>Registro seguro con Afinitive Wealth Management.</span>
+                </div>
 
-                    {/* Email Input */}
-                    <div>
-                      <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider mb-1">
-                        Correo Electrónico <span className="text-[#C9A84C]">*</span>
-                      </label>
-                      <div className="relative">
-                        <Mail className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
-                        <input
-                          type="email"
-                          name="correo"
-                          value={formData.correo}
-                          onChange={handleInputChange}
-                          placeholder="ejemplo@correo.com"
-                          required
-                          className="w-full bg-slate-50/60 hover:bg-white focus:bg-white border border-gray-200 rounded-xl py-2.5 pl-10 pr-3 text-xs sm:text-sm text-slate-900 placeholder-slate-400 focus:outline-none focus:border-[#C9A84C] focus:ring-3 focus:ring-[#C9A84C]/15 transition-all shadow-xs"
-                        />
-                      </div>
-                    </div>
+              </form>
 
-                    {/* Phone / WhatsApp Input */}
-                    <div>
-                      <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider mb-1">
-                        Celular / WhatsApp <span className="text-[#C9A84C]">*</span>
-                      </label>
-                      <div className="relative">
-                        <Phone className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
-                        <input
-                          type="tel"
-                          name="celular"
-                          value={formData.celular}
-                          onChange={handleInputChange}
-                          placeholder="+51 982 100 208"
-                          required
-                          className="w-full bg-slate-50/60 hover:bg-white focus:bg-white border border-gray-200 rounded-xl py-2.5 pl-10 pr-3 text-xs sm:text-sm text-slate-900 placeholder-slate-400 focus:outline-none focus:border-[#C9A84C] focus:ring-3 focus:ring-[#C9A84C]/15 transition-all shadow-xs"
-                        />
-                      </div>
-                    </div>
+            </div>
 
-                    {/* Contact Person / Advisor (Optional) */}
-                    <div>
-                      <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider mb-1">
-                        Persona de Contacto / Asesor <span className="text-slate-400 font-normal lowercase">(opcional)</span>
-                      </label>
-                      <input
-                        type="text"
-                        name="persona_contacto"
-                        value={formData.persona_contacto}
-                        onChange={handleInputChange}
-                        placeholder="Nombre de quien te compartió la invitación"
-                        className="w-full bg-slate-50/60 hover:bg-white focus:bg-white border border-gray-200 rounded-xl py-2 px-3 text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:border-[#C9A84C] focus:ring-3 focus:ring-[#C9A84C]/15 transition-all shadow-xs"
-                      />
-                    </div>
+            {/* Host Quick Bio */}
+            <div className="flex items-center gap-3 bg-white border border-gray-100 rounded-2xl p-3.5 shadow-xs">
+              <img 
+                src="https://dashbportal.com/afinitive/rbertalmio.png" 
+                alt="Ricardo Bertalmio" 
+                className="w-11 h-11 rounded-full object-cover border-2 border-[#C9A84C] shadow-xs flex-shrink-0"
+                onError={(e) => {
+                  (e.target as HTMLElement).style.display = 'none';
+                }}
+              />
+              <div className="min-w-0">
+                <div className="flex items-center gap-1.5">
+                  <h4 className="text-xs font-bold text-slate-900 truncate">Ricardo Bertalmio Ruibal</h4>
+                  <Award className="w-3.5 h-3.5 text-[#C9A84C] flex-shrink-0" />
+                </div>
+                <p className="text-[11px] text-[#A68227] font-semibold truncate">CEO Afinitive Wealth Management</p>
+                <p className="text-[10px] text-slate-500 truncate">Estructuración Patrimonial & Rentas Inmobiliarias</p>
+              </div>
+            </div>
 
-                    {/* Instagram/Google Style Submit Button */}
-                    <button
-                      type="submit"
-                      disabled={submitting}
-                      className="w-full py-3.5 px-5 rounded-2xl bg-gradient-to-r from-[#D4AF37] via-[#C9A84C] to-[#B38E36] hover:from-[#C9A84C] hover:to-[#9E7B29] text-slate-950 font-black text-xs sm:text-sm tracking-wide shadow-lg shadow-[#C9A84C]/30 hover:shadow-xl transition-all transform active:scale-98 disabled:opacity-50 flex items-center justify-center gap-2 mt-4 cursor-pointer"
-                    >
-                      {submitting ? (
-                        <span>Procesando Registro...</span>
-                      ) : (
-                        <>
-                          <span>Confirmar Asistencia</span>
-                          <ArrowRight className="w-4 h-4" />
-                        </>
-                      )}
-                    </button>
+          </div>
+        ) : (
+          /* ================= STEP 2: FULL REVEAL OF ALL EVENT INFO & CONFIRMATION ================= */
+          <div className="space-y-6 animate-in fade-in zoom-in-95 duration-300">
+            
+            {/* Top Success Badge */}
+            <div className="bg-white border-2 border-emerald-500/30 rounded-3xl p-6 shadow-xl shadow-slate-200/70 text-center">
+              <div className="w-16 h-16 bg-emerald-50 border-2 border-emerald-200 rounded-full flex items-center justify-center mx-auto mb-3 text-emerald-600 shadow-sm animate-bounce">
+                <CheckCircle2 className="w-8 h-8" />
+              </div>
 
-                    {/* Security Badge */}
-                    <div className="flex items-center justify-center gap-1.5 text-[10px] text-slate-500 pt-1">
-                      <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />
-                      <span>Tus datos están protegidos y son estrictamente confidenciales.</span>
-                    </div>
+              <span className="text-[10px] font-extrabold uppercase tracking-wider text-emerald-800 bg-emerald-50 border border-emerald-200 px-3 py-1 rounded-full inline-block mb-2">
+                ¡Tu Cupo está Confirmado!
+              </span>
 
-                  </form>
+              <h2 className="text-2xl font-black text-slate-900 tracking-tight">
+                ¡Listo, {formData.nombre.split(' ')[0]}!
+              </h2>
+              <p className="text-xs sm:text-sm text-slate-600 mt-1 max-w-md mx-auto">
+                Tu asistencia ha sido registrada. A continuación tienes el enlace oficial de Zoom y todos los detalles del evento:
+              </p>
 
+              {/* Direct Zoom Room Button */}
+              <div className="mt-5 p-4 bg-gradient-to-br from-blue-50 to-sky-50 border border-blue-100 rounded-2xl">
+                <p className="text-[11px] text-blue-900 font-bold uppercase tracking-wider mb-2">
+                  Enlace Directo de la Sala Zoom
+                </p>
+                <a
+                  href={evento.link_reunion}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="inline-flex items-center justify-center gap-2 w-full py-3.5 px-4 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-black text-sm shadow-md shadow-blue-600/20 transition-all transform active:scale-98"
+                >
+                  <Video className="w-4 h-4" />
+                  Ingresar a la Sala Zoom Oficial
+                </a>
+                <p className="text-[10px] text-slate-500 mt-2 truncate font-mono">
+                  {evento.link_reunion}
+                </p>
+              </div>
+
+              {/* Calendar Injections Actions */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mt-3">
+                <a
+                  href={calendarLinks.google_calendar || `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${encodeURIComponent(evento.nombre)}`}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="flex items-center justify-center gap-2 py-2.5 px-3 rounded-xl bg-slate-50 hover:bg-slate-100 text-slate-800 text-xs font-semibold border border-slate-200 shadow-xs transition-colors"
+                >
+                  <CalendarPlus className="w-4 h-4 text-[#C9A84C]" />
+                  Añadir a Google Calendar
+                </a>
+
+                <button
+                  onClick={handleDownloadIcs}
+                  className="flex items-center justify-center gap-2 py-2.5 px-3 rounded-xl bg-slate-50 hover:bg-slate-100 text-slate-800 text-xs font-semibold border border-slate-200 shadow-xs transition-colors cursor-pointer"
+                >
+                  <Download className="w-4 h-4 text-slate-600" />
+                  Descargar (.ICS)
+                </button>
+              </div>
+
+              {/* WhatsApp Contact Link */}
+              <div className="pt-4 mt-4 border-t border-gray-100">
+                <a
+                  href={`https://wa.me/51982100208?text=${encodeURIComponent(`Hola Ricardo, me acabo de registrar al evento "${evento.nombre}".`)}`}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="inline-flex items-center gap-2 text-xs text-emerald-700 hover:text-emerald-800 transition-colors font-semibold"
+                >
+                  <MessageCircle className="w-4 h-4 text-emerald-600" />
+                  ¿Dudas sobre el evento? Escríbenos por WhatsApp
+                </a>
+              </div>
+            </div>
+
+            {/* Flyer Image Card in Full Glory */}
+            {evento.imagen_url && (
+              <div className="relative rounded-3xl overflow-hidden border border-gray-100 shadow-md bg-white">
+                <img 
+                  src={evento.imagen_url} 
+                  alt={evento.nombre}
+                  className="w-full h-56 sm:h-72 object-cover object-center"
+                  onError={(e) => {
+                    (e.target as HTMLElement).style.display = 'none';
+                  }}
+                />
+                <div className="absolute top-3 left-3 bg-slate-900/90 backdrop-blur-md text-[#C9A84C] font-black text-[10px] px-3 py-1 rounded-full uppercase tracking-wider border border-[#C9A84C]/40 shadow-md">
+                  {evento.nombre}
+                </div>
+              </div>
+            )}
+
+            {/* Complete Event Details & Value Proposition */}
+            <div className="bg-white border border-gray-100 rounded-3xl p-5 sm:p-6 shadow-sm space-y-4">
+              
+              <div className="flex items-center gap-2 text-xs font-extrabold uppercase tracking-wider text-slate-400">
+                <Building2 className="w-4 h-4 text-[#C9A84C]" />
+                <span>Propuesta de Valor & Oportunidad</span>
+              </div>
+
+              {/* Badges Grid */}
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                <div className="bg-[#FFF9E6] border border-[#F3DE9A] rounded-xl p-2.5 text-center">
+                  <TrendingUp className="w-4 h-4 text-[#C9A84C] mx-auto mb-1" />
+                  <span className="text-[10px] text-[#8C6D1F] font-bold block">Retorno</span>
+                  <span className="text-xs font-black text-[#8C6D1F]">+ 17%</span>
+                </div>
+
+                <div className="bg-slate-50 border border-slate-200 rounded-xl p-2.5 text-center">
+                  <Calendar className="w-4 h-4 text-slate-600 mx-auto mb-1" />
+                  <span className="text-[10px] text-slate-500 font-bold block">Fecha</span>
+                  <span className="text-xs font-bold text-slate-800 capitalize">{dateInfo.fecha}</span>
+                </div>
+
+                <div className="bg-slate-50 border border-slate-200 rounded-xl p-2.5 text-center">
+                  <Clock className="w-4 h-4 text-slate-600 mx-auto mb-1" />
+                  <span className="text-[10px] text-slate-500 font-bold block">Hora</span>
+                  <span className="text-xs font-bold text-slate-800">{dateInfo.hora}</span>
+                </div>
+
+                <div className="bg-blue-50 border border-blue-200 rounded-xl p-2.5 text-center">
+                  <Video className="w-4 h-4 text-blue-600 mx-auto mb-1" />
+                  <span className="text-[10px] text-blue-700 font-bold block">Duración</span>
+                  <span className="text-xs font-bold text-blue-900">{evento.duracion_minutos || 45} min</span>
                 </div>
               </div>
 
+              {/* Description Body */}
+              <div className="text-slate-700 text-xs sm:text-sm leading-relaxed whitespace-pre-line pt-2 border-t border-gray-100">
+                {evento.descripcion || 'Te invitamos a esta sesión privada con Ricardo Bertalmio para descubrir las mejores oportunidades de inversión patrimonial.'}
+              </div>
+
+            </div>
+
+            {/* Host Presenter Card */}
+            <div className="flex items-center gap-3.5 bg-white border border-gray-100 rounded-2xl p-4 shadow-sm">
+              <img 
+                src="https://dashbportal.com/afinitive/rbertalmio.png" 
+                alt="Ricardo Bertalmio" 
+                className="w-12 h-12 rounded-full object-cover border-2 border-[#C9A84C] shadow-sm flex-shrink-0"
+                onError={(e) => {
+                  (e.target as HTMLElement).style.display = 'none';
+                }}
+              />
+              <div>
+                <div className="flex items-center gap-1.5">
+                  <h4 className="text-xs sm:text-sm font-bold text-slate-900">Ricardo Bertalmio Ruibal</h4>
+                  <Award className="w-3.5 h-3.5 text-[#C9A84C]" />
+                </div>
+                <p className="text-[11px] text-[#A68227] font-semibold">CEO Afinitive Wealth Management</p>
+                <p className="text-[10px] text-slate-500">Estructuración Patrimonial & Rentas Inmobiliarias</p>
+              </div>
             </div>
 
           </div>
