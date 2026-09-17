@@ -156,9 +156,9 @@ export default function EventManagerTab() {
       id: '',
       nombre: '',
       fecha_inicio: new Date(Date.now() + 86400000 * 7).toISOString().slice(0, 16),
-      duracion_minutos: 45,
+      duracion_minutos: 60,
       link_reunion: 'https://us06web.zoom.us/launch/jc/',
-      descripcion: `Una oportunidad de inversión inmobiliaria exclusiva con Afinitive Wealth Management.\n\n📈 Retorno proyectado: + 17%\n⏰ Hora Perú: 7:30 p.m.\n\nEn 45 minutos te mostraremos el modelo y sus números.`,
+      descripcion: `Una oportunidad de inversión inmobiliaria exclusiva con Afinitive Wealth Management.\n\n📈 Retorno proyectado: + 17%\n⏰ Hora Perú: 7:30 p.m.\n\nTe mostraremos el modelo financiero y sus números.`,
       imagen_url: 'https://images.unsplash.com/photo-1486406146926-c627a92ad1ab?w=1200&auto=format&fit=crop&q=80',
       activo: true,
     });
@@ -659,34 +659,18 @@ export default function EventManagerTab() {
                 </small>
               </div>
 
-              {/* Date & Duration Grid */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-xs font-semibold text-slate-300 mb-1">
-                    Fecha y Hora de Inicio (Hora Perú UTC-5) <span className="text-amber-400">*</span>
-                  </label>
-                  <input
-                    type="datetime-local"
-                    required
-                    value={editingEvento.fecha_inicio || ''}
-                    onChange={(e) => setEditingEvento({ ...editingEvento, fecha_inicio: e.target.value })}
-                    className="w-full bg-slate-950 border border-slate-700 rounded-xl py-2 px-3 text-xs text-white focus:outline-none focus:border-amber-400"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-xs font-semibold text-slate-300 mb-1">
-                    Duración (minutos)
-                  </label>
-                  <input
-                    type="number"
-                    min="15"
-                    max="300"
-                    value={editingEvento.duracion_minutos || 45}
-                    onChange={(e) => setEditingEvento({ ...editingEvento, duracion_minutos: Number(e.target.value) })}
-                    className="w-full bg-slate-950 border border-slate-700 rounded-xl py-2 px-3 text-xs text-white focus:outline-none focus:border-amber-400"
-                  />
-                </div>
+              {/* Date Input */}
+              <div>
+                <label className="block text-xs font-semibold text-slate-300 mb-1">
+                  Fecha y Hora de Inicio (Hora Perú UTC-5) <span className="text-amber-400">*</span>
+                </label>
+                <input
+                  type="datetime-local"
+                  required
+                  value={editingEvento.fecha_inicio || ''}
+                  onChange={(e) => setEditingEvento({ ...editingEvento, fecha_inicio: e.target.value })}
+                  className="w-full bg-slate-950 border border-slate-700 rounded-xl py-2 px-3 text-xs text-white focus:outline-none focus:border-amber-400"
+                />
               </div>
 
               {/* Zoom Link */}

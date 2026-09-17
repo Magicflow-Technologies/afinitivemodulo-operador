@@ -70,8 +70,8 @@ export default function PublicEventLanding({ eventId: propEventId }: PublicEvent
     nombre: '🏙️ THE NEW YORK TOWER 🏙️',
     fecha_inicio: '2026-09-23T19:30:00-05:00',
     link_reunion: 'https://us06web.zoom.us/launch/jc/86782072926',
-    descripcion: 'Una oportunidad de inversión inmobiliaria con concepto Manhattan, ahora en Lima.\nTe invito a una presentación privada donde conocerás cómo invertir utilizando financiamiento y renta por alquiler.\n\n📈 Retorno proyectado: + 17%\n📅 Miércoles 23 de septiembre\n⏰ 7:30 p.m.\n\nEn 45 minutos te mostraremos el modelo y sus números.',
-    duracion_minutos: 45,
+    descripcion: 'Una oportunidad de inversión inmobiliaria con concepto Manhattan, ahora en Lima.\nTe invito a una presentación privada donde conocerás cómo invertir utilizando financiamiento y renta por alquiler.\n\n📈 Retorno proyectado: + 17%\n📅 Miércoles 23 de septiembre\n⏰ 7:30 p.m.\n\nTe mostraremos el modelo financiero y sus números.',
+    duracion_minutos: 60,
     activo: true,
     imagen_url: 'https://images.unsplash.com/photo-1486406146926-c627a92ad1ab?w=1200&auto=format&fit=crop&q=80',
   });
@@ -116,6 +116,11 @@ export default function PublicEventLanding({ eventId: propEventId }: PublicEvent
         imagen_url = match[1];
         descripcion = descripcion.replace(/\[IMG_URL:.*?\]\n?/, '');
       }
+    }
+
+    // Limpiar menciones de 45 minutos si vienen en la descripción
+    if (descripcion) {
+      descripcion = descripcion.replace(/En \d+ minutos te mostraremos el modelo y sus números\.?/gi, 'Te mostraremos el modelo financiero y sus números.');
     }
 
     return {
@@ -209,7 +214,7 @@ export default function PublicEventLanding({ eventId: propEventId }: PublicEvent
 
   const generateFallbackCalendarLinks = () => {
     const fecha = new Date(evento.fecha_inicio);
-    const dur = evento.duracion_minutos || 45;
+    const dur = evento.duracion_minutos || 60;
     const fechaFin = new Date(fecha.getTime() + dur * 60 * 1000);
 
     const fGoogle = (d: Date) => d.toISOString().replace(/-|:|\.\d+/g, '');
@@ -309,7 +314,7 @@ export default function PublicEventLanding({ eventId: propEventId }: PublicEvent
                 {evento.nombre}
               </h1>
 
-              {/* Fast Highlights Chips */}
+              {/* Fast Highlights Chips (Sin duración) */}
               <div className="flex flex-wrap items-center justify-center gap-1.5 pt-1 text-xs">
                 <span className="inline-flex items-center gap-1 bg-[#FFF9E6] border border-[#F3DE9A] text-[#8C6D1F] px-2.5 py-1 rounded-full font-bold shadow-xs">
                   <TrendingUp className="w-3 h-3 text-[#C9A84C]" />
@@ -325,7 +330,7 @@ export default function PublicEventLanding({ eventId: propEventId }: PublicEvent
                 </span>
                 <span className="inline-flex items-center gap-1 bg-blue-50 border border-blue-200 text-blue-800 px-2.5 py-1 rounded-full font-semibold">
                   <Video className="w-3 h-3 text-blue-600" />
-                  <span>Zoom Online ({evento.duracion_minutos || 45} min)</span>
+                  <span>En Vivo por Zoom</span>
                 </span>
               </div>
             </div>
@@ -556,24 +561,21 @@ export default function PublicEventLanding({ eventId: propEventId }: PublicEvent
               </div>
             </div>
 
-            {/* Flyer Image Card in Full Glory */}
+            {/* Flyer Image Card - IMAGEN COMPLETA SIN RECORTES */}
             {evento.imagen_url && (
-              <div className="relative rounded-3xl overflow-hidden border border-gray-100 shadow-md bg-white">
+              <div className="rounded-2xl sm:rounded-3xl overflow-hidden border border-gray-100 shadow-md bg-white">
                 <img 
                   src={evento.imagen_url} 
                   alt={evento.nombre}
-                  className="w-full h-56 sm:h-72 object-cover object-center"
+                  className="w-full h-auto object-contain block"
                   onError={(e) => {
                     (e.target as HTMLElement).style.display = 'none';
                   }}
                 />
-                <div className="absolute top-3 left-3 bg-slate-900/90 backdrop-blur-md text-[#C9A84C] font-black text-[10px] px-3 py-1 rounded-full uppercase tracking-wider border border-[#C9A84C]/40 shadow-md">
-                  {evento.nombre}
-                </div>
               </div>
             )}
 
-            {/* Complete Event Details & Value Proposition */}
+            {/* Complete Event Details & Value Proposition (Sin duración) */}
             <div className="bg-white border border-gray-100 rounded-3xl p-5 sm:p-6 shadow-sm space-y-4">
               
               <div className="flex items-center gap-2 text-xs font-extrabold uppercase tracking-wider text-slate-400">
@@ -581,30 +583,24 @@ export default function PublicEventLanding({ eventId: propEventId }: PublicEvent
                 <span>Propuesta de Valor & Oportunidad</span>
               </div>
 
-              {/* Badges Grid */}
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-                <div className="bg-[#FFF9E6] border border-[#F3DE9A] rounded-xl p-2.5 text-center">
+              {/* Badges Grid (Sin duración) */}
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                <div className="bg-[#FFF9E6] border border-[#F3DE9A] rounded-xl p-3 text-center">
                   <TrendingUp className="w-4 h-4 text-[#C9A84C] mx-auto mb-1" />
-                  <span className="text-[10px] text-[#8C6D1F] font-bold block">Retorno</span>
-                  <span className="text-xs font-black text-[#8C6D1F]">+ 17%</span>
+                  <span className="text-[10px] text-[#8C6D1F] font-bold block">Retorno Proyectado</span>
+                  <span className="text-sm font-black text-[#8C6D1F]">+ 17%</span>
                 </div>
 
-                <div className="bg-slate-50 border border-slate-200 rounded-xl p-2.5 text-center">
+                <div className="bg-slate-50 border border-slate-200 rounded-xl p-3 text-center">
                   <Calendar className="w-4 h-4 text-slate-600 mx-auto mb-1" />
                   <span className="text-[10px] text-slate-500 font-bold block">Fecha</span>
                   <span className="text-xs font-bold text-slate-800 capitalize">{dateInfo.fecha}</span>
                 </div>
 
-                <div className="bg-slate-50 border border-slate-200 rounded-xl p-2.5 text-center">
+                <div className="bg-slate-50 border border-slate-200 rounded-xl p-3 text-center">
                   <Clock className="w-4 h-4 text-slate-600 mx-auto mb-1" />
-                  <span className="text-[10px] text-slate-500 font-bold block">Hora</span>
+                  <span className="text-[10px] text-slate-500 font-bold block">Hora de Lima</span>
                   <span className="text-xs font-bold text-slate-800">{dateInfo.hora}</span>
-                </div>
-
-                <div className="bg-blue-50 border border-blue-200 rounded-xl p-2.5 text-center">
-                  <Video className="w-4 h-4 text-blue-600 mx-auto mb-1" />
-                  <span className="text-[10px] text-blue-700 font-bold block">Duración</span>
-                  <span className="text-xs font-bold text-blue-900">{evento.duracion_minutos || 45} min</span>
                 </div>
               </div>
 
