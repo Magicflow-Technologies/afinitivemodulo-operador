@@ -335,7 +335,37 @@ export class EventosService implements OnModuleInit {
     const celularClean = data.celular.trim();
     const personaContactoClean = data.persona_contacto?.trim() || 'Landing Oficial';
 
-    // 2. Insertar asistente en afinitivebd.asistentes_evento
+    // 2. Comprobar si la persona ya está registrada para este evento en específico
+    const { data: existente } = await this.supabase
+      .from('asistentes_evento')
+      .select('*')
+      .eq('evento_id', eventoId)
+      .or(`correo.eq.${emailClean},celular.eq.${celularClean}`)
+      .limit(1)
+      .maybeSingle();
+
+    // 3. Generar enlaces de calendario directos para el cliente
+    const calendarLinks = this.generarEnlacesCalendario(evento, nombreClean);
+
+    if (existente) {
+      this.logger.log(`Asistente ya registrado previamente en evento ${eventoId}: ${emailClean} / ${celularClean}`);
+      return {
+        success: true,
+        ya_registrado: true,
+        asistente: existente,
+        evento: {
+          id: evento.id,
+          nombre: evento.nombre,
+          fecha_inicio: evento.fecha_inicio,
+          link_reunion: evento.link_reunion,
+          duracion_minutos: evento.duracion_minutos,
+        },
+        calendar_links: calendarLinks,
+        message: `¡Hola ${existente.nombre}! Ya te encuentras registrado para este evento. Tu lugar está asegurado.`,
+      };
+    }
+
+    // 4. Si es nuevo registro, insertar asistente en afinitivebd.asistentes_evento
     const asistentePayload = {
       evento_id: eventoId,
       nombre: nombreClean,
@@ -355,10 +385,7 @@ export class EventosService implements OnModuleInit {
       throw new BadRequestException(`Error al guardar registro: ${insertError.message}`);
     }
 
-    // 3. Generar enlaces de calendario directos para el cliente
-    const calendarLinks = this.generarEnlacesCalendario(evento, nombreClean);
-
-    // 4. Enviar Correo de Confirmación con Enlace de Zoom e Invitación al Cliente
+    // 5. Enviar Correo de Confirmación con Enlace de Zoom e Invitación al Cliente
     try {
       await this.enviarCorreoConfirmacion(evento, {
         nombre: nombreClean,
@@ -371,6 +398,7 @@ export class EventosService implements OnModuleInit {
 
     return {
       success: true,
+      ya_registrado: false,
       asistente: asistenteInsertado,
       evento: {
         id: evento.id,

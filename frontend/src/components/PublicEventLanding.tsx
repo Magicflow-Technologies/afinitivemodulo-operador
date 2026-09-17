@@ -78,6 +78,7 @@ export default function PublicEventLanding({ eventId: propEventId }: PublicEvent
 
   const [submitting, setSubmitting] = useState(false);
   const [registered, setRegistered] = useState(false);
+  const [isAlreadyRegistered, setIsAlreadyRegistered] = useState(false);
   const [copiedLink, setCopiedLink] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
@@ -223,6 +224,9 @@ export default function PublicEventLanding({ eventId: propEventId }: PublicEvent
       const result = await res.json();
       if (res.ok && result.success) {
         setRegistered(true);
+        if (result.ya_registrado) {
+          setIsAlreadyRegistered(true);
+        }
         if (result.calendar_links) {
           setCalendarLinks(result.calendar_links);
         }
@@ -506,20 +510,22 @@ export default function PublicEventLanding({ eventId: propEventId }: PublicEvent
           <div className="space-y-6 animate-in fade-in zoom-in-95 duration-300">
             
             {/* Top Success Badge */}
-            <div className="bg-white border-2 border-emerald-500/30 rounded-3xl p-6 shadow-xl shadow-slate-200/70 text-center">
-              <div className="w-16 h-16 bg-emerald-50 border-2 border-emerald-200 rounded-full flex items-center justify-center mx-auto mb-3 text-emerald-600 shadow-sm animate-bounce">
+            <div className={`bg-white border-2 ${isAlreadyRegistered ? 'border-amber-400/40' : 'border-emerald-500/30'} rounded-3xl p-6 shadow-xl shadow-slate-200/70 text-center`}>
+              <div className={`w-16 h-16 ${isAlreadyRegistered ? 'bg-amber-50 border-2 border-amber-200 text-amber-600' : 'bg-emerald-50 border-2 border-emerald-200 text-emerald-600'} rounded-full flex items-center justify-center mx-auto mb-3 shadow-sm animate-bounce`}>
                 <CheckCircle2 className="w-8 h-8" />
               </div>
 
-              <span className="text-[10px] font-extrabold uppercase tracking-wider text-emerald-800 bg-emerald-50 border border-emerald-200 px-3 py-1 rounded-full inline-block mb-2">
-                ¡Tu Cupo está Confirmado!
+              <span className={`text-[10px] font-extrabold uppercase tracking-wider ${isAlreadyRegistered ? 'text-amber-800 bg-amber-50 border border-amber-200' : 'text-emerald-800 bg-emerald-50 border border-emerald-200'} px-3 py-1 rounded-full inline-block mb-2`}>
+                {isAlreadyRegistered ? '✓ Ya estabas registrado para este evento' : '¡Tu Cupo está Confirmado!'}
               </span>
 
               <h2 className="text-2xl font-black text-slate-900 tracking-tight">
-                ¡Listo, {formData.nombre.split(' ')[0]}!
+                {isAlreadyRegistered ? `¡Hola de nuevo, ${formData.nombre.split(' ')[0]}!` : `¡Listo, ${formData.nombre.split(' ')[0]}!`}
               </h2>
               <p className="text-xs sm:text-sm text-slate-600 mt-1 max-w-md mx-auto">
-                Tu asistencia ha sido registrada. A continuación tienes el enlace oficial de Zoom y todos los detalles del evento:
+                {isAlreadyRegistered 
+                  ? 'Tu lugar ya se encuentra asegurado en nuestra lista. A continuación tienes el enlace oficial de Zoom y los detalles del evento:' 
+                  : 'Tu asistencia ha sido registrada exitosamente. A continuación tienes el enlace oficial de Zoom y todos los detalles del evento:'}
               </p>
 
               {/* Direct Zoom Room Button */}
