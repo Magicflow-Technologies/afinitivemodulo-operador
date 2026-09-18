@@ -423,7 +423,7 @@ export default function EmailMonitoringDashboard({ onNavigateToBooking }: EmailM
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
-  const handleUploadHtml = async (file: File, name: string, subj: string, category: string) => {
+  const handleUploadHtml = async (file: File, name: string, subj: string, category: string, actionType?: string) => {
     const text = await file.text();
     const response = await fetch(`${BACKEND_URL}/api/templates`, {
       method: 'POST',
@@ -433,6 +433,7 @@ export default function EmailMonitoringDashboard({ onNavigateToBooking }: EmailM
         subject: subj,
         htmlContent: text,
         type: 'full_html',
+        actionType: actionType || 'whatsapp_lead',
         category,
         createdBy: 'manual',
       }),
@@ -615,10 +616,19 @@ export default function EmailMonitoringDashboard({ onNavigateToBooking }: EmailM
           throw new Error('No se encontraron contactos válidos en el archivo CSV. Asegúrate de tener las columnas: Nombre, Correo, Celular (opcional)');
         }
 
+        const isLeadGen = selectedTemplate?.actionType === 'whatsapp_lead' || 
+                          selectedTemplate?.action_type === 'whatsapp_lead' ||
+                          selectedTemplate?.name?.toLowerCase().includes('whatsapp');
+        const uploadMode = isLeadGen ? 'lead_generation' : 'calendar_booking';
+
         const response = await fetch(`${BACKEND_URL}/api/test-email/queue/load`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ contacts, tag: campaignTag.trim() || undefined }),
+          body: JSON.stringify({ 
+            contacts, 
+            tag: campaignTag.trim() || undefined,
+            mode: uploadMode
+          }),
         });
 
         if (!response.ok) {
@@ -635,10 +645,16 @@ export default function EmailMonitoringDashboard({ onNavigateToBooking }: EmailM
             skippedCount: result.skippedCount,
             skippedContacts: result.skippedContacts || [],
           });
-          setSuccessMsg(`¡Campaña procesada! ${result.validCount} contactos válidos agendados en Google Calendar. Se omitieron ${result.skippedCount} contactos duplicados o enviados en los últimos 60 días.`);
+          const modeDetail = isLeadGen 
+            ? 'listos para envío directo por WhatsApp' 
+            : 'agendados en Google Calendar';
+          setSuccessMsg(`¡Campaña procesada! ${result.validCount} contactos válidos ${modeDetail}. Se omitieron ${result.skippedCount} contactos duplicados o enviados en los últimos 60 días.`);
         } else {
           setUploadSummary(null);
-          setSuccessMsg(`¡CSV cargado con éxito! Se procesaron ${result.validCount || contacts.length} contactos y se asignaron horarios de Google Calendar.`);
+          const modeDetail = isLeadGen 
+            ? 'listos para envío directo con enlace a WhatsApp (sin ocupar agenda).' 
+            : 'y se asignaron horarios de Google Calendar.';
+          setSuccessMsg(`¡CSV cargado con éxito! Se procesaron ${result.validCount || contacts.length} contactos ${modeDetail}`);
         }
         await fetchPendingQueue();
       } catch (err: any) {
@@ -2087,11 +2103,16 @@ export default function EmailMonitoringDashboard({ onNavigateToBooking }: EmailM
                           }}
                           className="px-3 py-1.5 bg-brand-navy-dark border border-brand-gold/30 rounded-lg text-xs font-semibold text-slate-100 outline-none focus:border-brand-gold max-w-xs sm:max-w-sm truncate"
                         >
-                          {templates.map((tpl) => (
-                            <option key={tpl.id} value={tpl.id}>
-                              {tpl.name} ({tpl.type === 'full_html' ? 'Landing HTML' : 'Institucional'})
-                            </option>
-                          ))}
+                          {templates.map((tpl) => {
+                            const isWhatsapp = tpl.actionType === 'whatsapp_lead' || tpl.action_type === 'whatsapp_lead' || tpl.name?.toLowerCase().includes('whatsapp');
+                            const isEvent = tpl.actionType === 'event_invitation' || tpl.category === 'Eventos & Landings';
+                            const badgeLabel = isWhatsapp ? '💬 WhatsApp' : isEvent ? '🎟️ Evento' : '📅 Agenda 1 a 1';
+                            return (
+                              <option key={tpl.id} value={tpl.id}>
+                                {tpl.name} ({badgeLabel})
+                              </option>
+                            );
+                          })}
                         </select>
                         {selectedTemplate && (
                           <span className="text-[10px] px-2 py-0.5 rounded-full bg-slate-800 text-slate-300 border border-slate-700 hidden md:inline">
@@ -2113,6 +2134,50 @@ export default function EmailMonitoringDashboard({ onNavigateToBooking }: EmailM
                     </button>
                   </div>
                 </div>
+
+                {/* Banner Informativo del Modo de la Plantilla */}
+                {selectedTemplate?.actionType === 'whatsapp_lead' || selectedTemplate?.action_type === 'whatsapp_lead' || selectedTemplate?.name?.toLowerCase().includes('whatsapp') ? (
+                  <div className="bg-emerald-950/40 border border-emerald-500/40 rounded-xl p-4 flex items-start gap-3 shadow-inner">
+                    <div className="p-2 rounded-lg bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 shrink-0">
+                      <MessageCircle className="w-5 h-5" />
+                    </div>
+                    <div className="space-y-0.5">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <h4 className="text-xs font-bold text-emerald-300">Modo de Captación Activo (Filtro por WhatsApp)</h4>
+                        <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-200 border border-emerald-500/30 font-semibold">
+                          Protección de Agenda
+                        </span>
+                      </div>
+                      <p className="text-[11px] text-slate-300 leading-relaxed">
+                        Esta plantilla <strong>no consume ni satura horarios de Google Calendar</strong>. Los contactos se procesan al instante y cada correo incluye un enlace directo a tu WhatsApp oficial (+{whatsappNumber.replace(/\D/g, '') || '51982100208'}) para filtrar y recopilar el celular del cliente antes de agendar citas.
+                      </p>
+                    </div>
+                  </div>
+                ) : selectedTemplate?.actionType === 'event_invitation' || selectedTemplate?.category === 'Eventos & Landings' ? (
+                  <div className="bg-amber-950/40 border border-amber-500/40 rounded-xl p-4 flex items-start gap-3 shadow-inner">
+                    <div className="p-2 rounded-lg bg-amber-500/20 text-amber-400 border border-amber-500/30 shrink-0">
+                      <Calendar className="w-5 h-5" />
+                    </div>
+                    <div className="space-y-0.5">
+                      <h4 className="text-xs font-bold text-amber-300">Modo Invitación a Evento & Landing</h4>
+                      <p className="text-[11px] text-slate-300 leading-relaxed">
+                        El correo redirigirá a la Landing Page oficial del evento para registro de asistentes y agendamiento grupal.
+                      </p>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="bg-blue-950/30 border border-blue-500/30 rounded-xl p-4 flex items-start gap-3 shadow-inner">
+                    <div className="p-2 rounded-lg bg-blue-500/20 text-blue-400 border border-blue-500/30 shrink-0">
+                      <Calendar className="w-5 h-5" />
+                    </div>
+                    <div className="space-y-0.5">
+                      <h4 className="text-xs font-bold text-blue-300">Modo Agendamiento Individual 1 a 1</h4>
+                      <p className="text-[11px] text-slate-300 leading-relaxed">
+                        El sistema consultará Google Calendar para asignar automáticamente una fecha y hora libre a cada prospecto.
+                      </p>
+                    </div>
+                  </div>
+                )}
 
                 {/* Visor de Previsualización en Campaña */}
                 <LiveEmailPreview

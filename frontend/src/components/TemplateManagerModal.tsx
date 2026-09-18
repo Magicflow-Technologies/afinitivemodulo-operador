@@ -15,6 +15,8 @@ export interface EmailTemplateItem {
   name: string;
   subject: string;
   type: 'full_html' | 'standard_wrapper';
+  actionType?: 'whatsapp_lead' | 'calendar_booking' | 'event_invitation' | 'custom_html';
+  action_type?: string;
   htmlContent?: string;
   html_content?: string;
   category: string;
@@ -32,7 +34,7 @@ interface TemplateManagerModalProps {
   templates: EmailTemplateItem[];
   selectedTemplateId: string | null;
   onSelectTemplate: (template: EmailTemplateItem) => void;
-  onUploadHtml: (file: File, name: string, subject: string, category: string) => Promise<void>;
+  onUploadHtml: (file: File, name: string, subject: string, category: string, actionType?: string) => Promise<void>;
   onDeleteTemplate: (id: string) => Promise<void>;
 }
 
@@ -52,6 +54,7 @@ export const TemplateManagerModal: React.FC<TemplateManagerModalProps> = ({
   const [templateName, setTemplateName] = useState('');
   const [templateSubject, setTemplateSubject] = useState('');
   const [templateCategory, setTemplateCategory] = useState('Inmobiliario');
+  const [templateActionType, setTemplateActionType] = useState<'whatsapp_lead' | 'calendar_booking'>('whatsapp_lead');
   const [uploading, setUploading] = useState(false);
 
   if (!isOpen) return null;
@@ -83,98 +86,97 @@ export const TemplateManagerModal: React.FC<TemplateManagerModalProps> = ({
 
   const processFile = (file: File) => {
     if (!file.name.endsWith('.html') && !file.name.endsWith('.htm')) {
-      alert('Por favor selecciona un archivo con extensión .html');
+      alert('Solo se admiten archivos .html o .htm');
       return;
     }
     setDroppedFile(file);
-    const suggestedName = file.name.replace(/\.[^/.]+$/, '').replace(/[-_]/g, ' ');
-    setTemplateName(suggestedName.charAt(0).toUpperCase() + suggestedName.slice(1));
-    setTemplateSubject(`Oportunidad Exclusiva - ${suggestedName}`);
+    if (!templateName) {
+      const cleanName = file.name.replace(/\.[^/.]+$/, '').replace(/[_-]/g, ' ');
+      setTemplateName(cleanName.charAt(0).toUpperCase() + cleanName.slice(1));
+    }
+    if (!templateSubject) {
+      setTemplateSubject('Invitación Exclusiva - Afinitive');
+    }
     setActiveTab('upload');
   };
 
-  const handleSubmitUpload = async (e: React.FormEvent) => {
+  const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!droppedFile || !templateName.trim() || !templateSubject.trim()) return;
-
+    if (!droppedFile || !templateName.trim()) {
+      alert('Por favor selecciona un archivo HTML e indica el nombre');
+      return;
+    }
     setUploading(true);
     try {
-      await onUploadHtml(droppedFile, templateName, templateSubject, templateCategory);
+      await onUploadHtml(droppedFile, templateName, templateSubject, templateCategory, templateActionType);
       setDroppedFile(null);
       setTemplateName('');
       setTemplateSubject('');
       setActiveTab('catalog');
     } catch (err: any) {
-      alert(`Error al subir plantilla: ${err.message}`);
+      alert(err.message || 'Error al subir plantilla');
     } finally {
       setUploading(false);
     }
   };
 
-  const filteredTemplates = templates.filter((t) => {
-    if (!searchQuery.trim()) return true;
-    const q = searchQuery.toLowerCase();
-    return t.name.toLowerCase().includes(q) || t.subject.toLowerCase().includes(q) || t.category?.toLowerCase().includes(q);
-  });
+  const filteredTemplates = templates.filter(
+    (t) =>
+      t.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      t.subject.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      (t.category && t.category.toLowerCase().includes(searchQuery.toLowerCase()))
+  );
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-fade-in">
-      <div className="bg-[#0D1B2A] border border-brand-gold/30 rounded-2xl w-full max-w-3xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
-        {/* Modal Header */}
-        <div className="p-5 border-b border-brand-gold/15 flex items-center justify-between bg-slate-950/60">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm animate-fade-in">
+      <div className="bg-[#0D1B2A] border border-brand-gold/30 rounded-2xl w-full max-w-3xl max-h-[85vh] flex flex-col shadow-2xl overflow-hidden">
+        {/* Cabecera del Modal */}
+        <div className="flex items-center justify-between p-5 border-b border-brand-gold/20 bg-brand-navy-dark">
           <div className="flex items-center gap-3">
             <div className="p-2.5 rounded-xl bg-brand-gold/10 border border-brand-gold/30 text-brand-gold">
               <FileCode className="w-5 h-5" />
             </div>
             <div>
-              <h2 className="text-base font-bold text-slate-100 flex items-center gap-2">
-                <span>Biblioteca de Plantillas de Correo</span>
-                <span className="text-xs px-2 py-0.5 rounded-full bg-brand-gold/10 text-brand-gold font-mono font-normal border border-brand-gold/30">
-                  {templates.length} disponibles
-                </span>
-              </h2>
+              <h3 className="font-bold text-base text-slate-100">Gestor de Plantillas de Correo</h3>
               <p className="text-xs text-slate-400">
-                Selecciona una plantilla corporativa o sube diseños HTML completos creados por el dueño o el Agente IA.
+                Selecciona plantillas de captación WhatsApp, agendamiento de citas o sube tus diseños en HTML.
               </p>
             </div>
           </div>
           <button
             onClick={onClose}
-            className="p-2 text-slate-400 hover:text-slate-200 hover:bg-slate-800 rounded-lg transition-all"
+            className="p-2 rounded-lg text-slate-400 hover:text-slate-100 hover:bg-slate-800/80 transition-colors"
           >
             <X className="w-5 h-5" />
           </button>
         </div>
 
-        {/* Modal Nav Tabs */}
-        <div className="flex border-b border-brand-gold/15 bg-[#09131E] px-5 pt-3 gap-2">
+        {/* Pestañas */}
+        <div className="flex border-b border-brand-gold/15 bg-[#08111B] px-5">
           <button
-            type="button"
             onClick={() => setActiveTab('catalog')}
-            className={`pb-3 px-4 text-xs font-semibold flex items-center gap-2 border-b-2 transition-all ${
+            className={`py-3 px-4 text-xs font-bold border-b-2 transition-all flex items-center gap-2 cursor-pointer ${
               activeTab === 'catalog'
                 ? 'border-brand-gold text-brand-gold'
                 : 'border-transparent text-slate-400 hover:text-slate-200'
             }`}
           >
-            <span>Catálogo Guardado</span>
-            <span className="px-1.5 py-0.2 rounded bg-slate-800 text-[10px]">{templates.length}</span>
+            <span>Catálogo de Plantillas ({templates.length})</span>
           </button>
           <button
-            type="button"
             onClick={() => setActiveTab('upload')}
-            className={`pb-3 px-4 text-xs font-semibold flex items-center gap-2 border-b-2 transition-all ${
+            className={`py-3 px-4 text-xs font-bold border-b-2 transition-all flex items-center gap-2 cursor-pointer ${
               activeTab === 'upload'
                 ? 'border-brand-gold text-brand-gold'
                 : 'border-transparent text-slate-400 hover:text-slate-200'
             }`}
           >
-            <Upload className="w-3.5 h-3.5" />
-            <span>Subir Nuevo .HTML</span>
+            <Plus className="w-3.5 h-3.5" />
+            <span>Subir Nueva Plantilla (.HTML)</span>
           </button>
         </div>
 
-        {/* Modal Body */}
+        {/* Contenido */}
         <div className="p-5 overflow-y-auto flex-1 space-y-4">
           {activeTab === 'catalog' ? (
             <>
@@ -196,6 +198,8 @@ export const TemplateManagerModal: React.FC<TemplateManagerModalProps> = ({
                   const isSelected = selectedTemplateId === template.id;
                   const isAi = (template.createdBy || template.created_by) === 'ai_agent';
                   const isFull = template.type === 'full_html';
+                  const isWhatsapp = template.actionType === 'whatsapp_lead' || template.action_type === 'whatsapp_lead' || template.name?.toLowerCase().includes('whatsapp');
+                  const isEvent = template.actionType === 'event_invitation' || template.category === 'Eventos & Landings';
 
                   return (
                     <div
@@ -229,6 +233,20 @@ export const TemplateManagerModal: React.FC<TemplateManagerModalProps> = ({
                         </p>
 
                         <div className="flex items-center gap-1.5 flex-wrap pt-1">
+                          {isWhatsapp ? (
+                            <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 flex items-center gap-1">
+                              💬 Captación WhatsApp
+                            </span>
+                          ) : isEvent ? (
+                            <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-500/20 text-amber-300 border border-amber-500/40 flex items-center gap-1">
+                              🎟️ Evento & Landing
+                            </span>
+                          ) : (
+                            <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-blue-500/20 text-blue-300 border border-blue-500/40 flex items-center gap-1">
+                              📅 Agenda 1 a 1
+                            </span>
+                          )}
+
                           {isAi && (
                             <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-purple-500/20 text-purple-300 border border-purple-500/40 flex items-center gap-1">
                               <Sparkles className="w-3 h-3 text-purple-400" /> Agente IA
@@ -239,7 +257,7 @@ export const TemplateManagerModal: React.FC<TemplateManagerModalProps> = ({
                               Landing HTML
                             </span>
                           ) : (
-                            <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-blue-500/15 text-blue-300 border border-blue-500/30">
+                            <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-slate-800 text-slate-300 border border-slate-700">
                               Institucional
                             </span>
                           )}
@@ -281,7 +299,7 @@ export const TemplateManagerModal: React.FC<TemplateManagerModalProps> = ({
             </>
           ) : (
             /* Tab: Subir Archivo HTML */
-            <form onSubmit={handleSubmitUpload} className="space-y-4">
+            <form onSubmit={handleSave} className="space-y-4">
               {/* Zona Drag & Drop */}
               <div
                 onDragEnter={handleDrag}
@@ -331,10 +349,10 @@ export const TemplateManagerModal: React.FC<TemplateManagerModalProps> = ({
               </div>
 
               {/* Formulario de Metadatos */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                 <div className="space-y-1.5">
                   <label className="text-xs text-brand-gold font-medium uppercase tracking-wider block">
-                    Nombre de la Campaña / Plantilla
+                    Nombre de la Plantilla
                   </label>
                   <input
                     type="text"
@@ -344,6 +362,20 @@ export const TemplateManagerModal: React.FC<TemplateManagerModalProps> = ({
                     onChange={(e) => setTemplateName(e.target.value)}
                     className="w-full px-3.5 py-2.5 bg-brand-navy-dark border border-brand-gold/20 rounded-xl text-xs text-slate-100 placeholder-slate-500 outline-none focus:border-brand-gold"
                   />
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="text-xs text-brand-gold font-medium uppercase tracking-wider block">
+                    Tipo de Acción
+                  </label>
+                  <select
+                    value={templateActionType}
+                    onChange={(e) => setTemplateActionType(e.target.value as any)}
+                    className="w-full px-3.5 py-2.5 bg-brand-navy-dark border border-brand-gold/20 rounded-xl text-xs text-slate-100 outline-none focus:border-brand-gold"
+                  >
+                    <option value="whatsapp_lead">💬 Captación WhatsApp (Sin slots)</option>
+                    <option value="calendar_booking">📅 Agendamiento Cita 1 a 1</option>
+                  </select>
                 </div>
 
                 <div className="space-y-1.5">
@@ -371,7 +403,7 @@ export const TemplateManagerModal: React.FC<TemplateManagerModalProps> = ({
                 <input
                   type="text"
                   required
-                  placeholder="Ej: The New York Tower · Preventa a un paso del Parque Kennedy"
+                  placeholder="Ej: {{nombre}}, invitación a evento online de inversión inmobiliaria"
                   value={templateSubject}
                   onChange={(e) => setTemplateSubject(e.target.value)}
                   className="w-full px-3.5 py-2.5 bg-brand-navy-dark border border-brand-gold/20 rounded-xl text-xs text-slate-100 placeholder-slate-500 outline-none focus:border-brand-gold"

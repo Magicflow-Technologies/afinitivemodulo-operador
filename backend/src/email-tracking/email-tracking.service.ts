@@ -642,7 +642,11 @@ export class EmailTrackingService {
     return this.createLimaDate(fallbackDay.year, fallbackDay.month, fallbackDay.day + 1, morningS.hours || 9, morningS.minutes || 0);
   }
 
-  async loadContactsIntoQueue(contacts: { name: string; email: string; phone?: string; tag?: string }[], tag?: string) {
+  async loadContactsIntoQueue(
+    contacts: { name: string; email: string; phone?: string; tag?: string }[], 
+    tag?: string,
+    mode?: 'lead_generation' | 'calendar_booking' | string
+  ) {
     if (!this.supabase) {
       throw new HttpException('El servicio de Supabase no está configurado', HttpStatus.INTERNAL_SERVER_ERROR);
     }
@@ -656,6 +660,7 @@ export class EmailTrackingService {
     // 2. Obtener configuraciones de agenda
     const settings = await this.getCalendarSettings();
     const calendarId = 'rbertalmio@afinitive.com';
+    const isLeadGenerationMode = mode === 'lead_generation' || mode === 'whatsapp_lead';
 
     // 3. Consultar histórico de envíos de Supabase (email_tracking_test) para validar duplicidad y regla de enfriamiento (60 días)
     const { data: trackingHistory, error: historyErr } = await this.supabase
@@ -724,49 +729,64 @@ export class EmailTrackingService {
       validContacts.push(contact);
     }
 
-    // 5. Consultar eventos de Ricardo en Google Calendar para los próximos 14 días
-    let occupiedEvents: any[] = [];
-    try {
-      const auth = this.getGoogleAuth(['https://www.googleapis.com/auth/calendar.readonly']);
-      const calendar = google.calendar({ version: 'v3', auth });
-      const response = await calendar.events.list({
-        calendarId: calendarId,
-        timeMin: new Date().toISOString(),
-        timeMax: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString(),
-        singleEvents: true,
-        orderBy: 'startTime',
-      });
-      occupiedEvents = response.data.items || [];
-    } catch (err) {
-      this.logger.error(`Error consultando calendario de Ricardo para asignación de cola: ${err.message}`);
-    }
-
     const reservedSlots: Date[] = [];
     const queueItems: any[] = [];
 
-    // 6. Calcular slot y armar records ÚNICAMENTE para los contactos válidos
-    for (const contact of validContacts) {
-      const slotTime = await this.findNextAvailableSlot(
-        calendarId,
-        settings.slot_duration,
-        settings.morning_start,
-        settings.morning_end,
-        settings.afternoon_start,
-        settings.afternoon_end,
-        occupiedEvents,
-        reservedSlots
-      );
+    if (isLeadGenerationMode) {
+      // MODO CAPTACIÓN / WHATSAPP: Carga directa instantánea (sin llamadas a Google Calendar)
+      this.logger.log(`Cargando ${validContacts.length} contactos en modo CAPTACIÓN (sin bloqueo de calendario).`);
+      for (const contact of validContacts) {
+        queueItems.push({
+          recipient_name: contact.name,
+          recipient_email: contact.email,
+          recipient_phone: contact.phone || null,
+          proposed_time: null,
+          tag: contact.tag || tag || null,
+          status: 'pending'
+        });
+      }
+    } else {
+      // MODO AGENDAMIENTO 1 A 1: Consultar eventos de Ricardo en Google Calendar para los próximos 14 días
+      let occupiedEvents: any[] = [];
+      try {
+        const auth = this.getGoogleAuth(['https://www.googleapis.com/auth/calendar.readonly']);
+        const calendar = google.calendar({ version: 'v3', auth });
+        const response = await calendar.events.list({
+          calendarId: calendarId,
+          timeMin: new Date().toISOString(),
+          timeMax: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString(),
+          singleEvents: true,
+          orderBy: 'startTime',
+        });
+        occupiedEvents = response.data.items || [];
+      } catch (err) {
+        this.logger.error(`Error consultando calendario de Ricardo para asignación de cola: ${err.message}`);
+      }
 
-      reservedSlots.push(slotTime);
+      // Calcular slot y armar records ÚNICAMENTE para los contactos válidos
+      for (const contact of validContacts) {
+        const slotTime = await this.findNextAvailableSlot(
+          calendarId,
+          settings.slot_duration,
+          settings.morning_start,
+          settings.morning_end,
+          settings.afternoon_start,
+          settings.afternoon_end,
+          occupiedEvents,
+          reservedSlots
+        );
 
-      queueItems.push({
-        recipient_name: contact.name,
-        recipient_email: contact.email,
-        recipient_phone: contact.phone || null,
-        proposed_time: slotTime.toISOString(),
-        tag: contact.tag || tag || null,
-        status: 'pending'
-      });
+        reservedSlots.push(slotTime);
+
+        queueItems.push({
+          recipient_name: contact.name,
+          recipient_email: contact.email,
+          recipient_phone: contact.phone || null,
+          proposed_time: slotTime.toISOString(),
+          tag: contact.tag || tag || null,
+          status: 'pending'
+        });
+      }
     }
 
     // 7. Guardar en base de datos
@@ -796,11 +816,97 @@ export class EmailTrackingService {
 
     return {
       success: true,
+      mode: isLeadGenerationMode ? 'lead_generation' : 'calendar_booking',
       totalUploaded: contacts.length,
       validCount: queueItems.length,
       skippedCount: skippedContacts.length,
       skippedContacts,
       data: insertedData,
+    };
+  }
+
+  // --- Endpoints y Utilidades AI-Ready para Agentes Inteligentes ---
+  async getCampaignSchema() {
+    const templates = await this.templatesService.listTemplates({ isActive: true });
+    const settings = await this.getCalendarSettings();
+
+    return {
+      system: 'Afinitive Omnichannel Campaign Engine',
+      version: '2.5.0',
+      aiReady: true,
+      description: 'Manifiesto y especificación para despacho y control de campañas de correo por Agentes de IA.',
+      modes: {
+        lead_generation: 'Campaña de captación por WhatsApp. No consume ni bloquea slots de Google Calendar. Ideal para prospectos fríos.',
+        calendar_booking: 'Agendamiento individual 1 a 1. Calcula slots libres en Google Calendar y propone horarios.'
+      },
+      templates: templates.map(t => ({
+        id: t.id,
+        name: t.name,
+        category: t.category,
+        actionType: (t as any).actionType || 'calendar_booking',
+        subject: t.subject,
+        supportedVariables: [
+          '{{nombre}}',
+          '{{saludo}}',
+          '{{fecha_reunion}}',
+          '{{whatsapp_link}}',
+          '{{agendar_link}}',
+          '{{firma_nombre}}',
+          '{{firma_cargo}}'
+        ]
+      })),
+      defaultSettings: {
+        whatsappNumber: settings.whatsapp_number || '51982100208',
+        slotDuration: settings.slot_duration,
+        sendInterval: settings.send_interval,
+        sendIntervalUnit: settings.send_interval_unit
+      }
+    };
+  }
+
+  async dispatchCampaignFromAgent(payload: {
+    contacts: { name: string; email: string; phone?: string; tag?: string }[];
+    templateId?: string;
+    tag?: string;
+    mode?: 'lead_generation' | 'calendar_booking';
+    customSubject?: string;
+    customBody?: string;
+    sendInterval?: number;
+    sendIntervalUnit?: string;
+  }) {
+    // 1. Cargar contactos en la cola
+    const loadResult = await this.loadContactsIntoQueue(
+      payload.contacts, 
+      payload.tag, 
+      payload.mode || 'lead_generation'
+    );
+
+    if (loadResult.validCount === 0) {
+      return {
+        success: false,
+        message: 'No se encontraron contactos válidos (posibles duplicados o en periodo de enfriamiento).',
+        loadResult
+      };
+    }
+
+    // 2. Iniciar el procesamiento de la cola
+    const processResult = await this.processEmailQueue(
+      'ricardo',
+      undefined,
+      payload.sendInterval,
+      payload.sendIntervalUnit,
+      payload.templateId,
+      payload.customSubject,
+      payload.customBody,
+      undefined,
+      payload.tag
+    );
+
+    return {
+      success: true,
+      message: 'Campaña despachada exitosamente por Agente de IA.',
+      loadResult,
+      processResult
     };
   }
 

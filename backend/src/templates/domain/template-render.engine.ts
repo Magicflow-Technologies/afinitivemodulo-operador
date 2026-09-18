@@ -86,12 +86,19 @@ export class TemplateRenderEngine {
     const operatorRole = 'Soy economista de la Universidad del Pacífico y dirijo Afinitive Wealth Management';
     const operatorCalendarId = 'rbertalmio@afinitive.com';
 
-    // Generar enlaces de tracking
+    // Enlaces dinámicos de tracking
     const confirmMeetingLink = `${baseUrl}/api/test-email/confirm-meeting?calendarId=${operatorCalendarId}&time=${encodeURIComponent(context.proposedTime || '')}&email=${encodeURIComponent(context.recipientEmail || '')}&name=${encodeURIComponent(cleanName)}`;
     const whatsappTrackingLink = `${baseUrl}/api/test-email/whatsapp-click?email=${encodeURIComponent(context.recipientEmail || '')}&name=${encodeURIComponent(cleanName)}&signatureId=${signatureId}`;
 
-    // Botones de acción dinámicos institucionales
-    const actionButtonsHtml = `
+    // Determinar si la plantilla es exclusivamente para captación de WhatsApp (sin agendamiento de calendario)
+    const templateActionType = (template as any).actionType || context.actionType;
+    const isWhatsappOnly = templateActionType === 'whatsapp_lead' ||
+      (template as any).htmlContent?.includes('[SOLO_WHATSAPP]') ||
+      (template as any).htmlContent?.includes('[WHATSAPP_ONLY]') ||
+      (template as any).htmlContent?.includes('[SIN_CALENDARIO]');
+
+    // Botones de acción dinámicos institucionales (Modo Agendamiento 1 a 1)
+    const actionButtonsCalendarHtml = `
       <div style="text-align: center; margin: 30px 0 25px 0;">
         <div style="margin-bottom: 20px;">
           <a href="${confirmMeetingLink}" 
@@ -111,6 +118,22 @@ export class TemplateRenderEngine {
         </div>
       </div>
     `;
+
+    // Botón de acción institucional (Modo Captación / WhatsApp Exclusivo)
+    const actionButtonsWhatsappOnlyHtml = `
+      <div style="text-align: center; margin: 30px 0 25px 0;">
+        <a href="${whatsappTrackingLink}" 
+           target="_blank"
+           style="display: inline-block; background-color: #25D366; color: #FFFFFF; padding: 14px 34px; font-weight: bold; font-size: 15px; text-decoration: none; border-radius: 8px; letter-spacing: 0.5px; box-shadow: 0 4px 12px rgba(37, 211, 102, 0.35); font-family: Arial, sans-serif;">
+          📲 Escribir al WhatsApp de Ricardo
+        </a>
+        <p style="font-size: 12px; color: #64748B; margin: 10px 0 0 0; font-family: Arial, sans-serif;">
+          Haz clic para coordinar el acceso al evento y recibir los materiales.
+        </p>
+      </div>
+    `;
+
+    const activeActionButtonsHtml = isWhatsappOnly ? actionButtonsWhatsappOnlyHtml : actionButtonsCalendarHtml;
 
     // Reemplazo de variables universales en el cuerpo
     let processedContent = template.htmlContent || '';
@@ -138,25 +161,26 @@ export class TemplateRenderEngine {
     if (template.type === 'full_html') {
       let finalFullHtml = processedContent;
       
-      // Auto-detección y reemplazo universal de enlaces de Agenda / Calendario (incluye afinitive.com.pe/agenda)
-      finalFullHtml = finalFullHtml.replace(
-        /href=["']https?:\/\/(?:www\.)?afinitive\.com(?:\.pe)?\/(?:agenda|agendar|calendario|booking|cita|reservar)[^"']*["']/gi,
-        `href="${confirmMeetingLink}"`
-      );
+      // Auto-detección y reemplazo universal de enlaces de Agenda / Calendario
+      if (!isWhatsappOnly) {
+        finalFullHtml = finalFullHtml.replace(
+          /href=["']https?:\/\/(?:www\.)?afinitive\.com(?:\.pe)?\/(?:agenda|agendar|calendario|booking|cita|reservar)[^"']*["']/gi,
+          `href="${confirmMeetingLink}"`
+        );
 
-      finalFullHtml = finalFullHtml.replace(
-        /href=["'](#agendar|#agenda|#calendario|#cita|#booking|#confirmar-cita|#confirm-demo|#calendar-demo)["']/gi,
-        `href="${confirmMeetingLink}"`
-      );
+        finalFullHtml = finalFullHtml.replace(
+          /href=["'](#agendar|#agenda|#calendario|#cita|#booking|#confirmar-cita|#confirm-demo|#calendar-demo)["']/gi,
+          `href="${confirmMeetingLink}"`
+        );
 
-      // Reemplazo de enlaces cuyo texto sea agendar / cita / confirmar
-      finalFullHtml = finalFullHtml.replace(
-        /<a\s+([^>]*?)href=["'][^"']*["']([^>]*?>\s*(?:<[^>]+>\s*)*(?:Agenda|Agendar|Confirmar|Reservar)[^<]*?<\/a>)/gi,
-        (match, p1, p2) => {
-          if (match.includes(confirmMeetingLink)) return match;
-          return `<a ${p1}href="${confirmMeetingLink}"${p2}`;
-        }
-      );
+        finalFullHtml = finalFullHtml.replace(
+          /<a\s+([^>]*?)href=["'][^"']*["']([^>]*?>\s*(?:<[^>]+>\s*)*(?:Agenda|Agendar|Confirmar|Reservar)[^<]*?<\/a>)/gi,
+          (match, p1, p2) => {
+            if (match.includes(confirmMeetingLink)) return match;
+            return `<a ${p1}href="${confirmMeetingLink}"${p2}`;
+          }
+        );
+      }
 
       // Auto-detección y reemplazo inteligente de enlaces existentes de WhatsApp
       finalFullHtml = finalFullHtml.replace(
@@ -177,21 +201,21 @@ export class TemplateRenderEngine {
         }
       );
 
-
-
-      // Si el diseño contiene marcadores explícitos de botones
+      // Marcadores explícitos
+      if (finalFullHtml.includes('[SOLO_WHATSAPP]')) {
+        finalFullHtml = finalFullHtml.replace(/\[SOLO_WHATSAPP\]/g, actionButtonsWhatsappOnlyHtml);
+      }
       if (finalFullHtml.includes('[CONFIRMAR_CITA]')) {
-        finalFullHtml = finalFullHtml.replace('[CONFIRMAR_CITA]', actionButtonsHtml);
+        finalFullHtml = finalFullHtml.replace('[CONFIRMAR_CITA]', activeActionButtonsHtml);
       } else if (finalFullHtml.includes('[AGENDAR_LLAMADA]')) {
-        finalFullHtml = finalFullHtml.replace('[AGENDAR_LLAMADA]', actionButtonsHtml);
+        finalFullHtml = finalFullHtml.replace('[AGENDAR_LLAMADA]', activeActionButtonsHtml);
       } else if (finalFullHtml.includes('[BOTONES_ACCION]')) {
-        finalFullHtml = finalFullHtml.replace('[BOTONES_ACCION]', actionButtonsHtml);
+        finalFullHtml = finalFullHtml.replace('[BOTONES_ACCION]', activeActionButtonsHtml);
       } else if (!finalFullHtml.includes(whatsappTrackingLink) && !finalFullHtml.includes(confirmMeetingLink)) {
-        // Auto-Inyección Inteligente: Si el HTML no tiene ningún botón de conversión, inyectarlo al pie antes de </body>
         if (finalFullHtml.includes('</body>')) {
-          finalFullHtml = finalFullHtml.replace('</body>', `${actionButtonsHtml}</body>`);
+          finalFullHtml = finalFullHtml.replace('</body>', `${activeActionButtonsHtml}</body>`);
         } else {
-          finalFullHtml = finalFullHtml + actionButtonsHtml;
+          finalFullHtml = finalFullHtml + activeActionButtonsHtml;
         }
       }
 
@@ -208,12 +232,14 @@ export class TemplateRenderEngine {
     }
 
     // Marcadores de acción
-    if (processedContent.includes('[CONFIRMAR_CITA]')) {
-      processedContent = processedContent.replace('[CONFIRMAR_CITA]', actionButtonsHtml);
+    if (processedContent.includes('[SOLO_WHATSAPP]')) {
+      processedContent = processedContent.replace(/\[SOLO_WHATSAPP\]/g, actionButtonsWhatsappOnlyHtml);
+    } else if (processedContent.includes('[CONFIRMAR_CITA]')) {
+      processedContent = processedContent.replace('[CONFIRMAR_CITA]', activeActionButtonsHtml);
     } else if (processedContent.includes('[AGENDAR_LLAMADA]')) {
-      processedContent = processedContent.replace('[AGENDAR_LLAMADA]', actionButtonsHtml);
+      processedContent = processedContent.replace('[AGENDAR_LLAMADA]', activeActionButtonsHtml);
     } else {
-      processedContent = processedContent + actionButtonsHtml;
+      processedContent = processedContent + activeActionButtonsHtml;
     }
 
     const activeSignatureHtml = SIGNATURES.ricardo;

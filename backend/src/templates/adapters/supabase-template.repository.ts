@@ -8,9 +8,10 @@ import { buildEventEmailTemplateBackend } from '../domain/event-template.builder
 const DEFAULT_IN_MEMORY_TEMPLATES: EmailTemplate[] = [
   {
     id: '00000000-0000-0000-0000-000000000001',
-    name: 'Prospección Institucional (LinkedIn)',
+    name: 'Prospección Institucional (Agendamiento 1 a 1)',
     subject: 'Invitación Exclusiva - Afinitive Wealth Management',
     type: 'standard_wrapper',
+    actionType: 'calendar_booking',
     htmlContent: `Estimado/a {{nombre}}:
 
 Le escribo porque encontré su perfil en LinkedIn. Compartimos varios contactos en común, y me pareció oportuno tomar la iniciativa de escribirle.
@@ -34,6 +35,32 @@ Me avisa para agendar,`,
     createdBy: 'system',
     isActive: true,
     metadata: {},
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+  },
+  {
+    id: '00000000-0000-0000-0000-000000000002',
+    name: 'Invitación a Evento Online - Filtro WhatsApp (Alta Conversión)',
+    subject: '{{nombre}}, invitación a evento online de inversión inmobiliaria | Afinitive',
+    type: 'standard_wrapper',
+    actionType: 'whatsapp_lead',
+    htmlContent: `Hola <strong>{{nombre}}</strong>,
+
+Te saluda Ricardo Bertalmio de Afinitive.
+
+Tenemos nuevas oportunidades de inversión inmobiliaria con alta rentabilidad que podrían interesarte. Para compartirte los brochures, análisis de rentabilidad y precios directamente a tu teléfono:
+
+Realizaremos un <strong>evento online totalmente gratuito</strong> donde evaluaremos diferentes alternativas y proyectos de inversión en Lima. Puedes asistir sin compromiso alguno.
+
+Escríbenos a nuestro WhatsApp oficial para enviarte la fecha, el acceso de Zoom y el material preliminar:
+
+[SOLO_WHATSAPP]
+
+Saludos cordiales,`,
+    category: 'Prospección',
+    createdBy: 'system',
+    isActive: true,
+    metadata: { is_lead_magnet: true, channel: 'whatsapp' },
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
   }
@@ -64,6 +91,7 @@ export class SupabaseTemplateRepository implements ITemplateRepository {
       name: row.name,
       subject: row.subject,
       type: row.type || 'full_html',
+      actionType: row.action_type || row.actionType || (row.metadata?.actionType) || (row.name?.toLowerCase().includes('whatsapp') ? 'whatsapp_lead' : 'calendar_booking'),
       htmlContent: row.html_content || row.htmlContent,
       category: row.category || 'General',
       createdBy: row.created_by || row.createdBy || 'manual',
@@ -82,6 +110,7 @@ export class SupabaseTemplateRepository implements ITemplateRepository {
           name: dto.name,
           subject: dto.subject,
           type: dto.type || 'full_html',
+          action_type: dto.actionType || 'calendar_booking',
           html_content: dto.htmlContent,
           category: dto.category || 'General',
           created_by: dto.createdBy || 'manual',
@@ -101,6 +130,7 @@ export class SupabaseTemplateRepository implements ITemplateRepository {
       name: dto.name,
       subject: dto.subject,
       type: dto.type || 'full_html',
+      actionType: dto.actionType || 'calendar_booking',
       htmlContent: dto.htmlContent,
       category: dto.category || 'General',
       createdBy: dto.createdBy || 'manual',
@@ -168,6 +198,7 @@ export class SupabaseTemplateRepository implements ITemplateRepository {
                 name: tpl.name,
                 subject: tpl.subject,
                 type: 'standard_wrapper',
+                actionType: 'event_invitation',
                 htmlContent: tpl.htmlContent,
                 category: 'Eventos & Landings',
                 createdBy: 'eventos_modulo',
@@ -232,6 +263,7 @@ export class SupabaseTemplateRepository implements ITemplateRepository {
               name: tpl.name,
               subject: tpl.subject,
               type: 'standard_wrapper',
+              actionType: 'event_invitation',
               htmlContent: tpl.htmlContent,
               category: 'Eventos & Landings',
               createdBy: 'eventos_modulo',

@@ -73,8 +73,42 @@ export class EmailTrackingController {
 
   // --- Endpoints de Gestión de la Cola ---
   @Post('queue/load')
-  async loadQueue(@Body() body: { contacts: { name: string; email: string; phone?: string; tag?: string }[]; tag?: string; etiqueta?: string }) {
-    return await this.emailTrackingService.loadContactsIntoQueue(body.contacts, body.tag || body.etiqueta);
+  async loadQueue(
+    @Body() body: { 
+      contacts: { name: string; email: string; phone?: string; tag?: string }[]; 
+      tag?: string; 
+      etiqueta?: string;
+      mode?: 'lead_generation' | 'calendar_booking' | string;
+    }
+  ) {
+    return await this.emailTrackingService.loadContactsIntoQueue(
+      body.contacts, 
+      body.tag || body.etiqueta,
+      body.mode
+    );
+  }
+
+  // --- Endpoints AI-Ready para Control Autónomo de Campañas por Agentes de IA ---
+  @Get('campaign/schema')
+  async getCampaignSchema() {
+    return await this.emailTrackingService.getCampaignSchema();
+  }
+
+  @Post('campaign/dispatch')
+  @HttpCode(HttpStatus.OK)
+  async dispatchCampaign(
+    @Body() body: {
+      contacts: { name: string; email: string; phone?: string; tag?: string }[];
+      templateId?: string;
+      tag?: string;
+      mode?: 'lead_generation' | 'calendar_booking';
+      customSubject?: string;
+      customBody?: string;
+      sendInterval?: number;
+      sendIntervalUnit?: string;
+    }
+  ) {
+    return await this.emailTrackingService.dispatchCampaignFromAgent(body);
   }
 
   @Get('queue/pending')
