@@ -34,6 +34,7 @@ import { LiveEmailPreview } from './LiveEmailPreview';
 import { TemplateManagerModal } from './TemplateManagerModal';
 import EventManagerTab from './EventManagerTab';
 import type { EmailTemplateItem } from './TemplateManagerModal';
+import { buildEventEmailTemplate } from '../utils/eventEmailTemplate';
 
 interface EmailRecord {
   id: string;
@@ -397,6 +398,29 @@ export default function EmailMonitoringDashboard({ onNavigateToBooking }: EmailM
     setSubject(tpl.subject);
     const content = tpl.html_content || tpl.htmlContent || '';
     setEmailBody(content);
+  };
+
+  // Cargar un evento como plantilla de correo masivo
+  const handleUseEventAsCampaign = (ev: any) => {
+    const tpl = buildEventEmailTemplate(ev);
+    setSelectedTemplateId(tpl.id);
+    setSelectedTemplate({
+      id: tpl.id,
+      name: tpl.name,
+      subject: tpl.subject,
+      type: 'standard_wrapper',
+      htmlContent: tpl.htmlContent,
+      category: tpl.category,
+      isActive: true,
+    });
+    setSubject(tpl.subject);
+    setEmailBody(tpl.htmlContent);
+    const evTag = `EVENTO-${ev.id}`.toUpperCase().substring(0, 30);
+    setIndividualTag(evTag);
+    setCampaignTag(evTag);
+    setActiveTab('campanas');
+    setSuccessMsg(`¡Plantilla del evento "${ev.nombre}" cargada con éxito para tu campaña masiva!`);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
   const handleUploadHtml = async (file: File, name: string, subj: string, category: string) => {
@@ -2827,7 +2851,7 @@ export default function EmailMonitoringDashboard({ onNavigateToBooking }: EmailM
 
         {/* Pestaña: Gestor de Eventos & Landings */}
         {activeTab === 'eventos' && (
-          <EventManagerTab />
+          <EventManagerTab onUseAsCampaign={handleUseEventAsCampaign} />
         )}
 
         {/* Modal de Gestión y Carga de Plantillas */}

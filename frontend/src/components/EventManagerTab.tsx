@@ -19,7 +19,8 @@ import {
   Loader2,
   AlertTriangle,
   AlertCircle,
-  CheckCircle2
+  CheckCircle2,
+  Mail
 } from 'lucide-react';
 
 interface Evento {
@@ -45,7 +46,11 @@ interface Asistente {
   created_at: string;
 }
 
-export default function EventManagerTab() {
+interface EventManagerTabProps {
+  onUseAsCampaign?: (evento: Evento) => void;
+}
+
+export default function EventManagerTab({ onUseAsCampaign }: EventManagerTabProps = {}) {
   const [eventos, setEventos] = useState<Evento[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
@@ -524,7 +529,7 @@ export default function EventManagerTab() {
                     <div className="grid grid-cols-2 gap-2">
                       <button
                         onClick={() => handleCopyLink(ev.id)}
-                        className="flex items-center justify-center gap-1.5 py-2 px-3 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold border border-slate-700 transition-colors"
+                        className="flex items-center justify-center gap-1.5 py-2 px-3 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold border border-slate-700 transition-colors cursor-pointer"
                         title="Copiar enlace directo de la landing page"
                       >
                         {copiedId === ev.id ? (
@@ -542,7 +547,7 @@ export default function EventManagerTab() {
 
                       <button
                         onClick={() => handleCopyWhatsappInvitation(ev)}
-                        className="flex items-center justify-center gap-1.5 py-2 px-3 rounded-lg bg-emerald-950/40 hover:bg-emerald-900/60 text-emerald-300 text-xs font-semibold border border-emerald-700/50 transition-colors"
+                        className="flex items-center justify-center gap-1.5 py-2 px-3 rounded-lg bg-emerald-950/40 hover:bg-emerald-900/60 text-emerald-300 text-xs font-semibold border border-emerald-700/50 transition-colors cursor-pointer"
                         title="Copiar texto formateado listo para WhatsApp"
                       >
                         {copiedWspId === ev.id ? (
@@ -558,6 +563,18 @@ export default function EventManagerTab() {
                         )}
                       </button>
                     </div>
+
+                    {/* Botón: Crear Campaña Masiva de Correo con este Evento */}
+                    {onUseAsCampaign && (
+                      <button
+                        onClick={() => onUseAsCampaign(ev)}
+                        className="w-full flex items-center justify-center gap-2 py-2 px-3 rounded-lg bg-gradient-to-r from-amber-500/15 via-amber-500/25 to-amber-500/15 hover:from-amber-500/30 hover:to-amber-500/30 text-amber-300 border border-amber-500/40 text-xs font-bold transition-all shadow-sm cursor-pointer active:scale-98"
+                        title="Cargar este evento como plantilla en el módulo de envíos y campañas"
+                      >
+                        <Mail className="w-3.5 h-3.5 text-amber-400" />
+                        <span>✉️ Usar como Plantilla de Correo Masivo</span>
+                      </button>
+                    )}
 
                     {/* Secondary Management Row */}
                     <div className="flex items-center justify-between pt-2 border-t border-slate-800/60">

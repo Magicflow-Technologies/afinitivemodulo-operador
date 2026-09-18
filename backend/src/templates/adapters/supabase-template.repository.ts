@@ -3,6 +3,7 @@ import { ConfigService } from '@nestjs/config';
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
 import { ITemplateRepository } from '../ports/template-repository.port';
 import { EmailTemplate, CreateTemplateDto, UpdateTemplateDto } from '../domain/email-template.entity';
+import { buildEventEmailTemplateBackend } from '../domain/event-template.builder';
 
 const DEFAULT_IN_MEMORY_TEMPLATES: EmailTemplate[] = [
   {
@@ -113,6 +114,8 @@ export class SupabaseTemplateRepository implements ITemplateRepository {
   }
 
   async findAll(filter?: { category?: string; isActive?: boolean }): Promise<EmailTemplate[]> {
+    let combinedTemplates: EmailTemplate[] = [];
+
     if (this.supabase) {
       try {
         let query = this.supabase
@@ -120,7 +123,7 @@ export class SupabaseTemplateRepository implements ITemplateRepository {
           .select('*')
           .order('created_at', { ascending: false });
 
-        if (filter?.category) {
+        if (filter?.category && filter.category !== 'Eventos & Landings') {
           query = query.eq('category', filter.category);
         }
 
@@ -128,13 +131,62 @@ export class SupabaseTemplateRepository implements ITemplateRepository {
           query = query.eq('is_active', filter.isActive);
         }
 
-        const { data, error } = await query;
+        const { data } = await query;
 
-        if (!error && data && data.length > 0) {
-          return data.map((row: any) => this.mapRowToEntity(row));
+        if (data && data.length > 0) {
+          combinedTemplates = data.map((row: any) => this.mapRowToEntity(row));
+        }
+
+        // Consultar eventos activos y transformarlos en plantillas
+        if (!filter?.category || filter.category === 'Eventos & Landings' || filter.category === 'Eventos') {
+          const { data: eventosData } = await this.supabase
+            .from('eventos')
+            .select('*')
+            .eq('activo', true)
+            .order('created_at', { ascending: false });
+
+          if (eventosData && eventosData.length > 0) {
+            const eventTemplates: EmailTemplate[] = eventosData.map((ev: any) => {
+              let imgUrl = ev.imagen_url;
+              let desc = ev.descripcion || '';
+              if (!imgUrl && desc && desc.includes('[IMG_URL:')) {
+                const match = desc.match(/\[IMG_URL:(.*?)\]/);
+                if (match) imgUrl = match[1];
+              }
+
+              const tpl = buildEventEmailTemplateBackend({
+                id: ev.id,
+                nombre: ev.nombre,
+                fecha_inicio: ev.fecha_inicio,
+                link_reunion: ev.link_reunion,
+                descripcion: desc,
+                imagen_url: imgUrl,
+              });
+
+              return {
+                id: `evento:${ev.id}`,
+                name: tpl.name,
+                subject: tpl.subject,
+                type: 'standard_wrapper',
+                htmlContent: tpl.htmlContent,
+                category: 'Eventos & Landings',
+                createdBy: 'eventos_modulo',
+                isActive: true,
+                metadata: { evento_id: ev.id },
+                createdAt: ev.created_at,
+                updatedAt: ev.created_at,
+              };
+            });
+
+            combinedTemplates = [...eventTemplates, ...combinedTemplates];
+          }
+        }
+
+        if (combinedTemplates.length > 0) {
+          return combinedTemplates;
         }
       } catch (err: any) {
-        this.logger.warn(`Error al consultar tabla en Supabase: ${err.message}.`);
+        this.logger.warn(`Error al consultar plantillas/eventos en Supabase: ${err.message}.`);
       }
     }
 
@@ -147,6 +199,54 @@ export class SupabaseTemplateRepository implements ITemplateRepository {
   }
 
   async findById(id: string): Promise<EmailTemplate | null> {
+    // Si es un ID dinámico de evento
+    if (id.startsWith('evento:')) {
+      const realEventoId = id.replace('evento:', '');
+      if (this.supabase) {
+        try {
+          const { data: ev } = await this.supabase
+            .from('eventos')
+            .select('*')
+            .eq('id', realEventoId)
+            .maybeSingle();
+
+          if (ev) {
+            let imgUrl = ev.imagen_url;
+            let desc = ev.descripcion || '';
+            if (!imgUrl && desc && desc.includes('[IMG_URL:')) {
+              const match = desc.match(/\[IMG_URL:(.*?)\]/);
+              if (match) imgUrl = match[1];
+            }
+
+            const tpl = buildEventEmailTemplateBackend({
+              id: ev.id,
+              nombre: ev.nombre,
+              fecha_inicio: ev.fecha_inicio,
+              link_reunion: ev.link_reunion,
+              descripcion: desc,
+              imagen_url: imgUrl,
+            });
+
+            return {
+              id: `evento:${ev.id}`,
+              name: tpl.name,
+              subject: tpl.subject,
+              type: 'standard_wrapper',
+              htmlContent: tpl.htmlContent,
+              category: 'Eventos & Landings',
+              createdBy: 'eventos_modulo',
+              isActive: true,
+              metadata: { evento_id: ev.id },
+              createdAt: ev.created_at,
+              updatedAt: ev.created_at,
+            };
+          }
+        } catch (e: any) {
+          this.logger.warn(`Error al buscar evento dinámico para plantilla: ${e.message}`);
+        }
+      }
+    }
+
     if (this.supabase) {
       try {
         const { data, error } = await this.supabase

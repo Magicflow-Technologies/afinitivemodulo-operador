@@ -1,6 +1,6 @@
 export type TemplateType = 'full_html' | 'standard_wrapper';
-export type TemplateCategory = 'General' | 'Inmobiliario' | 'Prospección' | 'Eventos' | 'Seguimiento';
-export type TemplateCreator = 'manual' | 'ai_agent' | 'system';
+export type TemplateCategory = 'General' | 'Inmobiliario' | 'Prospección' | 'Eventos' | 'Eventos & Landings' | 'Seguimiento';
+export type TemplateCreator = 'manual' | 'ai_agent' | 'system' | 'eventos_modulo';
 
 export interface EmailTemplate {
   id: string;
