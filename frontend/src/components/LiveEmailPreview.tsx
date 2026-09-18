@@ -274,50 +274,50 @@ export const LiveEmailPreview: React.FC<LiveEmailPreviewProps> = ({
   }, [rawHtmlOrBody, templateType, simulatedName, greeting, formattedDate, operatorName, operatorRole, signatureId]);
 
   return (
-    <div className="bg-[#070F1E] border border-brand-gold/25 rounded-2xl shadow-2xl overflow-hidden flex flex-col">
+    <div className="bg-white border border-slate-200/90 rounded-2xl shadow-sm overflow-hidden flex flex-col transition-all">
       {/* Barra Superior de Control de la Vista Previa */}
-      <div className="p-4 bg-gradient-to-r from-[#0D1B2A] to-[#0A1420] border-b border-brand-gold/15 flex flex-wrap items-center justify-between gap-3">
+      <div className="p-4 bg-slate-50 border-b border-slate-200 flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-3">
-          <div className="p-2 rounded-lg bg-brand-gold/10 border border-brand-gold/30 text-brand-gold">
+          <div className="p-2 rounded-xl bg-slate-200/70 border border-slate-300 text-slate-700">
             <Eye className="w-4 h-4" />
           </div>
           <div>
-            <div className="flex items-center gap-2">
-              <h3 className="text-sm font-bold text-slate-100 flex items-center gap-1.5">
-                Vista Previa en Vivo
+            <div className="flex items-center gap-2 flex-wrap">
+              <h3 className="text-sm font-bold text-slate-900 flex items-center gap-1.5">
+                Vista Previa en Tiempo Real
               </h3>
               {createdBy === 'ai_agent' && (
-                <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-purple-500/20 text-purple-300 border border-purple-500/40 flex items-center gap-1">
-                  <Sparkles className="w-3 h-3 text-purple-400" /> Agente IA
+                <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-purple-100 text-purple-800 border border-purple-200 flex items-center gap-1">
+                  <Sparkles className="w-3 h-3 text-purple-600" /> Agente IA
                 </span>
               )}
               {templateType === 'full_html' ? (
-                <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-amber-500/15 text-amber-300 border border-amber-500/30">
+                <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-amber-50 text-amber-800 border border-amber-200">
                   Landing HTML Completo
                 </span>
               ) : (
-                <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-blue-500/15 text-blue-300 border border-blue-500/30">
+                <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-blue-50 text-blue-800 border border-blue-200">
                   Plantilla Corporativa
                 </span>
               )}
             </div>
-            <p className="text-xs text-slate-400 truncate max-w-xs sm:max-w-md">
-              {templateName} &bull; Asunto: <span className="text-slate-300 italic">{subject}</span>
+            <p className="text-xs text-slate-500 truncate max-w-xs sm:max-w-md mt-0.5">
+              {templateName} &bull; Asunto: <span className="text-slate-700 font-medium italic">{subject}</span>
             </p>
           </div>
         </div>
 
         {/* Controles de Dispositivo & Modo Código */}
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
           {/* Simulador de Nombre */}
-          <div className="flex items-center gap-1.5 bg-[#070F1E] border border-brand-gold/20 rounded-lg px-2.5 py-1 text-xs text-slate-300">
-            <User className="w-3.5 h-3.5 text-brand-gold" />
-            <span className="text-[10px] text-slate-400">Simular:</span>
+          <div className="flex items-center gap-1.5 bg-white border border-slate-300 rounded-lg px-2.5 py-1 text-xs text-slate-700 shadow-xs">
+            <User className="w-3.5 h-3.5 text-slate-500" />
+            <span className="text-[10px] text-slate-400 font-medium">Simular:</span>
             <input
               type="text"
               value={simulatedName}
               onChange={(e) => setSimulatedName(e.target.value)}
-              className="bg-transparent border-none text-xs text-brand-gold font-semibold outline-none w-20 sm:w-24 placeholder-slate-600"
+              className="bg-transparent border-none text-xs text-slate-900 font-bold outline-none w-20 sm:w-24 placeholder-slate-400"
               placeholder="Nombre"
             />
           </div>
@@ -326,10 +326,10 @@ export const LiveEmailPreview: React.FC<LiveEmailPreviewProps> = ({
           <button
             type="button"
             onClick={() => setViewCode(!viewCode)}
-            className={`p-1.5 rounded-lg border text-xs font-medium transition-all ${
+            className={`p-1.5 rounded-lg border text-xs font-medium transition-all cursor-pointer ${
               viewCode 
-                ? 'bg-brand-gold text-brand-navy border-brand-gold font-bold' 
-                : 'bg-brand-navy-dark text-slate-400 border-brand-gold/15 hover:text-slate-200'
+                ? 'bg-slate-900 text-white border-slate-900 font-bold shadow-xs' 
+                : 'bg-white text-slate-600 border-slate-300 hover:bg-slate-100'
             }`}
             title="Ver código fuente HTML"
           >
@@ -337,14 +337,14 @@ export const LiveEmailPreview: React.FC<LiveEmailPreviewProps> = ({
           </button>
 
           {/* Selector Desktop / Mobile */}
-          <div className="flex items-center bg-[#070F1E] border border-brand-gold/20 rounded-lg p-0.5">
+          <div className="flex items-center bg-slate-200/80 border border-slate-300 rounded-lg p-0.5">
             <button
               type="button"
               onClick={() => setDeviceMode('desktop')}
-              className={`flex items-center gap-1 px-2.5 py-1 rounded text-xs font-semibold transition-all ${
+              className={`flex items-center gap-1 px-2.5 py-1 rounded text-xs font-semibold transition-all cursor-pointer ${
                 deviceMode === 'desktop'
-                  ? 'bg-brand-gold text-brand-navy shadow-sm'
-                  : 'text-slate-400 hover:text-slate-200'
+                  ? 'bg-white text-slate-900 shadow-xs'
+                  : 'text-slate-600 hover:text-slate-900'
               }`}
             >
               <Monitor className="w-3.5 h-3.5" />
@@ -353,10 +353,10 @@ export const LiveEmailPreview: React.FC<LiveEmailPreviewProps> = ({
             <button
               type="button"
               onClick={() => setDeviceMode('mobile')}
-              className={`flex items-center gap-1 px-2.5 py-1 rounded text-xs font-semibold transition-all ${
+              className={`flex items-center gap-1 px-2.5 py-1 rounded text-xs font-semibold transition-all cursor-pointer ${
                 deviceMode === 'mobile'
-                  ? 'bg-brand-gold text-brand-navy shadow-sm'
-                  : 'text-slate-400 hover:text-slate-200'
+                  ? 'bg-white text-slate-900 shadow-xs'
+                  : 'text-slate-600 hover:text-slate-900'
               }`}
             >
               <Smartphone className="w-3.5 h-3.5" />
@@ -368,7 +368,7 @@ export const LiveEmailPreview: React.FC<LiveEmailPreviewProps> = ({
             <button
               type="button"
               onClick={onRefresh}
-              className="p-1.5 rounded-lg bg-brand-navy-dark text-slate-400 hover:text-brand-gold border border-brand-gold/15 transition-all"
+              className="p-1.5 rounded-lg bg-white text-slate-600 hover:text-slate-900 border border-slate-300 hover:bg-slate-100 transition-all cursor-pointer"
               title="Refrescar vista previa"
             >
               <RefreshCw className="w-4 h-4" />
@@ -378,17 +378,17 @@ export const LiveEmailPreview: React.FC<LiveEmailPreviewProps> = ({
       </div>
 
       {/* Contenedor del Visualizador */}
-      <div className="p-4 sm:p-6 bg-[#040810] flex items-center justify-center min-h-[460px] overflow-x-auto">
+      <div className="p-4 sm:p-6 bg-slate-100/70 border-t border-slate-200/60 flex items-center justify-center min-h-[460px] overflow-x-auto">
         {viewCode ? (
-          <div className="w-full max-w-4xl max-h-[600px] overflow-auto bg-slate-950 p-4 rounded-xl border border-slate-800 text-xs font-mono text-emerald-400">
+          <div className="w-full max-w-4xl max-h-[600px] overflow-auto bg-slate-900 p-4 rounded-xl border border-slate-800 text-xs font-mono text-emerald-400 shadow-inner">
             <pre className="whitespace-pre-wrap">{renderedFullHtml}</pre>
           </div>
         ) : (
           <div
-            className={`transition-all duration-300 rounded-xl overflow-hidden shadow-2xl border ${
+            className={`transition-all duration-300 rounded-xl overflow-hidden shadow-lg border border-slate-300/80 ${
               deviceMode === 'mobile'
-                ? 'w-[375px] max-w-full h-[620px] border-slate-700 bg-slate-900 ring-8 ring-slate-800'
-                : 'w-[640px] max-w-full h-[640px] border-slate-700 bg-white'
+                ? 'w-[375px] max-w-full h-[620px] bg-slate-900 ring-8 ring-slate-800'
+                : 'w-[640px] max-w-full h-[640px] bg-white'
             }`}
           >
             {/* Si es modo móvil, barra superior simulada */}

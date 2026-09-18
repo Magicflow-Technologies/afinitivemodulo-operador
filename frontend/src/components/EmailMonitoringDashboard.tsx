@@ -8,7 +8,6 @@ import {
   Clock, 
   AlertCircle,
   Eye,
-  ArrowRight,
   Calendar,
   ExternalLink,
   Paperclip,
@@ -28,7 +27,13 @@ import {
   Copy,
   Check,
   Tag,
-  Building2
+  Building2,
+  BarChart3,
+  ChevronLeft,
+  ChevronRight,
+  ChevronsLeft,
+  ChevronsRight,
+  Inbox
 } from 'lucide-react';
 import { LiveEmailPreview } from './LiveEmailPreview';
 import { TemplateManagerModal } from './TemplateManagerModal';
@@ -164,7 +169,7 @@ export default function EmailMonitoringDashboard({ onNavigateToBooking }: EmailM
   const [showTemplateModal, setShowTemplateModal] = useState(false);
 
   // --- Estados de Campañas y Cola (Nuevos) ---
-  const [activeTab, setActiveTab] = useState<'individual' | 'campanas' | 'agenda' | 'eventos'>('individual');
+  const [activeTab, setActiveTab] = useState<'metricas' | 'individual' | 'campanas' | 'agenda' | 'eventos'>('metricas');
   const [campaignTag, setCampaignTag] = useState('');
   const [individualTag, setIndividualTag] = useState('');
   const [slotDuration, setSlotDuration] = useState(60);
@@ -209,6 +214,15 @@ export default function EmailMonitoringDashboard({ onNavigateToBooking }: EmailM
   const [filterStartDate, setFilterStartDate] = useState('');
   const [filterEndDate, setFilterEndDate] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
+
+  // --- Estados de Paginación para la Tabla de Prospectos ---
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(20);
+
+  // Resetear a página 1 cuando los filtros cambien
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [filterStatus, filterTag, filterStartDate, filterEndDate, searchQuery]);
 
   // Obtener el backend URL de las variables de entorno o usar el puerto de monitoreo del backend
   const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || 'http://localhost:3080';
@@ -258,6 +272,10 @@ export default function EmailMonitoringDashboard({ onNavigateToBooking }: EmailM
     }
     return true;
   });
+
+  const totalPages = Math.max(1, Math.ceil(filteredEmails.length / pageSize));
+  const startIndex = (currentPage - 1) * pageSize;
+  const paginatedEmails = filteredEmails.slice(startIndex, startIndex + pageSize);
 
   // Función para obtener los correos desde Supabase
   const fetchEmails = useCallback(async (isSilent = false) => {
@@ -889,35 +907,42 @@ export default function EmailMonitoringDashboard({ onNavigateToBooking }: EmailM
   };
 
   return (
-    <div className="min-h-screen bg-[#08101A] text-slate-100 flex flex-col antialiased selection:bg-brand-gold/30 selection:text-brand-gold">
+    <div className="min-h-screen bg-slate-50 text-slate-800 flex flex-col antialiased selection:bg-amber-100 selection:text-amber-900 font-sans">
       
-      {/* Cabecera Premium Full-Width */}
-      <header className="border-b border-brand-gold/30 bg-[#0D1B2A] py-5 px-4 sm:px-8 shadow-lg shadow-black/40 sticky top-0 z-50 backdrop-blur-md bg-opacity-95">
-        <div className="max-w-[1780px] w-full mx-auto flex flex-col md:flex-row justify-between items-center gap-4">
+      {/* Cabecera Profesional Estilo Google / Apple Minimalism */}
+      <header className="border-b border-slate-200/80 bg-white/95 backdrop-blur-md py-3.5 px-4 sm:px-8 shadow-xs sticky top-0 z-50">
+        <div className="max-w-[1780px] w-full mx-auto flex flex-col md:flex-row justify-between items-center gap-3">
+          
+          {/* Logo y Branding Afinitive */}
           <div className="flex items-center gap-3.5">
-            <div className="p-2 bg-brand-gold/10 border border-brand-gold/40 rounded-xl shadow-md shadow-brand-gold/10 shrink-0 flex items-center justify-center">
+            <div className="p-2 bg-slate-50 border border-slate-200 rounded-xl shadow-xs shrink-0 flex items-center justify-center">
               <img 
                 src="https://links.afinitive.com.pe/img/afinitive_logo.png" 
                 alt="Afinitive Wealth Management" 
-                className="w-8 h-8 object-contain"
+                className="w-7 h-7 object-contain"
               />
             </div>
             <div>
-              <div className="flex items-center gap-3">
-                <h1 className="text-2xl md:text-3xl font-extrabold tracking-tight text-transparent bg-clip-text bg-gradient-to-r from-white via-slate-100 to-brand-gold font-sans">
+              <div className="flex items-center gap-2.5">
+                <h1 className="text-xl md:text-2xl font-black tracking-tight text-slate-900 font-sans">
                   AFINITIVE
                 </h1>
-                <span className="px-2.5 py-0.5 rounded-full bg-brand-gold/15 border border-brand-gold/30 text-brand-gold text-xxs font-mono uppercase font-bold tracking-wider">
+                <span className="px-2.5 py-0.5 rounded-full bg-slate-100 border border-slate-200 text-slate-700 text-[11px] font-semibold tracking-wide">
                   Suite Operador
                 </span>
+                <span className="px-2 py-0.5 rounded-full bg-emerald-50 border border-emerald-200 text-emerald-700 text-[10px] font-semibold flex items-center gap-1.5">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-ping"></span>
+                  En Vivo
+                </span>
               </div>
-              <p className="text-xs text-brand-gold font-medium uppercase tracking-widest mt-0.5">
-                Monitoreo Omnicanal y Conversión en Vivo — Ricardo Bertalmio
+              <p className="text-xs text-slate-500 font-medium mt-0.5">
+                Monitoreo Omnicanal y Conversión de Prospectos — Ricardo Bertalmio
               </p>
             </div>
           </div>
           
-          <div className="flex items-center gap-3 flex-wrap justify-center md:justify-end">
+          {/* Accesos Rápidos y Estado */}
+          <div className="flex items-center gap-2.5 flex-wrap justify-center md:justify-end">
             <button
               onClick={() => {
                 if (onNavigateToBooking) {
@@ -926,14 +951,13 @@ export default function EmailMonitoringDashboard({ onNavigateToBooking }: EmailM
                   window.open('/agendar', '_blank');
                 }
               }}
-              className="flex items-center gap-2 px-3.5 py-2 bg-gradient-to-r from-brand-gold/25 via-brand-gold/35 to-brand-gold/20 hover:from-brand-gold/40 hover:to-brand-gold/30 active:scale-[0.98] border border-brand-gold text-xs font-bold text-white rounded-xl transition-all duration-200 shadow-lg shadow-brand-gold/15 cursor-pointer"
+              className="flex items-center gap-2 px-3.5 py-2 bg-white hover:bg-slate-50 active:bg-slate-100 border border-slate-300 text-xs font-semibold text-slate-700 rounded-xl transition-all shadow-xs cursor-pointer"
+              title="Abrir página pública de calendario"
             >
-              <Calendar className="w-3.5 h-3.5 text-brand-gold" />
-              <span>Calendario Público de Ricardo</span>
-              <ExternalLink className="w-3 h-3 text-brand-gold" />
+              <Calendar className="w-3.5 h-3.5 text-amber-600" />
+              <span>Calendario Público</span>
+              <ExternalLink className="w-3 h-3 text-slate-400" />
             </button>
-
-            <span className="h-6 w-px bg-slate-800 hidden sm:inline"></span>
 
             <a
               href="https://operador.afinitive.com.pe/formEvento/index2.html"
@@ -944,55 +968,52 @@ export default function EmailMonitoringDashboard({ onNavigateToBooking }: EmailM
                 e.stopPropagation();
                 window.open("https://operador.afinitive.com.pe/formEvento/index2.html", "_blank");
               }}
-              className="flex items-center gap-2 px-3.5 py-2 bg-brand-gold/10 hover:bg-brand-gold/25 active:bg-brand-gold/30 border border-brand-gold/40 hover:border-brand-gold/60 text-xs font-semibold text-brand-gold rounded-xl transition-all duration-200 shadow-md shadow-brand-gold/5"
+              className="flex items-center gap-2 px-3.5 py-2 bg-white hover:bg-slate-50 border border-slate-300 text-xs font-semibold text-slate-700 rounded-xl transition-all shadow-xs"
             >
-              <Calendar className="w-3.5 h-3.5 text-brand-gold" />
-              <span>Formulario de Eventos</span>
-              <ExternalLink className="w-3 h-3 opacity-80" />
+              <Building2 className="w-3.5 h-3.5 text-slate-600" />
+              <span>Formulario Eventos</span>
+              <ExternalLink className="w-3 h-3 text-slate-400" />
             </a>
-            <span className="h-6 w-px bg-slate-800 hidden sm:inline"></span>
+
             <button
               onClick={() => fetchEmails()}
               disabled={refreshing}
-              className="flex items-center gap-2 px-3.5 py-2 bg-brand-navy-light hover:bg-[#22334F] active:bg-[#0D1B2A] border border-brand-gold/20 hover:border-brand-gold/40 text-xs font-medium rounded-xl transition-all duration-200 disabled:opacity-50"
+              className="flex items-center gap-1.5 px-3.5 py-2 bg-slate-900 hover:bg-slate-800 active:bg-slate-950 text-white border border-slate-900 text-xs font-semibold rounded-xl transition-all shadow-xs cursor-pointer disabled:opacity-50"
+              title="Sincronizar datos con la base de datos"
             >
-              <RefreshCw className={`w-3.5 h-3.5 text-brand-gold ${refreshing ? 'animate-spin' : ''}`} />
+              <RefreshCw className={`w-3.5 h-3.5 text-amber-400 ${refreshing ? 'animate-spin' : ''}`} />
               <span>{refreshing ? 'Actualizando...' : 'Actualizar'}</span>
             </button>
-            <span className="h-6 w-px bg-slate-800 hidden sm:inline"></span>
-            <div className="text-xs text-slate-400 font-mono bg-slate-900/80 px-3 py-1.5 rounded-lg border border-slate-800">
-              Backend: <span className="text-brand-gold font-semibold">{BACKEND_URL}</span>
-            </div>
           </div>
         </div>
       </header>
 
       {/* Contenido Principal Full-Width */}
-      <main className="flex-1 max-w-[1780px] w-full mx-auto p-4 sm:p-6 lg:p-8 space-y-8">
+      <main className="flex-1 max-w-[1780px] w-full mx-auto p-4 sm:p-6 lg:p-8 space-y-6">
         
-        {/* Banner Destacado: Enlace Fijo de Agendamiento Online */}
-        <div className="bg-gradient-to-r from-[#0F1E33] via-[#0D1B2A] to-[#142338] border border-brand-gold/30 rounded-2xl p-4 sm:p-5 shadow-xl flex flex-col lg:flex-row items-start lg:items-center justify-between gap-4">
+        {/* Banner Informativo / Acceso Rápido al Link de Agendamiento */}
+        <div className="bg-white border border-slate-200/90 rounded-2xl p-4 sm:p-5 shadow-xs flex flex-col lg:flex-row items-start lg:items-center justify-between gap-4">
           <div className="flex items-start sm:items-center gap-3.5">
-            <div className="p-3 bg-brand-gold/10 border border-brand-gold/30 rounded-xl text-brand-gold shrink-0">
-              <Calendar className="w-6 h-6 text-brand-gold" />
+            <div className="p-3 bg-amber-50 border border-amber-200/60 rounded-xl text-amber-700 shrink-0">
+              <Calendar className="w-5 h-5" />
             </div>
             <div>
               <div className="flex items-center gap-2">
-                <h2 className="text-sm sm:text-base font-bold text-white">
-                  Enlace Fijo de Agendamiento Online — Ricardo Bertalmio
+                <h2 className="text-sm sm:text-base font-bold text-slate-900">
+                  Enlace Permanente de Agendamiento Online
                 </h2>
-                <span className="px-2 py-0.5 rounded-full bg-emerald-500/15 border border-emerald-500/30 text-emerald-400 text-[10px] font-mono uppercase font-bold">
-                  URL Fijo Oficial
+                <span className="px-2 py-0.5 rounded-full bg-emerald-50 border border-emerald-200 text-emerald-700 text-[10px] font-mono font-bold">
+                  Sincronizado con Google Calendar
                 </span>
               </div>
-              <p className="text-xs text-slate-300 mt-1 max-w-2xl">
-                Enlace universal para colocar en la página web, firmas de correo o enviar por WhatsApp. Muestra los días y horas libres sincronizados de Google Calendar y permite agendar directamente.
+              <p className="text-xs text-slate-500 mt-0.5 max-w-2xl">
+                Enlace universal para colocar en firmas de correo o enviar por WhatsApp. Muestra los horarios disponibles de Ricardo y confirma reuniones automáticamente.
               </p>
             </div>
           </div>
 
           <div className="flex items-center gap-2 flex-wrap w-full lg:w-auto justify-start lg:justify-end">
-            <div className="flex items-center bg-[#070F1A] border border-brand-gold/25 rounded-xl px-3 py-2 text-xs font-mono text-brand-gold select-all max-w-full overflow-x-auto">
+            <div className="flex items-center bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-mono text-slate-700 select-all max-w-full overflow-x-auto">
               <span>{typeof window !== 'undefined' ? `${window.location.origin}/agendar` : 'https://operador.afinitive.com.pe/agendar'}</span>
             </div>
 
@@ -1003,9 +1024,9 @@ export default function EmailMonitoringDashboard({ onNavigateToBooking }: EmailM
                 setCopiedBookingUrl(true);
                 setTimeout(() => setCopiedBookingUrl(false), 2500);
               }}
-              className="flex items-center gap-1.5 px-3.5 py-2 bg-brand-gold/15 hover:bg-brand-gold/30 border border-brand-gold/40 text-brand-gold rounded-xl text-xs font-semibold transition-all cursor-pointer"
+              className="flex items-center gap-1.5 px-3.5 py-2 bg-slate-100 hover:bg-slate-200 border border-slate-300 text-slate-700 rounded-xl text-xs font-semibold transition-all cursor-pointer"
             >
-              {copiedBookingUrl ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
+              {copiedBookingUrl ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Copy className="w-3.5 h-3.5" />}
               <span>{copiedBookingUrl ? '¡Copiado!' : 'Copiar'}</span>
             </button>
 
@@ -1017,9 +1038,9 @@ export default function EmailMonitoringDashboard({ onNavigateToBooking }: EmailM
                   window.open('/agendar', '_blank');
                 }
               }}
-              className="flex items-center gap-1.5 px-3.5 py-2 bg-white hover:bg-slate-100 text-[#070F1E] font-bold rounded-xl text-xs shadow-md transition-all cursor-pointer"
+              className="flex items-center gap-1.5 px-3.5 py-2 bg-slate-900 hover:bg-slate-800 text-white font-semibold rounded-xl text-xs shadow-xs transition-all cursor-pointer"
             >
-              <span>Abrir Calendario</span>
+              <span>Abrir Agenda</span>
               <ExternalLink className="w-3.5 h-3.5" />
             </button>
 
@@ -1027,7 +1048,7 @@ export default function EmailMonitoringDashboard({ onNavigateToBooking }: EmailM
               href={`https://wa.me/${whatsappNumber.replace(/\D/g, '') || '51982100208'}?text=${encodeURIComponent(`Hola, puedes agendar una reunión directamente en mi calendario en el siguiente enlace: ${typeof window !== 'undefined' ? window.location.origin : ''}/agendar`)}`}
               target="_blank"
               rel="noopener noreferrer"
-              className="flex items-center gap-1.5 px-3.5 py-2 bg-[#25D366] hover:bg-[#20BA56] text-white font-bold rounded-xl text-xs shadow-md transition-all cursor-pointer"
+              className="flex items-center gap-1.5 px-3.5 py-2 bg-[#25D366] hover:bg-[#20BA56] text-white font-bold rounded-xl text-xs shadow-xs transition-all cursor-pointer"
               title="Compartir por WhatsApp"
             >
               <span>WhatsApp</span>
@@ -1035,18 +1056,36 @@ export default function EmailMonitoringDashboard({ onNavigateToBooking }: EmailM
           </div>
         </div>
 
-        {/* Pestañas de Navegación Premium */}
-        <div className="flex border-b border-slate-800 gap-2 overflow-x-auto pb-px">
+        {/* Pestañas de Navegación Estilo Google Workspace (Limpias y Jerárquicas) */}
+        <div className="flex border-b border-slate-200 gap-2 overflow-x-auto bg-white px-2 py-1 rounded-2xl shadow-xs">
+          
+          <button
+            onClick={() => setActiveTab('metricas')}
+            className={`flex items-center gap-2 px-5 py-3 font-semibold text-sm rounded-xl transition-all duration-150 cursor-pointer whitespace-nowrap ${
+              activeTab === 'metricas'
+                ? 'bg-slate-900 text-white shadow-xs'
+                : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
+            }`}
+          >
+            <BarChart3 className="w-4 h-4" />
+            <span>📊 Analítica & Prospectos</span>
+            <span className={`text-xs px-2 py-0.5 rounded-full font-mono font-bold ${
+              activeTab === 'metricas' ? 'bg-slate-800 text-amber-300' : 'bg-slate-100 text-slate-600'
+            }`}>
+              {emails.length}
+            </span>
+          </button>
+
           <button
             onClick={() => setActiveTab('individual')}
-            className={`flex items-center gap-2 px-6 py-3.5 font-semibold text-sm transition-all duration-200 border-b-2 cursor-pointer whitespace-nowrap ${
+            className={`flex items-center gap-2 px-5 py-3 font-semibold text-sm rounded-xl transition-all duration-150 cursor-pointer whitespace-nowrap ${
               activeTab === 'individual'
-                ? 'border-brand-gold text-brand-gold bg-brand-gold/5'
-                : 'border-transparent text-slate-400 hover:text-slate-200 hover:border-slate-700'
+                ? 'bg-slate-900 text-white shadow-xs'
+                : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
             }`}
           >
             <Mail className="w-4 h-4" />
-            <span>Envío Individual</span>
+            <span>✉️ Envío Individual</span>
           </button>
           
           <button
@@ -1054,14 +1093,28 @@ export default function EmailMonitoringDashboard({ onNavigateToBooking }: EmailM
               setActiveTab('campanas');
               fetchSettings();
             }}
-            className={`flex items-center gap-2 px-6 py-3.5 font-semibold text-sm transition-all duration-200 border-b-2 cursor-pointer whitespace-nowrap ${
+            className={`flex items-center gap-2 px-5 py-3 font-semibold text-sm rounded-xl transition-all duration-150 cursor-pointer whitespace-nowrap ${
               activeTab === 'campanas'
-                ? 'border-brand-gold text-brand-gold bg-brand-gold/5'
-                : 'border-transparent text-slate-400 hover:text-slate-200 hover:border-slate-700'
+                ? 'bg-slate-900 text-white shadow-xs'
+                : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
             }`}
           >
             <Users className="w-4 h-4" />
-            <span>Campañas Masivas</span>
+            <span>👥 Campañas Masivas</span>
+          </button>
+
+          <button
+            onClick={() => {
+              setActiveTab('eventos');
+            }}
+            className={`flex items-center gap-2 px-5 py-3 font-semibold text-sm rounded-xl transition-all duration-150 cursor-pointer whitespace-nowrap ${
+              activeTab === 'eventos'
+                ? 'bg-slate-900 text-white shadow-xs'
+                : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
+            }`}
+          >
+            <Building2 className="w-4 h-4 text-amber-500" />
+            <span className="font-semibold">📅 Eventos & Landings</span>
           </button>
 
           <button
@@ -1069,586 +1122,189 @@ export default function EmailMonitoringDashboard({ onNavigateToBooking }: EmailM
               setActiveTab('agenda');
               fetchSettings();
             }}
-            className={`flex items-center gap-2 px-6 py-3.5 font-semibold text-sm transition-all duration-200 border-b-2 cursor-pointer whitespace-nowrap ${
+            className={`flex items-center gap-2 px-5 py-3 font-semibold text-sm rounded-xl transition-all duration-150 cursor-pointer whitespace-nowrap ${
               activeTab === 'agenda'
-                ? 'border-brand-gold text-brand-gold bg-brand-gold/5'
-                : 'border-transparent text-slate-400 hover:text-slate-200 hover:border-slate-700'
+                ? 'bg-slate-900 text-white shadow-xs'
+                : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
             }`}
           >
             <Sliders className="w-4 h-4" />
-            <span>Configuración y Tiempos</span>
-          </button>
-
-          <button
-            onClick={() => {
-              setActiveTab('eventos');
-            }}
-            className={`flex items-center gap-2 px-6 py-3.5 font-semibold text-sm transition-all duration-200 border-b-2 cursor-pointer whitespace-nowrap ${
-              activeTab === 'eventos'
-                ? 'border-brand-gold text-brand-gold bg-brand-gold/5'
-                : 'border-transparent text-slate-400 hover:text-slate-200 hover:border-slate-700'
-            }`}
-          >
-            <Building2 className="w-4 h-4 text-amber-400" />
-            <span className="text-amber-400 font-bold">📅 Eventos & Landings</span>
+            <span>⚙️ Configuración y Agenda</span>
           </button>
         </div>
 
-        {/* Banner de Notificaciones */}
+        {/* Banner de Notificaciones de Error / Éxito */}
         {errorMsg && (
-          <div className="bg-red-500/10 border border-red-500/40 text-red-200 px-5 py-4 rounded-xl flex items-start gap-3 shadow-md animate-fade-in">
-            <AlertCircle className="w-5 h-5 text-red-400 shrink-0 mt-0.5" />
+          <div className="bg-red-50 border border-red-200 text-red-800 px-5 py-3.5 rounded-2xl flex items-start gap-3 shadow-xs animate-fade-in">
+            <AlertCircle className="w-5 h-5 text-red-600 shrink-0 mt-0.5" />
             <div>
-              <p className="font-semibold text-sm">Error detectado</p>
-              <p className="text-xs text-red-300/90 mt-1">{errorMsg}</p>
+              <p className="font-bold text-sm">Aviso de Operación</p>
+              <p className="text-xs text-red-700 mt-0.5">{errorMsg}</p>
             </div>
           </div>
         )}
 
         {successMsg && (
-          <div className="bg-green-500/10 border border-green-500/40 text-green-200 px-5 py-4 rounded-xl flex items-start gap-3 shadow-md animate-fade-in">
-            <CheckCircle className="w-5 h-5 text-green-400 shrink-0 mt-0.5" />
+          <div className="bg-emerald-50 border border-emerald-200 text-emerald-800 px-5 py-3.5 rounded-2xl flex items-start gap-3 shadow-xs animate-fade-in">
+            <CheckCircle className="w-5 h-5 text-emerald-600 shrink-0 mt-0.5" />
             <div>
-              <p className="font-semibold text-sm">Operación Exitosa</p>
-              <p className="text-xs text-green-300/90 mt-1">{successMsg}</p>
+              <p className="font-bold text-sm">Operación Exitosa</p>
+              <p className="text-xs text-emerald-700 mt-0.5">{successMsg}</p>
             </div>
           </div>
         )}
 
-        {/* Pestaña: Envío Individual */}
-        {activeTab === 'individual' && (
-          <>
-            <section className="bg-gradient-to-b from-[#0D1B2A] to-[#0A1420] border border-brand-gold/20 rounded-2xl p-6 md:p-8 shadow-xl relative overflow-hidden">
-              <div className="absolute top-0 right-0 w-64 h-64 bg-brand-gold/5 rounded-full blur-3xl pointer-events-none"></div>
+        {/* ========================================================================= */}
+        {/* PESTAÑA 1: 📊 ANALÍTICA & PROSPECTOS (Estadísticas y Tabla Paginada)      */}
+        {/* ========================================================================= */}
+        {activeTab === 'metricas' && (
+          <div className="space-y-6 animate-fade-in">
+            
+            {/* Tarjetas de Métricas Interactivas (Funnel en 1 Clic) */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
               
-              <div className="relative z-10 space-y-4">
-                <div className="space-y-1">
-                  <h2 className="text-xl font-semibold text-brand-gold">Enviar Correo Electrónico</h2>
-                  <p className="text-sm text-slate-400">
-                    Envía un correo con pixel de rastreo de apertura integrado. El estado se reflejará en la tabla inferior al ser abierto.
-                  </p>
-                </div>
-
-                {/* Selector de Plantillas & Biblioteca */}
-                <div className="bg-[#09131E] border border-brand-gold/25 rounded-xl p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-inner">
-                  <div className="flex items-center gap-3">
-                    <div className="p-2.5 rounded-lg bg-brand-gold/10 border border-brand-gold/30 text-brand-gold">
-                      <LayoutTemplate className="w-5 h-5" />
-                    </div>
-                    <div>
-                      <label className="text-xs text-brand-gold font-bold uppercase tracking-wider block">Plantilla del Correo</label>
-                      <div className="flex items-center gap-2 mt-1">
-                        <select
-                          value={selectedTemplateId || ''}
-                          onChange={(e) => {
-                            const found = templates.find((t) => t.id === e.target.value);
-                            if (found) handleSelectTemplate(found);
-                          }}
-                          className="px-3 py-1.5 bg-brand-navy-dark border border-brand-gold/30 rounded-lg text-xs font-semibold text-slate-100 outline-none focus:border-brand-gold max-w-xs sm:max-w-sm truncate"
-                        >
-                          {templates.map((tpl) => (
-                            <option key={tpl.id} value={tpl.id}>
-                              {tpl.name} ({tpl.type === 'full_html' ? 'Landing HTML' : 'Institucional'})
-                            </option>
-                          ))}
-                        </select>
-                        {selectedTemplate && (
-                          <span className="text-[10px] px-2 py-0.5 rounded-full bg-slate-800 text-slate-300 border border-slate-700 hidden md:inline">
-                            {selectedTemplate.category || 'General'}
-                          </span>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="flex items-center gap-2 w-full sm:w-auto justify-end">
-                    <button
-                      type="button"
-                      onClick={() => setShowTemplateModal(true)}
-                      className="px-4 py-2 bg-gradient-to-r from-brand-gold/20 to-brand-gold/10 hover:from-brand-gold/30 hover:to-brand-gold/20 text-brand-gold border border-brand-gold/40 rounded-xl text-xs font-bold transition-all flex items-center gap-2 shadow-sm cursor-pointer"
-                    >
-                      <FolderOpen className="w-4 h-4" />
-                      <span>Biblioteca / Subir .HTML</span>
-                    </button>
-                  </div>
-                </div>
-
-                {/* Visor de Previsualización en Vivo */}
-                <div className="pt-2">
-                  <LiveEmailPreview
-                    templateName={selectedTemplate?.name || 'Plantilla Personalizada'}
-                    templateType={selectedTemplate?.type || 'standard_wrapper'}
-                    rawHtmlOrBody={emailBody}
-                    subject={subject}
-                    signatureId={signatureId}
-                    senderName={senderName}
-                    testRecipientName={recipientName}
-                    testProposedDate={proposedTime}
-                    createdBy={selectedTemplate?.createdBy || selectedTemplate?.created_by || 'manual'}
-                    onRefresh={() => fetchTemplates()}
-                  />
-                </div>
-
-                <form onSubmit={handleSendEmail} className="space-y-5 pt-2">
-                  {/* Selección de Firma */}
-                  <div className="space-y-2">
-                    <label className="text-xs text-brand-gold font-medium uppercase tracking-wider block">Firma del Correo (Remitente Oficial)</label>
-                    <div className="flex flex-col sm:flex-row gap-4">
-                      <div
-                        className="flex items-center gap-3 px-5 py-3 rounded-xl border border-brand-gold bg-brand-gold/10 text-brand-gold shadow-lg shadow-brand-gold/5 text-sm font-medium w-full sm:w-auto"
-                      >
-                        <img src="https://dashbportal.com/afinitive/rbertalmio.png" className="w-8 h-8 rounded-full object-cover border border-brand-gold/40 shadow-sm" alt="Ricardo" />
-                        <div className="text-left">
-                          <p className="font-semibold leading-tight text-white">Ricardo Bertalmio Ruibal</p>
-                          <p className="text-xxs text-brand-gold opacity-90 font-normal">CEO Wealth Management (Oficial)</p>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Fila 1: Datos del Remitente */}
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div className="space-y-1.5">
-                      <label className="text-xs text-brand-gold font-medium uppercase tracking-wider">Nombre del Remitente (De)</label>
-                      <input
-                        type="text"
-                        required
-                        placeholder="Ej: Ricardo Bertalmio"
-                        value={senderName}
-                        onChange={(e) => setSenderName(e.target.value)}
-                        className="w-full px-4 py-3 bg-brand-navy-dark border border-brand-gold/20 hover:border-brand-gold/40 focus:border-brand-gold/90 focus:ring-1 focus:ring-brand-gold/50 rounded-xl text-slate-100 placeholder-slate-500 outline-none transition-all duration-200 text-sm font-sans"
-                      />
-                    </div>
-
-                    <div className="space-y-1.5">
-                      <label className="text-xs text-brand-gold font-medium uppercase tracking-wider">Correo Remitente (De)</label>
-                      <input
-                        type="text"
-                        required
-                        placeholder="Ej: rbertalmio@afinitive.com.pe"
-                        value={senderEmail}
-                        onChange={(e) => setSenderEmail(e.target.value)}
-                        className="w-full px-4 py-3 bg-brand-navy-dark border border-brand-gold/20 hover:border-brand-gold/40 focus:border-brand-gold/90 focus:ring-1 focus:ring-brand-gold/50 rounded-xl text-slate-100 placeholder-slate-500 outline-none transition-all duration-200 text-sm font-sans"
-                      />
-                    </div>
-                  </div>
-
-                  {/* Fila 2: Datos del Destinatario & Etiqueta */}
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                    <div className="space-y-1.5">
-                      <label className="text-xs text-brand-gold font-medium uppercase tracking-wider">Nombre del Contacto (Para)</label>
-                      <input
-                        type="text"
-                        placeholder="Ej: Marielisa o Maycol"
-                        value={recipientName}
-                        onChange={(e) => {
-                          setRecipientName(e.target.value);
-                        }}
-                        className="w-full px-4 py-3 bg-brand-navy-dark border border-brand-gold/20 hover:border-brand-gold/40 focus:border-brand-gold/90 focus:ring-1 focus:ring-brand-gold/50 rounded-xl text-slate-100 placeholder-slate-500 outline-none transition-all duration-200 text-sm font-sans"
-                      />
-                    </div>
-
-                    <div className="space-y-1.5">
-                      <label className="text-xs text-brand-gold font-medium uppercase tracking-wider">Correo del Cliente (Para)</label>
-                      <div className="relative">
-                        <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400">
-                          <Mail className="w-5 h-5 text-slate-400" />
-                        </div>
-                        <input
-                          type="email"
-                          required
-                          placeholder="cliente@alto-patrimonio.com"
-                          value={recipientEmail}
-                          onChange={(e) => setRecipientEmail(e.target.value)}
-                          className="w-full pl-11 pr-4 py-3 bg-brand-navy-dark border border-brand-gold/20 hover:border-brand-gold/40 focus:border-brand-gold/90 focus:ring-1 focus:ring-brand-gold/50 rounded-xl text-slate-100 placeholder-slate-500 outline-none transition-all duration-200 text-sm font-sans"
-                        />
-                      </div>
-                    </div>
-
-                    <div className="space-y-1.5">
-                      <label className="text-xs text-brand-gold font-medium uppercase tracking-wider flex items-center gap-1.5">
-                        <Tag className="w-3.5 h-3.5 text-brand-gold" />
-                        Etiqueta (Opcional)
-                      </label>
-                      <input
-                        type="text"
-                        placeholder="Ej: Directo, VIP, Directivos..."
-                        value={individualTag}
-                        onChange={(e) => setIndividualTag(e.target.value)}
-                        className="w-full px-4 py-3 bg-brand-navy-dark border border-brand-gold/20 hover:border-brand-gold/40 focus:border-brand-gold/90 focus:ring-1 focus:ring-brand-gold/50 rounded-xl text-slate-100 placeholder-slate-500 outline-none transition-all duration-200 text-sm font-sans"
-                      />
-                    </div>
-                  </div>
-
-                  {/* Fila 3: Fecha/Hora Sugerida & Asunto */}
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div className="space-y-1.5 relative">
-                      <div className="flex items-center justify-between">
-                        <label className="text-xs text-brand-gold font-medium uppercase tracking-wider">Fecha y Hora Propuesta</label>
-                        <button
-                          type="button"
-                          onClick={() => setShowIndividualSlotPicker(!showIndividualSlotPicker)}
-                          className="text-[11px] text-blue-400 hover:text-blue-300 font-medium flex items-center gap-1 cursor-pointer"
-                        >
-                          <Calendar className="w-3 h-3" />
-                          {showIndividualSlotPicker ? 'Ocultar turnos' : 'Ver turnos libres Calendar'}
-                        </button>
-                      </div>
-                      
-                      <div className="relative">
-                        <input
-                          type="datetime-local"
-                          value={proposedTime}
-                          onChange={(e) => {
-                            setProposedTime(e.target.value);
-                            if (e.target.value) {
-                              setEmailBody(buildEmailTemplate(recipientName, e.target.value));
-                            }
-                          }}
-                          className="w-full px-4 py-3 bg-brand-navy-dark border border-brand-gold/20 hover:border-brand-gold/40 focus:border-brand-gold/90 focus:ring-1 focus:ring-brand-gold/50 rounded-xl text-slate-100 placeholder-slate-500 outline-none transition-all duration-200 text-sm font-sans [color-scheme:dark]"
-                        />
-                      </div>
-
-                      {/* Popover de Slots Libres de Google Calendar */}
-                      {showIndividualSlotPicker && (
-                        <div className="absolute top-full left-0 right-0 z-50 mt-2 bg-[#0A1420] border border-brand-gold/40 rounded-xl p-4 shadow-2xl space-y-3">
-                          <div className="flex items-center justify-between border-b border-brand-gold/15 pb-2">
-                            <span className="text-xs font-semibold text-brand-gold">Seleccionar Turno Libre (Google Calendar)</span>
-                            <button
-                              type="button"
-                              onClick={() => setShowIndividualSlotPicker(false)}
-                              className="text-slate-400 hover:text-slate-200 text-xs"
-                            >
-                              <X className="w-4 h-4" />
-                            </button>
-                          </div>
-
-                          {/* Días */}
-                          <div className="grid grid-cols-5 gap-1.5">
-                            {getNext14Days().map((date) => {
-                              const yyyy = date.getFullYear();
-                              const mm = String(date.getMonth() + 1).padStart(2, '0');
-                              const dd = String(date.getDate()).padStart(2, '0');
-                              const yyyymmdd = `${yyyy}-${mm}-${dd}`;
-                              const hasSlots = freeSlots[yyyymmdd] && freeSlots[yyyymmdd].length > 0;
-                              const isSelected = selectedDayIndividual === yyyymmdd;
-                              const dayName = date.toLocaleDateString('es-ES', { weekday: 'short' });
-                              const dayNum = date.getDate();
-
-                              return (
-                                <button
-                                  key={yyyymmdd}
-                                  type="button"
-                                  disabled={!hasSlots}
-                                  onClick={() => setSelectedDayIndividual(yyyymmdd)}
-                                  className={`flex flex-col items-center justify-center p-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer disabled:opacity-25 disabled:cursor-not-allowed ${
-                                    isSelected
-                                      ? 'bg-brand-gold text-[#070F1E] font-bold shadow-md'
-                                      : hasSlots
-                                        ? 'bg-blue-500/20 text-blue-300 border border-blue-500/30 hover:bg-blue-500/30'
-                                        : 'bg-slate-900/40 text-slate-600 border border-slate-800/40'
-                                  }`}
-                                >
-                                  <span className="uppercase text-[9px] opacity-75">{dayName}</span>
-                                  <span className="text-xs font-bold">{dayNum}</span>
-                                </button>
-                              );
-                            })}
-                          </div>
-
-                          {/* Horarios del día */}
-                          {selectedDayIndividual && freeSlots[selectedDayIndividual] && (
-                            <div className="space-y-1.5 border-t border-brand-gold/15 pt-2">
-                              <p className="text-[10px] text-slate-400 uppercase font-semibold">Horarios disponibles ({selectedDayIndividual}):</p>
-                              <div className="grid grid-cols-3 gap-1.5 max-h-[120px] overflow-y-auto pr-1">
-                                {freeSlots[selectedDayIndividual].map((time) => (
-                                  <button
-                                    key={time}
-                                    type="button"
-                                    onClick={() => {
-                                      const formattedValue = `${selectedDayIndividual}T${time}:00-05:00`;
-                                      setProposedTime(formattedValue);
-                                      setEmailBody(buildEmailTemplate(recipientName, formattedValue));
-                                      setShowIndividualSlotPicker(false);
-                                    }}
-                                    className="py-1.5 px-2 text-xs font-mono bg-brand-navy-dark hover:bg-brand-gold hover:text-[#070F1E] border border-brand-gold/20 rounded-lg text-slate-200 text-center transition-all cursor-pointer font-semibold"
-                                  >
-                                    {time}
-                                  </button>
-                                ))}
-                              </div>
-                            </div>
-                          )}
-                        </div>
-                      )}
-                    </div>
-
-                    <div className="space-y-1.5">
-                      <label className="text-xs text-brand-gold font-medium uppercase tracking-wider">Asunto de la Invitación</label>
-                      <input
-                        type="text"
-                        required
-                        placeholder="Asunto de la invitación"
-                        value={subject}
-                        onChange={(e) => setSubject(e.target.value)}
-                        className="w-full px-4 py-3 bg-brand-navy-dark border border-brand-gold/20 hover:border-brand-gold/40 focus:border-brand-gold/90 focus:ring-1 focus:ring-brand-gold/50 rounded-xl text-slate-100 placeholder-slate-500 outline-none transition-all duration-200 text-sm font-sans"
-                      />
-                    </div>
-                  </div>
-
-                  {/* Cuerpo del Mensaje */}
-                  <div className="space-y-1.5">
-                    <div className="flex items-center justify-between">
-                      <label className="text-xs text-brand-gold font-medium uppercase tracking-wider">Cuerpo del Mensaje (Invitación)</label>
-                      <button
-                        type="button"
-                        onClick={() => setEmailBody(buildEmailTemplate(recipientName, proposedTime))}
-                        className="text-[11px] text-brand-gold/80 hover:text-brand-gold font-medium flex items-center gap-1 cursor-pointer transition-colors"
-                        title="Regenerar mensaje con el nombre y fecha seleccionados"
-                      >
-                        <RefreshCw className="w-3 h-3" />
-                        <span>Actualizar texto con fecha/nombre</span>
-                      </button>
-                    </div>
-                    <textarea
-                      required
-                      rows={6}
-                      placeholder="Escribe el mensaje de invitación para el cliente de alto patrimonio..."
-                      value={emailBody}
-                      onChange={(e) => setEmailBody(e.target.value)}
-                      className="w-full px-4 py-3 bg-brand-navy-dark border border-brand-gold/20 hover:border-brand-gold/40 focus:border-brand-gold/90 focus:ring-1 focus:ring-brand-gold/50 rounded-xl text-slate-100 placeholder-slate-500 outline-none transition-all duration-200 text-sm font-sans resize-none"
-                    />
-                  </div>
-
-                  {/* Archivo Adjunto (Opcional) */}
-                  <div className="space-y-1.5 pt-2">
-                    <label className="text-xs text-brand-gold font-medium uppercase tracking-wider block">
-                      Documento Adjunto (Opcional - Máx. 10MB)
-                    </label>
-                    <div className="flex flex-wrap items-center gap-3">
-                      <label className="flex items-center gap-2 px-4 py-2.5 bg-brand-navy-dark border border-brand-gold/20 hover:border-brand-gold/50 rounded-xl text-slate-300 hover:text-slate-100 cursor-pointer transition-all duration-200 text-xs font-sans select-none">
-                        <Paperclip className="w-4 h-4 text-brand-gold" />
-                        <span>Seleccionar archivo</span>
-                        <input
-                          type="file"
-                          className="hidden"
-                          onChange={(e) => {
-                            const file = e.target.files?.[0];
-                            if (file) {
-                              if (file.size > 10 * 1024 * 1024) {
-                                alert("El archivo excede el tamaño máximo permitido de 10MB");
-                                e.target.value = '';
-                                return;
-                              }
-                              setSelectedFile(file);
-                            }
-                          }}
-                        />
-                      </label>
-                      {selectedFile && (
-                        <div className="flex items-center gap-2 px-3 py-2 bg-brand-gold/10 border border-brand-gold/30 rounded-xl text-xs text-brand-gold font-sans max-w-full sm:max-w-xs truncate">
-                          <span className="truncate">{selectedFile.name}</span>
-                          <span className="text-[10px] text-slate-400 shrink-0">({(selectedFile.size / (1024 * 1024)).toFixed(2)} MB)</span>
-                          <button
-                            type="button"
-                            onClick={() => setSelectedFile(null)}
-                            className="p-1 hover:bg-brand-gold/20 rounded-full text-brand-gold/80 hover:text-brand-gold transition-all duration-100 shrink-0"
-                            title="Quitar archivo"
-                          >
-                            <X className="w-3.5 h-3.5" />
-                          </button>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-
-                  {/* Botón de Envío */}
-                  <div className="flex justify-end pt-2">
-                    <button
-                      type="submit"
-                      disabled={loading || !recipientEmail || !subject || !emailBody}
-                      className="px-8 py-3.5 bg-gradient-to-r from-brand-gold-dark to-brand-gold hover:from-brand-gold hover:to-brand-gold-light active:from-brand-gold-dark active:to-brand-gold text-brand-navy font-bold rounded-xl shadow-lg shadow-brand-gold/10 hover:shadow-brand-gold/20 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 shrink-0 min-w-[220px]"
-                    >
-                      {loading ? (
-                        <>
-                          <RefreshCw className="w-5 h-5 animate-spin" />
-                          <span>Enviando Invitación...</span>
-                        </>
-                      ) : (
-                        <>
-                          <Send className="w-5 h-5" />
-                          <span>Enviar Invitación</span>
-                        </>
-                      )}
-                    </button>
-                  </div>
-                </form>
-              </div>
-            </section>
-
-            {/* Sección de Historial - Panel de Control Rediseñado Full-Width */}
-            <section className="bg-gradient-to-b from-[#0D1B2A] to-[#0A1420] border border-brand-gold/20 rounded-2xl shadow-2xl overflow-hidden w-full">
-              {/* Header de la sección */}
-              <div className="p-6 border-b border-brand-gold/15 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-slate-950/40">
+              {/* Card 1: Total Enviados */}
+              <button
+                type="button"
+                onClick={() => setFilterStatus('Todos')}
+                className={`p-5 rounded-2xl border text-left transition-all duration-200 cursor-pointer flex items-center justify-between group shadow-xs ${
+                  filterStatus === 'Todos'
+                    ? 'bg-blue-50/70 border-blue-400 ring-2 ring-blue-400/30'
+                    : 'bg-white border-slate-200/90 hover:border-blue-300 hover:bg-slate-50/50'
+                }`}
+              >
                 <div>
-                  <h2 className="text-xl font-bold text-brand-gold flex items-center gap-2.5">
-                    <span>Panel de Rastreos en Tiempo Real</span>
-                    <span className="text-xs px-2.5 py-0.5 rounded-full bg-brand-gold/10 text-brand-gold font-mono font-normal border border-brand-gold/30">
-                      {emails.length} envíos
-                    </span>
-                  </h2>
-                  <p className="text-xs text-slate-400 mt-1">
-                    Monitorea qué prospectos abren el correo, quiénes hacen clic en WhatsApp y quiénes confirman su reunión.
+                  <div className="flex items-center gap-2">
+                    <p className="text-xs text-slate-500 font-bold uppercase tracking-wider">Total Enviados</p>
+                    {filterStatus === 'Todos' && <span className="w-2 h-2 rounded-full bg-blue-600"></span>}
+                  </div>
+                  <p className="text-3xl font-extrabold text-slate-900 font-mono mt-1">{emails.length}</p>
+                  <p className="text-xs text-slate-500 mt-1 group-hover:text-blue-600 font-medium transition-colors">
+                    {filterStatus === 'Todos' ? '✓ Viendo todo el historial' : '⚡ Clic para ver todos'}
                   </p>
                 </div>
-                <div className="flex items-center gap-3">
-                  <span className="px-3 py-1.5 bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 text-xs font-mono rounded-full flex items-center gap-2 shadow-sm">
-                    <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping"></span>
-                    Live Polling 5s
-                  </span>
+                <div className={`p-3 rounded-2xl border transition-colors ${
+                  filterStatus === 'Todos' ? 'bg-blue-600 text-white border-blue-600' : 'bg-blue-50 border-blue-100 text-blue-600'
+                }`}>
+                  <Mail className="w-6 h-6" />
                 </div>
-              </div>
+              </button>
 
-              {/* Tarjetas de Métricas Interactivas (Funnel y Filtro Rápido en 1 Clic) */}
-              <div className="p-6 pb-5 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 border-b border-brand-gold/10 bg-slate-950/20">
-                {/* Card 1: Total Enviados */}
-                <button
-                  type="button"
-                  onClick={() => setFilterStatus('Todos')}
-                  className={`p-4 rounded-2xl border text-left transition-all duration-200 cursor-pointer flex items-center justify-between group ${
-                    filterStatus === 'Todos'
-                      ? 'bg-[#112338] border-blue-400/80 ring-2 ring-blue-500/40 shadow-xl shadow-blue-950/50 scale-[1.01]'
-                      : 'bg-[#08101A] border-brand-gold/15 hover:border-blue-500/40 hover:bg-[#0c1827]'
-                  }`}
-                >
-                  <div>
-                    <div className="flex items-center gap-2">
-                      <p className="text-xs text-slate-400 font-bold uppercase tracking-wider">Total Enviados</p>
-                      {filterStatus === 'Todos' && <span className="w-2 h-2 rounded-full bg-blue-400"></span>}
-                    </div>
-                    <p className="text-3xl font-extrabold text-slate-100 font-mono mt-1">{emails.length}</p>
-                    <p className="text-xxs text-slate-500 mt-1 group-hover:text-blue-400 transition-colors">
-                      {filterStatus === 'Todos' ? '✓ Viendo todo el historial' : '⚡ Clic para ver todos'}
+              {/* Card 2: Correos Leídos */}
+              <button
+                type="button"
+                onClick={() => setFilterStatus('Leído')}
+                className={`p-5 rounded-2xl border text-left transition-all duration-200 cursor-pointer flex items-center justify-between group shadow-xs ${
+                  filterStatus === 'Leído'
+                    ? 'bg-emerald-50/70 border-emerald-400 ring-2 ring-emerald-400/30'
+                    : 'bg-white border-slate-200/90 hover:border-emerald-300 hover:bg-slate-50/50'
+                }`}
+              >
+                <div>
+                  <div className="flex items-center gap-2">
+                    <p className="text-xs text-emerald-700 font-bold uppercase tracking-wider">Correos Leídos</p>
+                    {filterStatus === 'Leído' && <span className="w-2 h-2 rounded-full bg-emerald-600"></span>}
+                  </div>
+                  <div className="flex items-baseline gap-2 mt-1">
+                    <p className="text-3xl font-extrabold text-emerald-700 font-mono">
+                      {emails.filter(e => e.status === 'Leído' || e.status === 'Agendado' || e.whatsapp_clicked_at).length}
                     </p>
+                    <span className="text-xs font-bold text-emerald-700/80 font-mono">
+                      ({emails.length > 0 ? Math.round((emails.filter(e => e.status === 'Leído' || e.status === 'Agendado' || e.whatsapp_clicked_at).length / emails.length) * 100) : 0}%)
+                    </span>
                   </div>
-                  <div className={`p-3 rounded-xl border transition-colors ${
-                    filterStatus === 'Todos' ? 'bg-blue-500/20 border-blue-400/50 text-blue-300' : 'bg-blue-500/10 border-blue-500/20 text-blue-400'
-                  }`}>
-                    <Mail className="w-6 h-6" />
-                  </div>
-                </button>
+                  <p className="text-xs text-emerald-600 mt-1 font-medium group-hover:underline">
+                    {filterStatus === 'Leído' ? '✓ Viendo correos abiertos' : '⚡ Clic para ver leídos'}
+                  </p>
+                </div>
+                <div className={`p-3 rounded-2xl border transition-colors ${
+                  filterStatus === 'Leído' ? 'bg-emerald-600 text-white border-emerald-600' : 'bg-emerald-50 border-emerald-100 text-emerald-600'
+                }`}>
+                  <Eye className="w-6 h-6" />
+                </div>
+              </button>
 
-                {/* Card 2: Correos Leídos */}
-                <button
-                  type="button"
-                  onClick={() => setFilterStatus('Leído')}
-                  className={`p-4 rounded-2xl border text-left transition-all duration-200 cursor-pointer flex items-center justify-between group ${
-                    filterStatus === 'Leído'
-                      ? 'bg-[#09261C] border-emerald-400/80 ring-2 ring-emerald-500/40 shadow-xl shadow-emerald-950/50 scale-[1.01]'
-                      : 'bg-[#08101A] border-brand-gold/15 hover:border-emerald-500/40 hover:bg-[#0c1827]'
-                  }`}
-                >
-                  <div>
-                    <div className="flex items-center gap-2">
-                      <p className="text-xs text-emerald-400 font-bold uppercase tracking-wider">Correos Leídos</p>
-                      {filterStatus === 'Leído' && <span className="w-2 h-2 rounded-full bg-emerald-400"></span>}
-                    </div>
-                    <div className="flex items-baseline gap-2 mt-1">
-                      <p className="text-3xl font-extrabold text-emerald-400 font-mono">
-                        {emails.filter(e => e.status === 'Leído' || e.status === 'Agendado' || e.whatsapp_clicked_at).length}
-                      </p>
-                      <span className="text-xs font-bold text-emerald-400/80 font-mono">
-                        ({emails.length > 0 ? Math.round((emails.filter(e => e.status === 'Leído' || e.status === 'Agendado' || e.whatsapp_clicked_at).length / emails.length) * 100) : 0}%)
-                      </span>
-                    </div>
-                    <p className="text-xxs text-emerald-500/80 mt-1 group-hover:text-emerald-400 font-medium transition-colors">
-                      {filterStatus === 'Leído' ? '✓ Viendo correos abiertos' : '⚡ Clic para ver leídos'}
+              {/* Card 3: Clicks WhatsApp */}
+              <button
+                type="button"
+                onClick={() => setFilterStatus('WhatsApp')}
+                className={`p-5 rounded-2xl border text-left transition-all duration-200 cursor-pointer flex items-center justify-between group shadow-xs ${
+                  filterStatus === 'WhatsApp'
+                    ? 'bg-emerald-50/80 border-[#25D366] ring-2 ring-[#25D366]/30'
+                    : 'bg-white border-slate-200/90 hover:border-emerald-300 hover:bg-slate-50/50'
+                }`}
+              >
+                <div>
+                  <div className="flex items-center gap-2">
+                    <p className="text-xs text-[#128C7E] font-bold uppercase tracking-wider flex items-center gap-1.5">
+                      Clicks WhatsApp
                     </p>
+                    {filterStatus === 'WhatsApp' && <span className="w-2 h-2 rounded-full bg-[#25D366] animate-ping"></span>}
                   </div>
-                  <div className={`p-3 rounded-xl border transition-colors ${
-                    filterStatus === 'Leído' ? 'bg-emerald-500/20 border-emerald-400/50 text-emerald-300' : 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400'
-                  }`}>
-                    <Eye className="w-6 h-6" />
-                  </div>
-                </button>
-
-                {/* Card 3: Clicks WhatsApp (Destacado) */}
-                <button
-                  type="button"
-                  onClick={() => setFilterStatus('WhatsApp')}
-                  className={`p-4 rounded-2xl border text-left transition-all duration-200 cursor-pointer flex items-center justify-between group ${
-                    filterStatus === 'WhatsApp'
-                      ? 'bg-[#082B18] border-[#25D366] ring-2 ring-[#25D366]/50 shadow-2xl shadow-emerald-950/70 scale-[1.01]'
-                      : 'bg-[#08101A] border-[#25D366]/30 hover:border-[#25D366]/70 hover:bg-[#0a1e17]'
-                  }`}
-                >
-                  <div>
-                    <div className="flex items-center gap-2">
-                      <p className="text-xs text-[#25D366] font-bold uppercase tracking-wider flex items-center gap-1.5">
-                        Clicks WhatsApp
-                      </p>
-                      {filterStatus === 'WhatsApp' && <span className="w-2 h-2 rounded-full bg-[#25D366] animate-ping"></span>}
-                    </div>
-                    <div className="flex items-baseline gap-2 mt-1">
-                      <p className="text-3xl font-extrabold text-[#25D366] font-mono">
-                        {emails.filter(e => e.whatsapp_clicked_at).length}
-                      </p>
-                      <span className="text-xs font-bold text-[#25D366]/80 font-mono">
-                        ({emails.length > 0 ? Math.round((emails.filter(e => e.whatsapp_clicked_at).length / emails.length) * 100) : 0}%)
-                      </span>
-                    </div>
-                    <p className="text-xxs text-emerald-400 mt-1 font-semibold group-hover:underline">
-                      {filterStatus === 'WhatsApp' ? '✓ Viendo quiénes clickearon' : '👉 Clic para filtrar leads de WhatsApp'}
+                  <div className="flex items-baseline gap-2 mt-1">
+                    <p className="text-3xl font-extrabold text-[#128C7E] font-mono">
+                      {emails.filter(e => e.whatsapp_clicked_at).length}
                     </p>
+                    <span className="text-xs font-bold text-[#128C7E]/80 font-mono">
+                      ({emails.length > 0 ? Math.round((emails.filter(e => e.whatsapp_clicked_at).length / emails.length) * 100) : 0}%)
+                    </span>
                   </div>
-                  <div className={`p-3 rounded-xl border transition-colors ${
-                    filterStatus === 'WhatsApp' ? 'bg-[#25D366]/25 border-[#25D366]/60 text-[#25D366]' : 'bg-[#25D366]/15 border-[#25D366]/30 text-[#25D366]'
-                  }`}>
-                    <MessageCircle className="w-6 h-6" />
-                  </div>
-                </button>
+                  <p className="text-xs text-emerald-700 mt-1 font-semibold group-hover:underline">
+                    {filterStatus === 'WhatsApp' ? '✓ Viendo quiénes clickearon' : '👉 Clic para filtrar leads WhatsApp'}
+                  </p>
+                </div>
+                <div className={`p-3 rounded-2xl border transition-colors ${
+                  filterStatus === 'WhatsApp' ? 'bg-[#25D366] text-white border-[#25D366]' : 'bg-emerald-50 border-emerald-100 text-[#128C7E]'
+                }`}>
+                  <MessageCircle className="w-6 h-6" />
+                </div>
+              </button>
 
-                {/* Card 4: Citas Agendadas */}
-                <button
-                  type="button"
-                  onClick={() => setFilterStatus('Agendado')}
-                  className={`p-4 rounded-2xl border text-left transition-all duration-200 cursor-pointer flex items-center justify-between group ${
-                    filterStatus === 'Agendado'
-                      ? 'bg-[#241336] border-purple-400 ring-2 ring-purple-500/50 shadow-2xl shadow-purple-950/70 scale-[1.01]'
-                      : 'bg-[#08101A] border-purple-500/30 hover:border-purple-400/60 hover:bg-[#160d24]'
-                  }`}
-                >
-                  <div>
-                    <div className="flex items-center gap-2">
-                      <p className="text-xs text-purple-300 font-bold uppercase tracking-wider">Citas Agendadas</p>
-                      {filterStatus === 'Agendado' && <span className="w-2 h-2 rounded-full bg-purple-400"></span>}
-                    </div>
-                    <div className="flex items-baseline gap-2 mt-1">
-                      <p className="text-3xl font-extrabold text-purple-400 font-mono">
-                        {emails.filter(e => e.status === 'Agendado').length}
-                      </p>
-                      <span className="text-xs font-bold text-purple-300/80 font-mono">
-                        ({emails.length > 0 ? Math.round((emails.filter(e => e.status === 'Agendado').length / emails.length) * 100) : 0}% conv.)
-                      </span>
-                    </div>
-                    <p className="text-xxs text-purple-300 mt-1 font-semibold group-hover:underline">
-                      {filterStatus === 'Agendado' ? '✓ Viendo citas confirmadas' : '👉 Clic para filtrar agendados'}
+              {/* Card 4: Citas Agendadas */}
+              <button
+                type="button"
+                onClick={() => setFilterStatus('Agendado')}
+                className={`p-5 rounded-2xl border text-left transition-all duration-200 cursor-pointer flex items-center justify-between group shadow-xs ${
+                  filterStatus === 'Agendado'
+                    ? 'bg-purple-50/80 border-purple-400 ring-2 ring-purple-400/30'
+                    : 'bg-white border-slate-200/90 hover:border-purple-300 hover:bg-slate-50/50'
+                }`}
+              >
+                <div>
+                  <div className="flex items-center gap-2">
+                    <p className="text-xs text-purple-700 font-bold uppercase tracking-wider">Citas Agendadas</p>
+                    {filterStatus === 'Agendado' && <span className="w-2 h-2 rounded-full bg-purple-600"></span>}
+                  </div>
+                  <div className="flex items-baseline gap-2 mt-1">
+                    <p className="text-3xl font-extrabold text-purple-800 font-mono">
+                      {emails.filter(e => e.status === 'Agendado').length}
                     </p>
+                    <span className="text-xs font-bold text-purple-700/80 font-mono">
+                      ({emails.length > 0 ? Math.round((emails.filter(e => e.status === 'Agendado').length / emails.length) * 100) : 0}% conv.)
+                    </span>
                   </div>
-                  <div className={`p-3 rounded-xl border transition-colors ${
-                    filterStatus === 'Agendado' ? 'bg-purple-500/25 border-purple-400/60 text-purple-300' : 'bg-purple-500/15 border-purple-500/30 text-purple-400'
-                  }`}>
-                    <CheckCircle className="w-6 h-6" />
-                  </div>
-                </button>
-              </div>
+                  <p className="text-xs text-purple-700 mt-1 font-semibold group-hover:underline">
+                    {filterStatus === 'Agendado' ? '✓ Viendo citas confirmadas' : '👉 Clic para filtrar citas'}
+                  </p>
+                </div>
+                <div className={`p-3 rounded-2xl border transition-colors ${
+                  filterStatus === 'Agendado' ? 'bg-purple-700 text-white border-purple-700' : 'bg-purple-50 border-purple-100 text-purple-700'
+                }`}>
+                  <CheckCircle className="w-6 h-6" />
+                </div>
+              </button>
+            </div>
 
-              {/* Barra de Búsqueda y Filtros en Tiempo Real */}
-              <div className="p-6 bg-slate-950/40 border-b border-brand-gold/10 flex flex-col lg:flex-row gap-4 items-stretch lg:items-end justify-between">
-                {/* Búsqueda inteligente por nombre, correo o asunto */}
+            {/* Panel Principal de Prospectos: Filtros y Tabla Paginada */}
+            <section className="bg-white border border-slate-200/90 rounded-2xl shadow-xs overflow-hidden">
+              
+              {/* Barra de Filtros y Búsqueda */}
+              <div className="p-5 border-b border-slate-200/80 bg-slate-50/50 flex flex-col lg:flex-row gap-4 items-stretch lg:items-end justify-between">
+                
+                {/* Búsqueda inteligente por nombre, correo, teléfono o etiqueta */}
                 <div className="w-full lg:w-96 space-y-1.5">
-                  <label className="text-xs text-slate-400 font-bold uppercase tracking-wider flex items-center gap-1.5">
-                    <Search className="w-3.5 h-3.5 text-brand-gold" />
+                  <label className="text-xs text-slate-600 font-bold uppercase tracking-wider flex items-center gap-1.5">
+                    <Search className="w-3.5 h-3.5 text-slate-500" />
                     Buscar Prospecto
                   </label>
                   <div className="relative">
@@ -1656,14 +1312,14 @@ export default function EmailMonitoringDashboard({ onNavigateToBooking }: EmailM
                       type="text"
                       value={searchQuery}
                       onChange={(e) => setSearchQuery(e.target.value)}
-                      placeholder="Escribe nombre, correo o asunto..."
-                      className="w-full pl-10 pr-9 py-2.5 bg-[#08101A] border border-brand-gold/20 hover:border-brand-gold/40 focus:border-brand-gold/90 focus:ring-1 focus:ring-brand-gold/50 rounded-xl text-slate-100 placeholder-slate-500 outline-none transition-all duration-200 text-sm font-sans"
+                      placeholder="Nombre, correo, teléfono o asunto..."
+                      className="w-full pl-10 pr-9 py-2.5 bg-white border border-slate-300 hover:border-slate-400 focus:border-slate-800 focus:ring-1 focus:ring-slate-800 rounded-xl text-slate-800 placeholder-slate-400 outline-none transition-all text-sm font-sans"
                     />
-                    <Search className="w-4 h-4 text-slate-500 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+                    <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
                     {searchQuery && (
                       <button
                         onClick={() => setSearchQuery('')}
-                        className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-200 p-1"
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 p-1 cursor-pointer"
                         title="Limpiar búsqueda"
                       >
                         <X className="w-3.5 h-3.5" />
@@ -1672,16 +1328,16 @@ export default function EmailMonitoringDashboard({ onNavigateToBooking }: EmailM
                   </div>
                 </div>
 
-                {/* Filtros de Estado, Etiqueta y Fechas */}
+                {/* Filtros de Estado, Etiqueta, Fechas y Limpiar */}
                 <div className="flex flex-wrap sm:flex-nowrap gap-3 items-end w-full lg:w-auto">
                   <div className="w-full sm:w-44 space-y-1.5">
-                    <label className="text-xs text-slate-400 font-bold uppercase tracking-wider">Estado</label>
+                    <label className="text-xs text-slate-600 font-bold uppercase tracking-wider">Estado</label>
                     <select
                       value={filterStatus}
                       onChange={(e) => setFilterStatus(e.target.value)}
-                      className="w-full px-3 py-2.5 bg-[#08101A] border border-brand-gold/20 hover:border-brand-gold/40 focus:border-brand-gold/90 focus:ring-1 focus:ring-brand-gold/50 rounded-xl text-slate-100 placeholder-slate-500 outline-none transition-all duration-200 text-sm font-sans"
+                      className="w-full px-3 py-2.5 bg-white border border-slate-300 hover:border-slate-400 focus:border-slate-800 rounded-xl text-slate-800 text-sm font-sans outline-none"
                     >
-                      <option value="Todos">Todos los Estados ({emails.length})</option>
+                      <option value="Todos">Todos ({emails.length})</option>
                       <option value="WhatsApp">💬 Clicks WhatsApp ({emails.filter(e => e.whatsapp_clicked_at).length})</option>
                       <option value="Agendado">📅 Cita Agendada ({emails.filter(e => e.status === 'Agendado').length})</option>
                       <option value="Leído">👁️ Leído ({emails.filter(e => e.status === 'Leído' || e.status === 'Agendado').length})</option>
@@ -1690,16 +1346,16 @@ export default function EmailMonitoringDashboard({ onNavigateToBooking }: EmailM
                   </div>
 
                   <div className="w-full sm:w-48 space-y-1.5">
-                    <label className="text-xs text-slate-400 font-bold uppercase tracking-wider flex items-center gap-1.5">
-                      <Tag className="w-3.5 h-3.5 text-brand-gold" />
+                    <label className="text-xs text-slate-600 font-bold uppercase tracking-wider flex items-center gap-1.5">
+                      <Tag className="w-3.5 h-3.5 text-slate-500" />
                       Etiqueta
                     </label>
                     <select
                       value={filterTag}
                       onChange={(e) => setFilterTag(e.target.value)}
-                      className="w-full px-3 py-2.5 bg-[#08101A] border border-brand-gold/20 hover:border-brand-gold/40 focus:border-brand-gold/90 focus:ring-1 focus:ring-brand-gold/50 rounded-xl text-slate-100 placeholder-slate-500 outline-none transition-all duration-200 text-sm font-sans"
+                      className="w-full px-3 py-2.5 bg-white border border-slate-300 hover:border-slate-400 focus:border-slate-800 rounded-xl text-slate-800 text-sm font-sans outline-none"
                     >
-                      <option value="Todas">Todas las Etiquetas ({emails.length})</option>
+                      <option value="Todas">Todas ({emails.length})</option>
                       {Array.from(new Set(emails.map(e => e.tag?.trim()).filter(Boolean) as string[])).sort().map((t) => (
                         <option key={t} value={t}>
                           🏷️ {t} ({emails.filter(e => e.tag?.trim().toLowerCase() === t.toLowerCase()).length})
@@ -1714,22 +1370,22 @@ export default function EmailMonitoringDashboard({ onNavigateToBooking }: EmailM
                   </div>
 
                   <div className="w-full sm:w-32 space-y-1.5">
-                    <label className="text-xs text-slate-400 font-bold uppercase tracking-wider">Desde</label>
+                    <label className="text-xs text-slate-600 font-bold uppercase tracking-wider">Desde</label>
                     <input
                       type="date"
                       value={filterStartDate}
                       onChange={(e) => setFilterStartDate(e.target.value)}
-                      className="w-full px-3 py-2.5 bg-[#08101A] border border-brand-gold/20 hover:border-brand-gold/40 focus:border-brand-gold/90 focus:ring-1 focus:ring-brand-gold/50 rounded-xl text-slate-100 text-sm font-sans"
+                      className="w-full px-3 py-2 bg-white border border-slate-300 hover:border-slate-400 focus:border-slate-800 rounded-xl text-slate-800 text-sm font-sans"
                     />
                   </div>
 
                   <div className="w-full sm:w-32 space-y-1.5">
-                    <label className="text-xs text-slate-400 font-bold uppercase tracking-wider">Hasta</label>
+                    <label className="text-xs text-slate-600 font-bold uppercase tracking-wider">Hasta</label>
                     <input
                       type="date"
                       value={filterEndDate}
                       onChange={(e) => setFilterEndDate(e.target.value)}
-                      className="w-full px-3 py-2.5 bg-[#08101A] border border-brand-gold/20 hover:border-brand-gold/40 focus:border-brand-gold/90 focus:ring-1 focus:ring-brand-gold/50 rounded-xl text-slate-100 text-sm font-sans"
+                      className="w-full px-3 py-2 bg-white border border-slate-300 hover:border-slate-400 focus:border-slate-800 rounded-xl text-slate-800 text-sm font-sans"
                     />
                   </div>
 
@@ -1742,7 +1398,7 @@ export default function EmailMonitoringDashboard({ onNavigateToBooking }: EmailM
                         setFilterEndDate('');
                         setSearchQuery('');
                       }}
-                      className="px-4 py-2.5 bg-red-500/10 hover:bg-red-500/20 active:bg-red-500/30 border border-red-500/30 text-red-300 text-sm font-medium rounded-xl transition-all duration-200 flex items-center gap-1.5 whitespace-nowrap h-[42px]"
+                      className="px-4 py-2.5 bg-slate-100 hover:bg-slate-200 border border-slate-300 text-slate-700 text-sm font-semibold rounded-xl transition-all flex items-center gap-1.5 whitespace-nowrap h-[42px] cursor-pointer"
                       title="Restablecer todos los filtros"
                     >
                       <X className="w-4 h-4" />
@@ -1753,45 +1409,27 @@ export default function EmailMonitoringDashboard({ onNavigateToBooking }: EmailM
               </div>
 
               {/* Banner visual de Filtro Activo */}
-              {(filterStatus !== 'Todos' || filterTag !== 'Todas') && (
-                <div className="px-6 py-3 bg-brand-gold/10 border-b border-brand-gold/20 flex flex-wrap items-center justify-between gap-3 text-xs">
+              {(filterStatus !== 'Todos' || filterTag !== 'Todas' || searchQuery) && (
+                <div className="px-5 py-2.5 bg-amber-50/70 border-b border-amber-200/60 flex flex-wrap items-center justify-between gap-3 text-xs">
                   <div className="flex items-center gap-2 flex-wrap">
-                    <span className="text-slate-400 font-medium">Mostrando únicamente:</span>
+                    <span className="text-slate-600 font-medium">Filtrando por:</span>
                     {filterStatus !== 'Todos' && (
-                      <span className="font-bold text-white px-2.5 py-1 rounded-lg bg-slate-900 border border-brand-gold/40 flex items-center gap-1.5">
-                        {filterStatus === 'WhatsApp' && (
-                          <>
-                            <MessageCircle className="w-3.5 h-3.5 text-[#25D366]" />
-                            <span>Prospectos que hicieron clic en WhatsApp</span>
-                          </>
-                        )}
-                        {filterStatus === 'Agendado' && (
-                          <>
-                            <CheckCircle className="w-3.5 h-3.5 text-purple-400" />
-                            <span>Prospectos con Cita Agendada</span>
-                          </>
-                        )}
-                        {filterStatus === 'Leído' && (
-                          <>
-                            <Eye className="w-3.5 h-3.5 text-emerald-400" />
-                            <span>Prospectos que abrieron el correo</span>
-                          </>
-                        )}
-                        {filterStatus === 'Enviado' && (
-                          <>
-                            <Mail className="w-3.5 h-3.5 text-blue-400" />
-                            <span>Prospectos en estado enviado</span>
-                          </>
-                        )}
+                      <span className="font-bold text-slate-800 px-2.5 py-1 rounded-lg bg-white border border-amber-200 shadow-xs flex items-center gap-1.5">
+                        Estado: {filterStatus}
                       </span>
                     )}
                     {filterTag !== 'Todas' && (
-                      <span className="font-bold text-brand-gold px-2.5 py-1 rounded-lg bg-slate-900 border border-brand-gold/40 flex items-center gap-1.5">
-                        <Tag className="w-3.5 h-3.5 text-brand-gold" />
-                        <span>Etiqueta: {filterTag}</span>
+                      <span className="font-bold text-slate-800 px-2.5 py-1 rounded-lg bg-white border border-amber-200 shadow-xs flex items-center gap-1.5">
+                        <Tag className="w-3.5 h-3.5 text-amber-600" />
+                        Etiqueta: {filterTag}
                       </span>
                     )}
-                    <span className="px-2.5 py-0.5 rounded-full bg-brand-gold/20 text-brand-gold font-mono font-bold">
+                    {searchQuery && (
+                      <span className="font-bold text-slate-800 px-2.5 py-1 rounded-lg bg-white border border-amber-200 shadow-xs">
+                        Búsqueda: "{searchQuery}"
+                      </span>
+                    )}
+                    <span className="px-2.5 py-0.5 rounded-full bg-amber-200/70 text-amber-900 font-mono font-bold">
                       {filteredEmails.length} {filteredEmails.length === 1 ? 'prospecto encontrado' : 'prospectos encontrados'}
                     </span>
                   </div>
@@ -1799,35 +1437,60 @@ export default function EmailMonitoringDashboard({ onNavigateToBooking }: EmailM
                     onClick={() => {
                       setFilterStatus('Todos');
                       setFilterTag('Todas');
+                      setSearchQuery('');
                     }}
-                    className="text-brand-gold hover:text-white font-semibold underline cursor-pointer text-xs transition-colors"
+                    className="text-amber-800 hover:text-amber-950 font-semibold underline cursor-pointer text-xs"
                   >
                     Mostrar todos los registros
                   </button>
                 </div>
               )}
 
+              {/* Controles de Paginación Superior (Selector de Tamaño de Página) */}
+              <div className="px-5 py-3 border-b border-slate-100 flex items-center justify-between text-xs text-slate-500 bg-white">
+                <div className="flex items-center gap-2">
+                  <span>Mostrando {filteredEmails.length > 0 ? startIndex + 1 : 0}–{Math.min(startIndex + pageSize, filteredEmails.length)} de <strong className="text-slate-800 font-mono">{filteredEmails.length}</strong> prospectos</span>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <label className="text-slate-500 font-medium">Filas por página:</label>
+                  <select
+                    value={pageSize}
+                    onChange={(e) => {
+                      setPageSize(Number(e.target.value));
+                      setCurrentPage(1);
+                    }}
+                    className="px-2.5 py-1 bg-slate-50 border border-slate-200 rounded-lg text-xs font-semibold text-slate-700 outline-none cursor-pointer"
+                  >
+                    <option value={10}>10</option>
+                    <option value={20}>20</option>
+                    <option value={50}>50</option>
+                    <option value={100}>100</option>
+                  </select>
+                </div>
+              </div>
+
               {/* Tabla de Rastreos Full-Width */}
               <div className="overflow-x-auto w-full">
                 {emails.length === 0 ? (
                   <div className="py-20 text-center space-y-4">
-                    <div className="w-20 h-20 bg-slate-900 border border-slate-800 rounded-2xl flex items-center justify-center mx-auto text-slate-500 shadow-lg">
-                      <Mail className="w-10 h-10 text-brand-gold/60" />
+                    <div className="w-16 h-16 bg-slate-100 border border-slate-200 rounded-2xl flex items-center justify-center mx-auto text-slate-400 shadow-xs">
+                      <Inbox className="w-8 h-8 text-slate-400" />
                     </div>
                     <div className="space-y-1">
-                      <p className="text-lg text-slate-300 font-semibold">No hay registros de envío en este entorno</p>
-                      <p className="text-xs text-slate-500">Usa el formulario superior para enviar tu primer correo de prueba.</p>
+                      <p className="text-base text-slate-700 font-bold">No hay registros de envío en este entorno</p>
+                      <p className="text-xs text-slate-500">Usa la pestaña "Envío Individual" o "Campañas Masivas" para comenzar.</p>
                     </div>
                   </div>
                 ) : filteredEmails.length === 0 ? (
                   <div className="py-20 text-center space-y-4">
-                    <div className="w-20 h-20 bg-slate-900 border border-slate-800 rounded-2xl flex items-center justify-center mx-auto text-slate-500 shadow-lg">
-                      <Search className="w-10 h-10 text-brand-gold/60" />
+                    <div className="w-16 h-16 bg-slate-100 border border-slate-200 rounded-2xl flex items-center justify-center mx-auto text-slate-400 shadow-xs">
+                      <Search className="w-8 h-8 text-slate-400" />
                     </div>
                     <div className="space-y-1.5">
-                      <p className="text-lg text-slate-300 font-semibold">Ningún prospecto coincide con los filtros</p>
+                      <p className="text-base text-slate-700 font-bold">Ningún prospecto coincide con los filtros</p>
                       <p className="text-xs text-slate-500">
-                        Prueba ajustando la búsqueda <span className="text-brand-gold font-mono">"{searchQuery}"</span> o cambiando el estado seleccionado.
+                        Prueba ajustando la búsqueda o restableciendo los filtros seleccionados.
                       </p>
                       <button
                         onClick={() => {
@@ -1836,7 +1499,7 @@ export default function EmailMonitoringDashboard({ onNavigateToBooking }: EmailM
                           setFilterStartDate('');
                           setFilterEndDate('');
                         }}
-                        className="mt-3 px-4 py-2 bg-brand-gold/15 hover:bg-brand-gold/25 border border-brand-gold/40 text-brand-gold text-xs font-semibold rounded-xl transition-colors cursor-pointer"
+                        className="mt-3 px-4 py-2 bg-slate-900 hover:bg-slate-800 text-white text-xs font-semibold rounded-xl transition-colors cursor-pointer"
                       >
                         Restablecer Filtros
                       </button>
@@ -1845,102 +1508,103 @@ export default function EmailMonitoringDashboard({ onNavigateToBooking }: EmailM
                 ) : (
                   <table className="w-full text-left border-collapse">
                     <thead>
-                      <tr className="bg-[#07111D] text-slate-300 text-xs font-bold tracking-wider uppercase border-b border-brand-gold/20">
-                        <th className="py-4 px-6 md:px-8">Prospecto / Lead</th>
-                        <th className="py-4 px-6">Etiqueta</th>
-                        <th className="py-4 px-6">Interacción y Estado</th>
-                        <th className="py-4 px-6">Agenda Propuesta (Calendar)</th>
-                        <th className="py-4 px-6">Fecha de Envío</th>
-                        <th className="py-4 px-6">Asunto del Correo</th>
-                        <th className="py-4 px-6 text-right">Acción Rápida</th>
+                      <tr className="bg-slate-50 text-slate-600 text-xs font-bold tracking-wider uppercase border-b border-slate-200">
+                        <th className="py-3.5 px-6">Prospecto / Lead</th>
+                        <th className="py-3.5 px-5">Etiqueta</th>
+                        <th className="py-3.5 px-5">Interacción y Estado</th>
+                        <th className="py-3.5 px-5">Agenda Propuesta</th>
+                        <th className="py-3.5 px-5">Fecha Envío</th>
+                        <th className="py-3.5 px-5">Asunto</th>
+                        <th className="py-3.5 px-6 text-right">Acción</th>
                       </tr>
                     </thead>
-                    <tbody className="divide-y divide-slate-800/60 text-sm">
-                      {filteredEmails.map((email) => (
+                    <tbody className="divide-y divide-slate-100 text-sm">
+                      {paginatedEmails.map((email) => (
                         <tr 
                           key={email.id} 
                           className={`transition-colors duration-150 group ${
                             email.whatsapp_clicked_at 
-                              ? 'bg-[#0B2018]/50 hover:bg-[#0E2D22]/80 border-l-4 border-l-[#25D366]' 
+                              ? 'bg-emerald-50/40 hover:bg-emerald-50/70 border-l-4 border-l-[#25D366]' 
                               : email.status === 'Agendado'
-                              ? 'bg-[#1C102E]/50 hover:bg-[#281742]/80 border-l-4 border-l-purple-500'
-                              : 'hover:bg-slate-900/60 border-l-4 border-l-transparent'
+                              ? 'bg-purple-50/40 hover:bg-purple-50/70 border-l-4 border-l-purple-600'
+                              : 'hover:bg-slate-50/80 border-l-4 border-l-transparent'
                           }`}
                         >
                           {/* Columna 1: Prospecto / Destinatario */}
-                          <td className="py-4 px-6 md:px-8 font-medium">
-                            <div className="flex items-center gap-3.5">
-                              <div className={`w-10 h-10 rounded-xl flex items-center justify-center font-bold text-sm uppercase shrink-0 shadow-md ${
+                          <td className="py-4 px-6 font-medium">
+                            <div className="flex items-center gap-3">
+                              <div className={`w-9 h-9 rounded-xl flex items-center justify-center font-bold text-sm uppercase shrink-0 shadow-xs ${
                                 email.whatsapp_clicked_at
-                                  ? 'bg-[#25D366]/20 border border-[#25D366]/50 text-[#25D366] shadow-[#25D366]/10'
+                                  ? 'bg-[#25D366]/20 border border-[#25D366]/40 text-[#128C7E]'
                                   : email.status === 'Agendado'
-                                  ? 'bg-purple-500/20 border border-purple-500/50 text-purple-300 shadow-purple-950/40'
+                                  ? 'bg-purple-100 border border-purple-200 text-purple-700'
                                   : email.status === 'Leído'
-                                  ? 'bg-emerald-500/20 border border-emerald-500/40 text-emerald-300'
-                                  : 'bg-slate-800 border border-slate-700 text-slate-300'
+                                  ? 'bg-emerald-100 border border-emerald-200 text-emerald-700'
+                                  : 'bg-slate-100 border border-slate-200 text-slate-700'
                               }`}>
                                 {(email.recipient_name || email.recipient_email).charAt(0)}
                               </div>
                               <div className="min-w-0">
-                                <div className="text-slate-100 font-bold text-sm flex items-center gap-2">
+                                <div className="text-slate-900 font-bold text-sm flex items-center gap-2">
                                   <span className="truncate">{email.recipient_name || 'Prospecto sin nombre'}</span>
                                   {email.whatsapp_clicked_at && (
                                     <span 
-                                      className="px-2 py-0.5 rounded-md bg-[#25D366]/20 border border-[#25D366]/40 text-[#25D366] text-xxs font-bold uppercase tracking-wider"
-                                      title="Este cliente hizo clic en el enlace de WhatsApp"
+                                      className="px-2 py-0.5 rounded-md bg-[#25D366]/15 border border-[#25D366]/30 text-[#128C7E] text-[10px] font-bold uppercase tracking-wider"
+                                      title="Este prospecto hizo clic en el enlace de WhatsApp"
                                     >
                                       WhatsApp
                                     </span>
                                   )}
                                 </div>
+                                
                                 {/* Correo con botón de copiado rápido */}
                                 <div className="flex items-center gap-1.5 mt-0.5">
-                                  <span className="text-xs font-mono text-slate-400 truncate max-w-[200px]" title={email.recipient_email}>
+                                  <span className="text-xs font-mono text-slate-500 truncate max-w-[190px]" title={email.recipient_email}>
                                     {email.recipient_email}
                                   </span>
                                   <button
                                     type="button"
                                     onClick={(e) => handleCopyToClipboard(email.recipient_email, `email-${email.id}`, e)}
-                                    className="p-1 rounded-md hover:bg-slate-800 text-slate-500 hover:text-slate-200 transition-colors cursor-pointer shrink-0"
-                                    title="Copiar correo electrónico"
+                                    className="p-1 rounded-md hover:bg-slate-100 text-slate-400 hover:text-slate-700 transition-colors cursor-pointer shrink-0"
+                                    title="Copiar correo"
                                   >
                                     {copiedKey === `email-${email.id}` ? (
-                                      <Check className="w-3.5 h-3.5 text-emerald-400" />
+                                      <Check className="w-3.5 h-3.5 text-emerald-600" />
                                     ) : (
-                                      <Copy className="w-3.5 h-3.5 text-slate-400 hover:text-brand-gold" />
+                                      <Copy className="w-3.5 h-3.5" />
                                     )}
                                   </button>
                                 </div>
 
-                                {/* Celular con botón de copiado rápido y WhatsApp */}
+                                {/* Celular con botón de copiado rápido y enlace WhatsApp */}
                                 {email.recipient_phone ? (
                                   <div className="flex items-center gap-1.5 mt-1">
                                     <a
                                       href={`https://wa.me/${email.recipient_phone.replace(/[^0-9]/g, '')}?text=${encodeURIComponent(`Hola ${email.recipient_name || ''}, te contacto de Afinitive Wealth Management.`)}`}
                                       target="_blank"
                                       rel="noopener noreferrer"
-                                      className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-emerald-500/15 hover:bg-emerald-500/25 border border-emerald-500/40 text-emerald-400 font-mono text-xs font-bold transition-all shadow-xs w-fit"
+                                      className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 text-emerald-700 font-mono text-xs font-bold transition-all shadow-xs w-fit"
                                       title="Abrir chat de WhatsApp directo con este cliente"
                                     >
-                                      <Phone className="w-3 h-3 text-emerald-400 shrink-0" />
+                                      <Phone className="w-3 h-3 text-emerald-600 shrink-0" />
                                       <span>{email.recipient_phone}</span>
                                     </a>
                                     <button
                                       type="button"
                                       onClick={(e) => handleCopyToClipboard(email.recipient_phone || '', `phone-${email.id}`, e)}
-                                      className="p-1 rounded-md hover:bg-slate-800 text-slate-500 hover:text-slate-200 transition-colors cursor-pointer shrink-0"
+                                      className="p-1 rounded-md hover:bg-slate-100 text-slate-400 hover:text-emerald-700 transition-colors cursor-pointer shrink-0"
                                       title="Copiar número de celular"
                                     >
                                       {copiedKey === `phone-${email.id}` ? (
-                                        <Check className="w-3.5 h-3.5 text-emerald-400" />
+                                        <Check className="w-3.5 h-3.5 text-emerald-600" />
                                       ) : (
-                                        <Copy className="w-3.5 h-3.5 text-slate-400 hover:text-emerald-400" />
+                                        <Copy className="w-3.5 h-3.5" />
                                       )}
                                     </button>
                                   </div>
                                 ) : (
-                                  <div className="text-xxs font-mono text-slate-600 italic mt-0.5 flex items-center gap-1">
-                                    <Phone className="w-2.5 h-2.5 opacity-30" />
+                                  <div className="text-[11px] font-mono text-slate-400 italic mt-0.5 flex items-center gap-1">
+                                    <Phone className="w-2.5 h-2.5 opacity-40" />
                                     <span>Sin teléfono</span>
                                   </div>
                                 )}
@@ -1949,87 +1613,86 @@ export default function EmailMonitoringDashboard({ onNavigateToBooking }: EmailM
                           </td>
 
                           {/* Columna 2: Etiqueta */}
-                          <td className="py-4 px-6 whitespace-nowrap">
+                          <td className="py-4 px-5 whitespace-nowrap">
                             {email.tag ? (
-                              <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-semibold bg-brand-gold/10 border border-brand-gold/30 text-brand-gold shadow-sm">
-                                <Tag className="w-3 h-3 text-brand-gold shrink-0" />
-                                <span className="truncate max-w-[150px]" title={email.tag}>{email.tag}</span>
+                              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold bg-amber-50 border border-amber-200/80 text-amber-900 shadow-xs">
+                                <Tag className="w-3 h-3 text-amber-700 shrink-0" />
+                                <span className="truncate max-w-[140px]" title={email.tag}>{email.tag}</span>
                               </span>
                             ) : (
-                              <span className="text-slate-600 font-mono text-xs italic">—</span>
+                              <span className="text-slate-400 font-mono text-xs italic">—</span>
                             )}
                           </td>
 
-                          {/* Columna 2: Interacciones y Estado */}
-                          <td className="py-4 px-6 whitespace-nowrap">
+                          {/* Columna 3: Interacciones y Estado */}
+                          <td className="py-4 px-5 whitespace-nowrap">
                             <div className="flex flex-col gap-1.5 items-start">
                               {/* Badge WhatsApp si hizo clic */}
                               {email.whatsapp_clicked_at && (
                                 <span 
-                                  className="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-bold bg-[#25D366]/20 border border-[#25D366]/60 text-[#25D366] shadow-md shadow-emerald-950/40"
+                                  className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-bold bg-[#25D366]/15 border border-[#25D366]/40 text-[#128C7E] shadow-xs"
                                   title={`Clic registrado: ${formatDate(email.whatsapp_clicked_at)}`}
                                 >
                                   <MessageCircle className="w-3.5 h-3.5 text-[#25D366] shrink-0" />
-                                  <span>Clic en WhatsApp:</span>
-                                  <span className="font-mono text-xxs opacity-90">{formatDate(email.whatsapp_clicked_at)}</span>
+                                  <span>Clic en WhatsApp</span>
                                 </span>
                               )}
 
                               {/* Badge de Estado Cita o Leído */}
                               {email.status === 'Agendado' ? (
-                                <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-bold bg-purple-500/20 border border-purple-500/60 text-purple-300 shadow-md shadow-purple-950/40">
-                                  <CheckCircle className="w-3.5 h-3.5 text-purple-400 shrink-0" />
+                                <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-bold bg-purple-100 border border-purple-300 text-purple-800 shadow-xs">
+                                  <CheckCircle className="w-3.5 h-3.5 text-purple-600 shrink-0" />
                                   <span>Cita Agendada</span>
                                 </span>
                               ) : email.status === 'Leído' ? (
-                                <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-semibold bg-emerald-500/15 border border-emerald-500/40 text-emerald-300 shadow-sm">
-                                  <Eye className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+                                <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold bg-emerald-50 border border-emerald-200 text-emerald-700 shadow-xs">
+                                  <Eye className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
                                   <span>Leído</span>
                                   {email.opened_at && (
-                                    <span className="text-xxs font-mono text-emerald-400/80">({formatDate(email.opened_at)})</span>
+                                    <span className="text-[10px] font-mono text-emerald-700/80">({formatDate(email.opened_at)})</span>
                                   )}
                                 </span>
                               ) : (
-                                <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-semibold bg-brand-navy-light border border-blue-500/30 text-blue-400">
-                                  <Clock className="w-3.5 h-3.5 text-blue-400 shrink-0" />
+                                <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-medium bg-slate-100 border border-slate-200 text-slate-600">
+                                  <Clock className="w-3.5 h-3.5 text-slate-500 shrink-0" />
                                   <span>Enviado</span>
                                 </span>
                               )}
                             </div>
                           </td>
 
-                          {/* Columna 3: Agenda Propuesta */}
-                          <td className="py-4 px-6 whitespace-nowrap">
+                          {/* Columna 4: Agenda Propuesta */}
+                          <td className="py-4 px-5 whitespace-nowrap">
                             {email.proposed_time ? (
-                              <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-xl bg-brand-gold/10 border border-brand-gold/30 text-brand-gold text-xs font-semibold shadow-sm">
-                                <Calendar className="w-3.5 h-3.5 text-brand-gold shrink-0" />
+                              <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-slate-100 border border-slate-200 text-slate-800 text-xs font-medium">
+                                <Calendar className="w-3.5 h-3.5 text-amber-600 shrink-0" />
                                 <span>{formatProposedDate(email.proposed_time)}</span>
                               </div>
                             ) : (
-                              <span className="text-slate-600 font-mono text-xs">—</span>
+                              <span className="text-slate-400 font-mono text-xs">—</span>
                             )}
                           </td>
 
-                          {/* Columna 4: Fecha de Envío */}
-                          <td className="py-4 px-6 text-slate-300 text-xs whitespace-nowrap">
-                            <div className="flex items-center gap-2 font-mono">
-                              <Clock className="w-3.5 h-3.5 text-slate-500 shrink-0" />
+                          {/* Columna 5: Fecha de Envío */}
+                          <td className="py-4 px-5 text-slate-600 text-xs whitespace-nowrap font-mono">
+                            <div className="flex items-center gap-1.5">
+                              <Clock className="w-3 h-3 text-slate-400 shrink-0" />
                               <span>{formatDate(email.sent_at)}</span>
                             </div>
                           </td>
 
-                          {/* Columna 5: Asunto del Correo */}
-                          <td className="py-4 px-6 text-slate-300 text-xs max-w-sm" title={email.subject}>
+                          {/* Columna 6: Asunto del Correo */}
+                          <td className="py-4 px-5 text-slate-700 text-xs max-w-xs" title={email.subject}>
                             <div className="truncate font-medium">{email.subject}</div>
                           </td>
 
-                          {/* Columna 6: Acción Rápida Directa */}
+                          {/* Columna 7: Acción Rápida Directa */}
                           <td className="py-4 px-6 text-right whitespace-nowrap">
                             <a
-                              href={`https://wa.me/${email.recipient_phone?.replace(/[^0-9]/g, '') || '51902821992'}?text=${encodeURIComponent(`Hola ${email.recipient_name || ''}, te contacto de Afinitive Wealth Management sobre la reunión coordinada.`)}`}
+                              href={`https://wa.me/${email.recipient_phone?.replace(/[^0-9]/g, '') || '51982100208'}?text=${encodeURIComponent(`Hola ${email.recipient_name || ''}, te contacto de Afinitive Wealth Management sobre la reunión coordinada.`)}`}
                               target="_blank"
                               rel="noopener noreferrer"
-                              className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-[#25D366]/15 hover:bg-[#25D366]/30 active:bg-[#25D366]/40 border border-[#25D366]/40 hover:border-[#25D366]/70 text-[#25D366] text-xs font-bold transition-all duration-150 shadow-md shadow-emerald-950/30"
+                              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-[#25D366]/10 hover:bg-[#25D366]/20 active:bg-[#25D366]/30 border border-[#25D366]/30 hover:border-[#25D366]/60 text-[#128C7E] text-xs font-bold transition-all shadow-xs"
                               title="Abrir chat de WhatsApp con este prospecto"
                             >
                               <MessageCircle className="w-3.5 h-3.5 shrink-0" />
@@ -2042,338 +1705,720 @@ export default function EmailMonitoringDashboard({ onNavigateToBooking }: EmailM
                   </table>
                 )}
               </div>
-            </section>
-          </>
-        )}
 
-        {/* Pestaña: Campañas Masivas */}
-        {activeTab === 'campanas' && (
-          <div className="space-y-8 animate-fade-in">
-            {/* Sección de Carga de CSV y Control Global */}
-            <section className="bg-gradient-to-b from-[#0D1B2A] to-[#0A1420] border border-brand-gold/20 rounded-2xl p-6 md:p-8 shadow-xl relative overflow-hidden">
-              <div className="absolute top-0 right-0 w-64 h-64 bg-brand-gold/5 rounded-full blur-3xl pointer-events-none"></div>
-              
-              <div className="relative z-10 space-y-6">
-                <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-                  <div className="space-y-1">
-                    <h2 className="text-xl font-semibold text-brand-gold">Carga de Campaña Masiva</h2>
-                    <p className="text-xs text-slate-400">
-                      Sube un archivo CSV con columnas "Nombre, Correo, Celular". El sistema calculará la disponibilidad en Google Calendar automáticamente.
-                    </p>
-                  </div>
-                  
-                  <div className="flex items-center gap-3">
-                    {queueStatus.isProcessing && (
-                      <button
-                        onClick={handleStopQueue}
-                        disabled={queueLoading}
-                        className="px-4 py-2 border border-red-500/50 hover:border-red-400 bg-red-600/20 hover:bg-red-600/30 text-red-300 hover:text-red-200 rounded-xl text-sm font-semibold transition-all duration-200 flex items-center gap-2 cursor-pointer shadow-lg shadow-red-950/40 animate-pulse disabled:opacity-50"
-                      >
-                        <PauseCircle className="w-4 h-4 text-red-400" />
-                        <span>Detener Envíos</span>
-                      </button>
-                    )}
-                    <button
-                      onClick={handleClearQueue}
-                      disabled={queueLoading}
-                      className="px-4 py-2 border border-red-500/30 hover:border-red-500 bg-red-500/10 hover:bg-red-500/20 text-red-400 rounded-xl text-sm font-semibold transition-all duration-200 flex items-center gap-2 cursor-pointer disabled:opacity-40"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                      <span>Limpiar Cola</span>
-                    </button>
-                  </div>
-                </div>
-
-                {/* Paso 1: Selección de Plantilla de la Campaña */}
-                <div className="bg-[#09131E] border border-brand-gold/25 rounded-xl p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-inner">
-                  <div className="flex items-center gap-3">
-                    <div className="p-2.5 rounded-lg bg-brand-gold/10 border border-brand-gold/30 text-brand-gold">
-                      <LayoutTemplate className="w-5 h-5" />
-                    </div>
-                    <div>
-                      <label className="text-xs text-brand-gold font-bold uppercase tracking-wider block">
-                        Paso 1: Plantilla para esta Campaña Masiva
-                      </label>
-                      <div className="flex items-center gap-2 mt-1">
-                        <select
-                          value={selectedTemplateId || ''}
-                          onChange={(e) => {
-                            const found = templates.find((t) => t.id === e.target.value);
-                            if (found) handleSelectTemplate(found);
-                          }}
-                          className="px-3 py-1.5 bg-brand-navy-dark border border-brand-gold/30 rounded-lg text-xs font-semibold text-slate-100 outline-none focus:border-brand-gold max-w-xs sm:max-w-sm truncate"
-                        >
-                          {templates.map((tpl) => {
-                            const isWhatsapp = tpl.actionType === 'whatsapp_lead' || tpl.action_type === 'whatsapp_lead' || tpl.name?.toLowerCase().includes('whatsapp');
-                            const isEvent = tpl.actionType === 'event_invitation' || tpl.category === 'Eventos & Landings';
-                            const badgeLabel = isWhatsapp ? '💬 WhatsApp' : isEvent ? '🎟️ Evento' : '📅 Agenda 1 a 1';
-                            return (
-                              <option key={tpl.id} value={tpl.id}>
-                                {tpl.name} ({badgeLabel})
-                              </option>
-                            );
-                          })}
-                        </select>
-                        {selectedTemplate && (
-                          <span className="text-[10px] px-2 py-0.5 rounded-full bg-slate-800 text-slate-300 border border-slate-700 hidden md:inline">
-                            {selectedTemplate.category || 'General'}
-                          </span>
-                        )}
-                      </div>
-                    </div>
+              {/* Controles de Paginación Inferior Estilo Google */}
+              {filteredEmails.length > 0 && (
+                <div className="p-4 border-t border-slate-200/80 bg-slate-50/50 flex flex-col sm:flex-row items-center justify-between gap-4">
+                  <div className="text-xs text-slate-600">
+                    Página <strong className="font-mono font-bold text-slate-900">{currentPage}</strong> de <strong className="font-mono font-bold text-slate-900">{totalPages}</strong> ({filteredEmails.length} registros totales)
                   </div>
 
-                  <div className="flex items-center gap-2 w-full sm:w-auto justify-end">
+                  <div className="flex items-center gap-1.5">
+                    {/* Primera Página */}
                     <button
                       type="button"
-                      onClick={() => setShowTemplateModal(true)}
-                      className="px-4 py-2 bg-gradient-to-r from-brand-gold/20 to-brand-gold/10 hover:from-brand-gold/30 hover:to-brand-gold/20 text-brand-gold border border-brand-gold/40 rounded-xl text-xs font-bold transition-all flex items-center gap-2 shadow-sm cursor-pointer"
+                      onClick={() => setCurrentPage(1)}
+                      disabled={currentPage === 1}
+                      className="p-2 rounded-xl bg-white border border-slate-200 text-slate-600 hover:bg-slate-100 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer transition-colors shadow-xs"
+                      title="Primera página"
                     >
-                      <FolderOpen className="w-4 h-4" />
-                      <span>Biblioteca / Subir .HTML</span>
+                      <ChevronsLeft className="w-4 h-4" />
+                    </button>
+
+                    {/* Página Anterior */}
+                    <button
+                      type="button"
+                      onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                      disabled={currentPage === 1}
+                      className="flex items-center gap-1 px-3 py-2 rounded-xl bg-white border border-slate-200 text-xs font-semibold text-slate-700 hover:bg-slate-100 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer transition-colors shadow-xs"
+                    >
+                      <ChevronLeft className="w-4 h-4" />
+                      <span className="hidden sm:inline">Anterior</span>
+                    </button>
+
+                    {/* Botones de Número de Página (Compacto) */}
+                    <div className="flex items-center gap-1">
+                      {Array.from({ length: totalPages }, (_, i) => i + 1)
+                        .filter((p) => p === 1 || p === totalPages || Math.abs(p - currentPage) <= 1)
+                        .map((pageNumber, idx, arr) => {
+                          const prev = arr[idx - 1];
+                          const showEllipsis = prev && pageNumber - prev > 1;
+                          return (
+                            <React.Fragment key={pageNumber}>
+                              {showEllipsis && <span className="px-1 text-slate-400 text-xs font-mono">...</span>}
+                              <button
+                                type="button"
+                                onClick={() => setCurrentPage(pageNumber)}
+                                className={`w-8 h-8 rounded-xl text-xs font-mono font-bold transition-all cursor-pointer ${
+                                  currentPage === pageNumber
+                                    ? 'bg-slate-900 text-white shadow-xs'
+                                    : 'bg-white border border-slate-200 text-slate-700 hover:bg-slate-100 shadow-xs'
+                                }`}
+                              >
+                                {pageNumber}
+                              </button>
+                            </React.Fragment>
+                          );
+                        })}
+                    </div>
+
+                    {/* Página Siguiente */}
+                    <button
+                      type="button"
+                      onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+                      disabled={currentPage === totalPages}
+                      className="flex items-center gap-1 px-3 py-2 rounded-xl bg-white border border-slate-200 text-xs font-semibold text-slate-700 hover:bg-slate-100 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer transition-colors shadow-xs"
+                    >
+                      <span className="hidden sm:inline">Siguiente</span>
+                      <ChevronRight className="w-4 h-4" />
+                    </button>
+
+                    {/* Última Página */}
+                    <button
+                      type="button"
+                      onClick={() => setCurrentPage(totalPages)}
+                      disabled={currentPage === totalPages}
+                      className="p-2 rounded-xl bg-white border border-slate-200 text-slate-600 hover:bg-slate-100 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer transition-colors shadow-xs"
+                      title="Última página"
+                    >
+                      <ChevronsRight className="w-4 h-4" />
                     </button>
                   </div>
                 </div>
+              )}
 
-                {/* Banner Informativo del Modo de la Plantilla */}
-                {selectedTemplate?.actionType === 'whatsapp_lead' || selectedTemplate?.action_type === 'whatsapp_lead' || selectedTemplate?.name?.toLowerCase().includes('whatsapp') ? (
-                  <div className="bg-emerald-950/40 border border-emerald-500/40 rounded-xl p-4 flex items-start gap-3 shadow-inner">
-                    <div className="p-2 rounded-lg bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 shrink-0">
-                      <MessageCircle className="w-5 h-5" />
-                    </div>
-                    <div className="space-y-0.5">
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <h4 className="text-xs font-bold text-emerald-300">Modo de Captación Activo (Filtro por WhatsApp)</h4>
-                        <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-200 border border-emerald-500/30 font-semibold">
-                          Protección de Agenda
-                        </span>
-                      </div>
-                      <p className="text-[11px] text-slate-300 leading-relaxed">
-                        Esta plantilla <strong>no consume ni satura horarios de Google Calendar</strong>. Los contactos se procesan al instante y cada correo incluye un enlace directo a tu WhatsApp oficial (+{whatsappNumber.replace(/\D/g, '') || '51982100208'}) para filtrar y recopilar el celular del cliente antes de agendar citas.
-                      </p>
-                    </div>
-                  </div>
-                ) : selectedTemplate?.actionType === 'event_invitation' || selectedTemplate?.category === 'Eventos & Landings' ? (
-                  <div className="bg-amber-950/40 border border-amber-500/40 rounded-xl p-4 flex items-start gap-3 shadow-inner">
-                    <div className="p-2 rounded-lg bg-amber-500/20 text-amber-400 border border-amber-500/30 shrink-0">
-                      <Calendar className="w-5 h-5" />
-                    </div>
-                    <div className="space-y-0.5">
-                      <h4 className="text-xs font-bold text-amber-300">Modo Invitación a Evento & Landing</h4>
-                      <p className="text-[11px] text-slate-300 leading-relaxed">
-                        El correo redirigirá a la Landing Page oficial del evento para registro de asistentes y agendamiento grupal.
-                      </p>
-                    </div>
-                  </div>
-                ) : (
-                  <div className="bg-blue-950/30 border border-blue-500/30 rounded-xl p-4 flex items-start gap-3 shadow-inner">
-                    <div className="p-2 rounded-lg bg-blue-500/20 text-blue-400 border border-blue-500/30 shrink-0">
-                      <Calendar className="w-5 h-5" />
-                    </div>
-                    <div className="space-y-0.5">
-                      <h4 className="text-xs font-bold text-blue-300">Modo Agendamiento Individual 1 a 1</h4>
-                      <p className="text-[11px] text-slate-300 leading-relaxed">
-                        El sistema consultará Google Calendar para asignar automáticamente una fecha y hora libre a cada prospecto.
-                      </p>
-                    </div>
-                  </div>
-                )}
+            </section>
+          </div>
+        )}
 
-                {/* Visor de Previsualización en Campaña */}
-                <LiveEmailPreview
-                  templateName={selectedTemplate?.name || 'Plantilla de Campaña'}
-                  templateType={selectedTemplate?.type || 'standard_wrapper'}
-                  rawHtmlOrBody={emailBody}
-                  subject={subject}
-                  signatureId={signatureId}
-                  senderName={senderName}
-                  testRecipientName="Carlos Mendoza (Ejemplo)"
-                  testProposedDate={proposedTime}
-                  createdBy={selectedTemplate?.createdBy || selectedTemplate?.created_by || 'manual'}
-                  onRefresh={() => fetchTemplates()}
-                />
+        {/* ========================================================================= */}
+        {/* PESTAÑA 2: ✉️ ENVÍO INDIVIDUAL (Split View: Formulario Izq + Preview Der)  */}
+        {/* ========================================================================= */}
+        {activeTab === 'individual' && (
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start animate-fade-in">
+            
+            {/* Columna Izquierda (45%): Formulario Paso a Paso */}
+            <section className="lg:col-span-5 bg-white border border-slate-200/90 rounded-2xl p-6 shadow-xs space-y-5">
+              <div className="space-y-1">
+                <h2 className="text-lg font-bold text-slate-900">Enviar Invitación Directa</h2>
+                <p className="text-xs text-slate-500">
+                  Completa los datos del prospecto y ajusta la fecha sugerida. La previsualización de la derecha se actualiza al instante.
+                </p>
+              </div>
 
-                {/* Paso 2: Definir Etiqueta y Subir Archivo CSV */}
-                <div className="space-y-4">
-                  <div className="bg-[#09131E] border border-brand-gold/25 rounded-xl p-4 space-y-2">
-                    <div className="flex items-center justify-between">
-                      <label className="text-xs text-brand-gold font-bold uppercase tracking-wider flex items-center gap-1.5">
-                        <Tag className="w-4 h-4 text-brand-gold" />
-                        Paso 2: Asignar Nombre de Etiqueta a esta Campaña (Para Filtrado)
-                      </label>
-                      <span className="text-[10px] px-2 py-0.5 rounded-full bg-brand-gold/10 text-brand-gold border border-brand-gold/20 font-medium">
-                        Recomendado
-                      </span>
-                    </div>
-                    <div className="relative">
+              {/* Selector de Plantillas & Biblioteca */}
+              <div className="bg-slate-50 border border-slate-200 rounded-xl p-3.5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+                <div className="flex items-center gap-2.5 min-w-0">
+                  <div className="p-2 rounded-lg bg-amber-100 text-amber-800 shrink-0">
+                    <LayoutTemplate className="w-4 h-4" />
+                  </div>
+                  <div className="min-w-0">
+                    <label className="text-[10px] text-slate-500 font-bold uppercase tracking-wider block">Plantilla</label>
+                    <select
+                      value={selectedTemplateId || ''}
+                      onChange={(e) => {
+                        const found = templates.find((t) => t.id === e.target.value);
+                        if (found) handleSelectTemplate(found);
+                      }}
+                      className="px-2 py-1 bg-white border border-slate-300 rounded-lg text-xs font-semibold text-slate-800 outline-none focus:border-slate-800 max-w-[200px] truncate"
+                    >
+                      {templates.map((tpl) => (
+                        <option key={tpl.id} value={tpl.id}>
+                          {tpl.name}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => setShowTemplateModal(true)}
+                  className="px-3 py-1.5 bg-white hover:bg-slate-100 text-slate-700 border border-slate-300 rounded-lg text-xs font-semibold transition-all flex items-center gap-1.5 shadow-xs cursor-pointer shrink-0"
+                >
+                  <FolderOpen className="w-3.5 h-3.5 text-amber-600" />
+                  <span>Biblioteca</span>
+                </button>
+              </div>
+
+              <form onSubmit={handleSendEmail} className="space-y-4">
+                
+                {/* Remitente Oficial */}
+                <div className="space-y-1.5">
+                  <div className="flex items-center justify-between">
+                    <label className="text-xs text-slate-600 font-bold uppercase tracking-wider block">Firma Remitente Oficial</label>
+                    <span className="text-[10px] text-slate-400 font-mono">rbertalmio@afinitive.com.pe</span>
+                  </div>
+                  <div className="flex items-center gap-3 p-2.5 rounded-xl border border-slate-200 bg-slate-50">
+                    <img src="https://dashbportal.com/afinitive/rbertalmio.png" className="w-7 h-7 rounded-full object-cover border border-slate-300" alt="Ricardo" />
+                    <div className="flex-1 grid grid-cols-2 gap-2">
                       <input
                         type="text"
-                        placeholder="Ej: Inversores Marzo 2026, Leads LinkedIn, Conferencia Lima, Clientes VIP..."
-                        value={campaignTag}
-                        onChange={(e) => setCampaignTag(e.target.value)}
-                        disabled={queueLoading || queueStatus.isProcessing}
-                        className="w-full pl-10 pr-4 py-2.5 bg-brand-navy-dark border border-brand-gold/20 hover:border-brand-gold/40 focus:border-brand-gold/90 focus:ring-1 focus:ring-brand-gold/50 rounded-xl text-slate-100 placeholder-slate-500 outline-none transition-all duration-200 text-sm font-sans"
+                        value={senderName}
+                        onChange={(e) => setSenderName(e.target.value)}
+                        placeholder="Nombre Remitente"
+                        className="px-2 py-1 bg-white border border-slate-200 rounded text-xs font-bold text-slate-800 outline-none focus:border-slate-800"
+                        title="Nombre del Remitente"
                       />
-                      <Tag className="w-4 h-4 text-slate-500 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+                      <input
+                        type="email"
+                        value={senderEmail}
+                        onChange={(e) => setSenderEmail(e.target.value)}
+                        placeholder="Correo Remitente"
+                        className="px-2 py-1 bg-white border border-slate-200 rounded text-xs font-mono text-slate-700 outline-none focus:border-slate-800"
+                        title="Correo del Remitente"
+                      />
                     </div>
-                    <p className="text-[11px] text-slate-400">
-                      💡 Todos los contactos procesados desde este CSV quedarán asociados a esta etiqueta para poder filtrarlos y monitorearlos en el panel en tiempo real.
+                  </div>
+                </div>
+
+                {/* Datos del Prospecto (Nombre, Correo y Etiqueta) */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div className="space-y-1">
+                    <label className="text-xs text-slate-600 font-bold uppercase tracking-wider">Nombre del Contacto</label>
+                    <input
+                      type="text"
+                      placeholder="Ej: Marielisa o Maycol"
+                      value={recipientName}
+                      onChange={(e) => setRecipientName(e.target.value)}
+                      className="w-full px-3 py-2 bg-white border border-slate-300 hover:border-slate-400 focus:border-slate-800 rounded-xl text-slate-800 placeholder-slate-400 outline-none text-xs font-sans"
+                    />
+                  </div>
+
+                  <div className="space-y-1">
+                    <label className="text-xs text-slate-600 font-bold uppercase tracking-wider">Correo Electrónico</label>
+                    <input
+                      type="email"
+                      required
+                      placeholder="cliente@dominio.com"
+                      value={recipientEmail}
+                      onChange={(e) => setRecipientEmail(e.target.value)}
+                      className="w-full px-3 py-2 bg-white border border-slate-300 hover:border-slate-400 focus:border-slate-800 rounded-xl text-slate-800 placeholder-slate-400 outline-none text-xs font-sans"
+                    />
+                  </div>
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-xs text-slate-600 font-bold uppercase tracking-wider flex items-center gap-1">
+                    <Tag className="w-3.5 h-3.5 text-slate-500" />
+                    Etiqueta (Opcional)
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="Ej: Inversión, VIP, LinkedIn..."
+                    value={individualTag}
+                    onChange={(e) => setIndividualTag(e.target.value)}
+                    className="w-full px-3 py-2 bg-white border border-slate-300 hover:border-slate-400 focus:border-slate-800 rounded-xl text-slate-800 placeholder-slate-400 outline-none text-xs font-sans"
+                  />
+                </div>
+
+                {/* Fecha y Hora Propuesta con Selector de Google Calendar */}
+                <div className="space-y-1 relative">
+                  <div className="flex items-center justify-between">
+                    <label className="text-xs text-slate-600 font-bold uppercase tracking-wider">Fecha / Hora Propuesta</label>
+                    <button
+                      type="button"
+                      onClick={() => setShowIndividualSlotPicker(!showIndividualSlotPicker)}
+                      className="text-[11px] text-blue-600 hover:text-blue-800 font-semibold flex items-center gap-1 cursor-pointer"
+                    >
+                      <Calendar className="w-3 h-3" />
+                      {showIndividualSlotPicker ? 'Ocultar turnos' : 'Ver turnos libres Calendar'}
+                    </button>
+                  </div>
+                  
+                  <input
+                    type="datetime-local"
+                    value={proposedTime}
+                    onChange={(e) => {
+                      setProposedTime(e.target.value);
+                      if (e.target.value) {
+                        setEmailBody(buildEmailTemplate(recipientName, e.target.value));
+                      }
+                    }}
+                    className="w-full px-3 py-2 bg-white border border-slate-300 hover:border-slate-400 focus:border-slate-800 rounded-xl text-slate-800 text-xs font-sans"
+                  />
+
+                  {/* Popover de Slots Libres de Google Calendar */}
+                  {showIndividualSlotPicker && (
+                    <div className="absolute top-full left-0 right-0 z-50 mt-1 bg-white border border-slate-200 rounded-xl p-4 shadow-xl space-y-3">
+                      <div className="flex items-center justify-between border-b border-slate-100 pb-2">
+                        <span className="text-xs font-bold text-slate-800">Seleccionar Turno Libre (Google Calendar)</span>
+                        <button
+                          type="button"
+                          onClick={() => setShowIndividualSlotPicker(false)}
+                          className="text-slate-400 hover:text-slate-700 text-xs cursor-pointer"
+                        >
+                          <X className="w-4 h-4" />
+                        </button>
+                      </div>
+
+                      {/* Días */}
+                      <div className="grid grid-cols-5 gap-1">
+                        {getNext14Days().map((date) => {
+                          const yyyy = date.getFullYear();
+                          const mm = String(date.getMonth() + 1).padStart(2, '0');
+                          const dd = String(date.getDate()).padStart(2, '0');
+                          const yyyymmdd = `${yyyy}-${mm}-${dd}`;
+                          const hasSlots = freeSlots[yyyymmdd] && freeSlots[yyyymmdd].length > 0;
+                          const isSelected = selectedDayIndividual === yyyymmdd;
+                          const dayName = date.toLocaleDateString('es-ES', { weekday: 'short' });
+                          const dayNum = date.getDate();
+
+                          return (
+                            <button
+                              key={yyyymmdd}
+                              type="button"
+                              disabled={!hasSlots}
+                              onClick={() => setSelectedDayIndividual(yyyymmdd)}
+                              className={`flex flex-col items-center justify-center p-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer disabled:opacity-25 disabled:cursor-not-allowed ${
+                                isSelected
+                                  ? 'bg-slate-900 text-white shadow-xs'
+                                  : hasSlots
+                                    ? 'bg-blue-50 text-blue-700 border border-blue-200 hover:bg-blue-100'
+                                    : 'bg-slate-50 text-slate-400 border border-slate-200'
+                              }`}
+                            >
+                              <span className="uppercase text-[9px] opacity-75">{dayName}</span>
+                              <span className="text-xs font-bold">{dayNum}</span>
+                            </button>
+                          );
+                        })}
+                      </div>
+
+                      {/* Horarios del día */}
+                      {selectedDayIndividual && freeSlots[selectedDayIndividual] && (
+                        <div className="space-y-1.5 border-t border-slate-100 pt-2">
+                          <p className="text-[10px] text-slate-500 uppercase font-semibold">Horarios disponibles ({selectedDayIndividual}):</p>
+                          <div className="grid grid-cols-3 gap-1.5 max-h-[120px] overflow-y-auto pr-1">
+                            {freeSlots[selectedDayIndividual].map((time) => (
+                              <button
+                                key={time}
+                                type="button"
+                                onClick={() => {
+                                  const formattedValue = `${selectedDayIndividual}T${time}:00-05:00`;
+                                  setProposedTime(formattedValue);
+                                  setEmailBody(buildEmailTemplate(recipientName, formattedValue));
+                                  setShowIndividualSlotPicker(false);
+                                }}
+                                className="py-1 px-2 text-xs font-mono bg-slate-50 hover:bg-slate-900 hover:text-white border border-slate-200 rounded-lg text-slate-700 text-center transition-all cursor-pointer font-semibold"
+                              >
+                                {time}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+
+                {/* Asunto */}
+                <div className="space-y-1">
+                  <label className="text-xs text-slate-600 font-bold uppercase tracking-wider">Asunto</label>
+                  <input
+                    type="text"
+                    required
+                    placeholder="Asunto de la invitación"
+                    value={subject}
+                    onChange={(e) => setSubject(e.target.value)}
+                    className="w-full px-3 py-2 bg-white border border-slate-300 hover:border-slate-400 focus:border-slate-800 rounded-xl text-slate-800 outline-none text-xs font-sans"
+                  />
+                </div>
+
+                {/* Cuerpo del Mensaje */}
+                <div className="space-y-1">
+                  <div className="flex items-center justify-between">
+                    <label className="text-xs text-slate-600 font-bold uppercase tracking-wider">Mensaje</label>
+                    <button
+                      type="button"
+                      onClick={() => setEmailBody(buildEmailTemplate(recipientName, proposedTime))}
+                      className="text-[11px] text-amber-700 hover:text-amber-900 font-semibold flex items-center gap-1 cursor-pointer"
+                      title="Regenerar texto con variables"
+                    >
+                      <RefreshCw className="w-3 h-3" />
+                      <span>Regenerar variables</span>
+                    </button>
+                  </div>
+                  <textarea
+                    required
+                    rows={5}
+                    placeholder="Escribe el mensaje..."
+                    value={emailBody}
+                    onChange={(e) => setEmailBody(e.target.value)}
+                    className="w-full px-3 py-2 bg-white border border-slate-300 hover:border-slate-400 focus:border-slate-800 rounded-xl text-slate-800 outline-none text-xs font-sans resize-none"
+                  />
+                </div>
+
+                {/* Documento Adjunto */}
+                <div className="space-y-1.5">
+                  <label className="text-xs text-slate-600 font-bold uppercase tracking-wider block">
+                    Documento Adjunto (Opcional - Máx 10MB)
+                  </label>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <label className="flex items-center gap-1.5 px-3 py-2 bg-slate-50 hover:bg-slate-100 border border-slate-300 rounded-xl text-slate-700 cursor-pointer transition-all text-xs select-none">
+                      <Paperclip className="w-3.5 h-3.5 text-slate-500" />
+                      <span>Seleccionar archivo</span>
+                      <input
+                        type="file"
+                        className="hidden"
+                        onChange={(e) => {
+                          const file = e.target.files?.[0];
+                          if (file) {
+                            if (file.size > 10 * 1024 * 1024) {
+                              alert("El archivo excede el tamaño máximo permitido de 10MB");
+                              e.target.value = '';
+                              return;
+                            }
+                            setSelectedFile(file);
+                          }
+                        }}
+                      />
+                    </label>
+                    {selectedFile && (
+                      <div className="flex items-center gap-2 px-2.5 py-1.5 bg-amber-50 border border-amber-200 rounded-xl text-xs text-amber-900 truncate">
+                        <span className="truncate max-w-[150px]">{selectedFile.name}</span>
+                        <button
+                          type="button"
+                          onClick={() => setSelectedFile(null)}
+                          className="text-amber-700 hover:text-amber-950 cursor-pointer"
+                        >
+                          <X className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* Botón de Envío */}
+                <div className="pt-2">
+                  <button
+                    type="submit"
+                    disabled={loading || !recipientEmail || !subject || !emailBody}
+                    className="w-full py-3 bg-slate-900 hover:bg-slate-800 active:bg-slate-950 text-white font-bold rounded-xl shadow-xs transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 cursor-pointer text-sm"
+                  >
+                    {loading ? (
+                      <>
+                        <RefreshCw className="w-4 h-4 animate-spin text-amber-400" />
+                        <span>Enviando Invitación...</span>
+                      </>
+                    ) : (
+                      <>
+                        <Send className="w-4 h-4 text-amber-400" />
+                        <span>Enviar Invitación Directa</span>
+                      </>
+                    )}
+                  </button>
+                </div>
+              </form>
+            </section>
+
+            {/* Columna Derecha (55%): Previsualización en Vivo Sticky */}
+            <section className="lg:col-span-7 sticky top-20">
+              <LiveEmailPreview
+                templateName={selectedTemplate?.name || 'Plantilla Personalizada'}
+                templateType={selectedTemplate?.type || 'standard_wrapper'}
+                rawHtmlOrBody={emailBody}
+                subject={subject}
+                signatureId={signatureId}
+                senderName={senderName}
+                testRecipientName={recipientName}
+                testProposedDate={proposedTime}
+                createdBy={selectedTemplate?.createdBy || selectedTemplate?.created_by || 'manual'}
+                onRefresh={() => fetchTemplates()}
+              />
+            </section>
+          </div>
+        )}
+
+        {/* ========================================================================= */}
+        {/* PESTAÑA 3: 👥 CAMPAÑAS MASIVAS (Wizard Claro en 3 Pasos)                  */}
+        {/* ========================================================================= */}
+        {activeTab === 'campanas' && (
+          <div className="space-y-6 animate-fade-in">
+            <section className="bg-white border border-slate-200/90 rounded-2xl p-6 sm:p-8 shadow-xs space-y-6">
+              <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 border-b border-slate-100 pb-4">
+                <div>
+                  <h2 className="text-xl font-bold text-slate-900">Campañas Masivas de Captación</h2>
+                  <p className="text-xs text-slate-500 mt-0.5">
+                    Sube una lista en formato CSV (Nombre, Correo, Celular). El sistema aplicará filtros de enfriamiento y despachará los correos respetando la cadencia programada.
+                  </p>
+                </div>
+                
+                <div className="flex items-center gap-2">
+                  {queueStatus.isProcessing && (
+                    <button
+                      onClick={handleStopQueue}
+                      disabled={queueLoading}
+                      className="px-3.5 py-2 border border-red-300 bg-red-50 hover:bg-red-100 text-red-700 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer shadow-xs animate-pulse disabled:opacity-50"
+                    >
+                      <PauseCircle className="w-4 h-4 text-red-600" />
+                      <span>Detener Envíos</span>
+                    </button>
+                  )}
+                  <button
+                    onClick={handleClearQueue}
+                    disabled={queueLoading}
+                    className="px-3.5 py-2 border border-slate-200 hover:border-red-200 bg-slate-50 hover:bg-red-50 text-slate-600 hover:text-red-700 rounded-xl text-xs font-semibold transition-all flex items-center gap-1.5 cursor-pointer disabled:opacity-40"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                    <span>Limpiar Cola</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* Paso 1: Selección de Plantilla de la Campaña */}
+              <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+                <div className="flex items-center gap-3">
+                  <div className="p-2.5 rounded-xl bg-white border border-slate-200 text-amber-700 shadow-xs">
+                    <LayoutTemplate className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <label className="text-xs text-slate-700 font-bold uppercase tracking-wider block">
+                      Paso 1: Seleccionar Plantilla de Campaña
+                    </label>
+                    <div className="flex items-center gap-2 mt-1">
+                      <select
+                        value={selectedTemplateId || ''}
+                        onChange={(e) => {
+                          const found = templates.find((t) => t.id === e.target.value);
+                          if (found) handleSelectTemplate(found);
+                        }}
+                        className="px-3 py-1.5 bg-white border border-slate-300 rounded-lg text-xs font-semibold text-slate-800 outline-none focus:border-slate-800 max-w-xs sm:max-w-sm truncate"
+                      >
+                        {templates.map((tpl) => {
+                          const isWhatsapp = tpl.actionType === 'whatsapp_lead' || tpl.action_type === 'whatsapp_lead' || tpl.name?.toLowerCase().includes('whatsapp');
+                          const isEvent = tpl.actionType === 'event_invitation' || tpl.category === 'Eventos & Landings';
+                          const badgeLabel = isWhatsapp ? '💬 WhatsApp' : isEvent ? '🎟️ Evento' : '📅 Agenda 1 a 1';
+                          return (
+                            <option key={tpl.id} value={tpl.id}>
+                              {tpl.name} ({badgeLabel})
+                            </option>
+                          );
+                        })}
+                      </select>
+                      {selectedTemplate && (
+                        <span className="text-[10px] px-2 py-0.5 rounded-full bg-slate-200 text-slate-700 font-medium hidden md:inline">
+                          {selectedTemplate.category || 'General'}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2 w-full sm:w-auto justify-end">
+                  <button
+                    type="button"
+                    onClick={() => setShowTemplateModal(true)}
+                    className="px-4 py-2 bg-white hover:bg-slate-100 text-slate-800 border border-slate-300 rounded-xl text-xs font-bold transition-all flex items-center gap-2 shadow-xs cursor-pointer"
+                  >
+                    <FolderOpen className="w-4 h-4 text-amber-600" />
+                    <span>Biblioteca / Subir .HTML</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* Banner Informativo del Modo de la Plantilla */}
+              {selectedTemplate?.actionType === 'whatsapp_lead' || selectedTemplate?.action_type === 'whatsapp_lead' || selectedTemplate?.name?.toLowerCase().includes('whatsapp') ? (
+                <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-4 flex items-start gap-3 shadow-xs">
+                  <div className="p-2 rounded-lg bg-emerald-100 text-emerald-800 shrink-0">
+                    <MessageCircle className="w-5 h-5" />
+                  </div>
+                  <div className="space-y-0.5">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <h4 className="text-xs font-bold text-emerald-900">Modo de Captación Directa por WhatsApp (Protección de Agenda)</h4>
+                      <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-200/80 text-emerald-900 font-bold">
+                        Recomendado para listas frías
+                      </span>
+                    </div>
+                    <p className="text-xs text-emerald-800 leading-relaxed">
+                      Esta plantilla <strong>no consume turnos de Google Calendar</strong>. Los prospectos reciben la invitación personalizada y un enlace directo a tu WhatsApp oficial (+{whatsappNumber.replace(/\D/g, '') || '51982100208'}) para coordinar antes de agendar.
+                    </p>
+                  </div>
+                </div>
+              ) : selectedTemplate?.actionType === 'event_invitation' || selectedTemplate?.category === 'Eventos & Landings' ? (
+                <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 flex items-start gap-3 shadow-xs">
+                  <div className="p-2 rounded-lg bg-amber-100 text-amber-800 shrink-0">
+                    <Calendar className="w-5 h-5" />
+                  </div>
+                  <div className="space-y-0.5">
+                    <h4 className="text-xs font-bold text-amber-900">Modo Invitación a Evento & Landing</h4>
+                    <p className="text-xs text-amber-800 leading-relaxed">
+                      El correo redirigirá a la Landing Page oficial del evento para registro de asistentes y reservas masivas.
+                    </p>
+                  </div>
+                </div>
+              ) : (
+                <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 flex items-start gap-3 shadow-xs">
+                  <div className="p-2 rounded-lg bg-blue-100 text-blue-800 shrink-0">
+                    <Calendar className="w-5 h-5" />
+                  </div>
+                  <div className="space-y-0.5">
+                    <h4 className="text-xs font-bold text-blue-900">Modo Agendamiento Individual 1 a 1</h4>
+                    <p className="text-xs text-blue-800 leading-relaxed">
+                      El sistema consultará Google Calendar para asignar automáticamente una fecha y hora libre a cada prospecto.
+                    </p>
+                  </div>
+                </div>
+              )}
+
+              {/* Paso 2: Definir Etiqueta y Subir Archivo CSV */}
+              <div className="space-y-4">
+                <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <label className="text-xs text-slate-800 font-bold uppercase tracking-wider flex items-center gap-1.5">
+                      <Tag className="w-4 h-4 text-amber-600" />
+                      Paso 2: Asignar Nombre de Etiqueta a esta Campaña
+                    </label>
+                    <span className="text-[10px] px-2 py-0.5 rounded-full bg-amber-100 text-amber-900 font-semibold">
+                      Recomendado
+                    </span>
+                  </div>
+                  <div className="relative">
+                    <input
+                      type="text"
+                      placeholder="Ej: Inversores Marzo 2026, Leads LinkedIn, Conferencia Lima..."
+                      value={campaignTag}
+                      onChange={(e) => setCampaignTag(e.target.value)}
+                      disabled={queueLoading || queueStatus.isProcessing}
+                      className="w-full pl-10 pr-4 py-2.5 bg-white border border-slate-300 hover:border-slate-400 focus:border-slate-800 rounded-xl text-slate-800 placeholder-slate-400 outline-none text-sm font-sans"
+                    />
+                    <Tag className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-stretch">
+                  {/* Zona de Arrastrar CSV */}
+                  <div className="border-2 border-dashed border-slate-300 hover:border-slate-400 rounded-2xl p-8 text-center bg-slate-50/50 transition-all relative group flex flex-col items-center justify-center">
+                    <input
+                      type="file"
+                      accept=".csv"
+                      onChange={handleCsvUpload}
+                      disabled={queueLoading || queueStatus.isProcessing}
+                      className="absolute inset-0 w-full h-full opacity-0 cursor-pointer disabled:cursor-not-allowed"
+                    />
+                    <Upload className="w-10 h-10 text-slate-400 group-hover:text-slate-700 mx-auto mb-3 transition-colors" />
+                    <p className="text-sm font-bold text-slate-800">Arrastra tu archivo CSV o haz clic aquí</p>
+                    <p className="text-xs text-slate-500 mt-1">
+                      Columnas requeridas: Nombre, Correo, Celular {campaignTag.trim() ? `• Etiqueta: "${campaignTag.trim()}"` : ''}
                     </p>
                   </div>
 
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-center">
-                    <div className="border-2 border-dashed border-brand-gold/25 hover:border-brand-gold/50 rounded-xl p-8 text-center bg-slate-950/20 transition-all duration-200 relative group">
-                      <input
-                        type="file"
-                        accept=".csv"
-                        onChange={handleCsvUpload}
-                        disabled={queueLoading || queueStatus.isProcessing}
-                        className="absolute inset-0 w-full h-full opacity-0 cursor-pointer disabled:cursor-not-allowed"
-                      />
-                      <Upload className="w-10 h-10 text-brand-gold/60 group-hover:text-brand-gold mx-auto mb-3 transition-colors duration-205" />
-                      <p className="text-sm font-medium text-slate-300">Arrastra tu archivo CSV o haz clic aquí</p>
-                      <p className="text-xs text-slate-500 mt-1">
-                        Formato admitido: .csv (Nombre, Correo, Celular) {campaignTag.trim() ? `• Etiqueta: "${campaignTag.trim()}"` : ''}
-                      </p>
-                    </div>
-
-                  {/* Panel de Estado / Progreso del Envió */}
-                  <div className="bg-[#08101A] border border-brand-gold/10 rounded-xl p-6 space-y-4">
-                    <h3 className="text-sm font-semibold text-brand-gold uppercase tracking-wider">Estado de Cola de Envíos</h3>
-                    
-                    {queueStatus.isProcessing ? (
-                      <div className="space-y-3">
-                        <div className="flex justify-between text-xs text-slate-400">
-                          <span className="flex items-center gap-1">
-                            <span className="w-2 h-2 rounded-full bg-emerald-500 animate-ping"></span>
-                            Enviando correos...
-                          </span>
-                          <span>{queueStatus.sent + queueStatus.failed} / {queueStatus.total} completados</span>
-                        </div>
-                        
-                        {/* Barra de progreso */}
-                        <div className="w-full bg-slate-900 rounded-full h-2 overflow-hidden border border-slate-800">
-                          <div 
-                            className="bg-gradient-to-r from-brand-gold-dark to-brand-gold h-full transition-all duration-300"
-                            style={{ width: `${((queueStatus.sent + queueStatus.failed) / queueStatus.total) * 100}%` }}
-                          ></div>
-                        </div>
-
-                        <div className="grid grid-cols-3 gap-2 text-center pt-2">
-                          <div className="bg-slate-950/40 p-2 rounded border border-slate-800/40">
-                            <p className="text-[10px] text-slate-500 uppercase">Enviados</p>
-                            <p className="text-lg font-bold text-emerald-400">{queueStatus.sent}</p>
+                  {/* Panel de Estado / Progreso de Envíos */}
+                  <div className="bg-slate-50 border border-slate-200 rounded-2xl p-6 space-y-4 flex flex-col justify-between">
+                    <div>
+                      <h3 className="text-xs font-bold text-slate-700 uppercase tracking-wider">Estado de Cola de Envíos</h3>
+                      
+                      {queueStatus.isProcessing ? (
+                        <div className="space-y-3 mt-3">
+                          <div className="flex justify-between text-xs text-slate-600 font-semibold">
+                            <span className="flex items-center gap-1.5 text-emerald-700">
+                              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-ping"></span>
+                              Enviando correos...
+                            </span>
+                            <span>{queueStatus.sent + queueStatus.failed} / {queueStatus.total} completados</span>
                           </div>
-                          <div className="bg-slate-950/40 p-2 rounded border border-slate-800/40">
-                            <p className="text-[10px] text-slate-500 uppercase">Fallidos</p>
-                            <p className="text-lg font-bold text-red-400">{queueStatus.failed}</p>
+                          
+                          <div className="w-full bg-slate-200 rounded-full h-2.5 overflow-hidden">
+                            <div 
+                              className="bg-slate-900 h-full transition-all duration-300"
+                              style={{ width: `${((queueStatus.sent + queueStatus.failed) / queueStatus.total) * 100}%` }}
+                            ></div>
                           </div>
-                          <div className="bg-slate-950/40 p-2 rounded border border-slate-800/40">
-                            <p className="text-[10px] text-slate-500 uppercase">Pendientes</p>
-                            <p className="text-lg font-bold text-slate-300">{queueStatus.total - (queueStatus.sent + queueStatus.failed)}</p>
-                          </div>
-                        </div>
 
-                        {/* Botón directo para detener desde la tarjeta de progreso */}
-                        <div className="pt-2 border-t border-slate-800/60">
-                          <button
-                            onClick={handleStopQueue}
-                            disabled={queueLoading}
-                            className="w-full py-2.5 bg-red-500/15 hover:bg-red-500/25 border border-red-500/40 hover:border-red-500/70 text-red-300 hover:text-red-200 font-semibold rounded-xl text-xs transition-all duration-200 flex items-center justify-center gap-2 cursor-pointer shadow-md disabled:opacity-50"
-                          >
-                            <PauseCircle className="w-4 h-4 text-red-400" />
-                            <span>Pausar / Detener Envío de Cola</span>
-                          </button>
-                        </div>
-                      </div>
-                    ) : (
-                      <div className="py-2 space-y-4">
-                        <p className="text-sm text-slate-400">
-                          {queueItems.length > 0 
-                            ? `Cola lista con ${queueItems.length} contactos cargados en memoria. Revisa los horarios abajo antes de enviar.`
-                            : "No hay ninguna campaña cargada actualmente. Sube un archivo CSV para comenzar."
-                          }
-                        </p>
-                        {queueItems.length > 0 && (
-                          <div className="space-y-3">
-                            <p className="text-xs text-brand-gold/85 italic bg-brand-gold/5 border border-brand-gold/15 rounded-lg px-3 py-2 text-center">
-                              Los correos se enviarán con la firma ejecutiva oficial de: <strong>Ricardo Bertalmio Ruibal</strong>.
-                            </p>
-                            {selectedFile && (
-                              <p className="text-xs text-emerald-400/90 italic bg-emerald-500/5 border border-emerald-500/15 rounded-lg px-3 py-2 text-center">
-                                📎 Se adjuntará el archivo: <strong>{selectedFile.name}</strong> a todos los correos.
-                              </p>
-                            )}
-                            {/* Control directo del Intervalo de Envío */}
-                            <div className="bg-slate-950/70 border border-brand-gold/25 rounded-xl p-3.5 space-y-2 text-xs">
-                              <div className="flex items-center justify-between">
-                                <label className="text-brand-gold font-semibold uppercase tracking-wider flex items-center gap-1.5">
-                                  <Clock className="w-3.5 h-3.5 text-brand-gold" />
-                                  Intervalo entre Envíos:
-                                </label>
-                                <span className="text-[10px] text-slate-400">Control directo</span>
-                              </div>
-                              <div className="flex gap-2">
-                                <input
-                                  type="number"
-                                  min="1"
-                                  required
-                                  value={sendInterval}
-                                  onChange={(e) => setSendInterval(Number(e.target.value))}
-                                  disabled={queueLoading || queueStatus.isProcessing}
-                                  className="w-1/2 px-3 py-2 bg-[#08101A] border border-brand-gold/30 focus:border-brand-gold rounded-lg text-slate-100 font-mono text-xs outline-none"
-                                />
-                                <select
-                                  value={sendIntervalUnit}
-                                  onChange={(e) => setSendIntervalUnit(e.target.value)}
-                                  disabled={queueLoading || queueStatus.isProcessing}
-                                  className="w-1/2 px-3 py-2 bg-[#08101A] border border-brand-gold/30 focus:border-brand-gold rounded-lg text-slate-100 font-sans text-xs outline-none"
-                                >
-                                  <option value="seconds">Segundos</option>
-                                  <option value="minutes">Minutos</option>
-                                  <option value="hours">Horas</option>
-                                </select>
-                              </div>
-                              <p className="text-[11px] text-slate-400">
-                                ⏱️ Se esperará exactamente <strong className="text-brand-gold font-mono">{sendInterval} {sendIntervalUnit === 'minutes' ? 'minutos' : sendIntervalUnit === 'seconds' ? 'segundos' : 'horas'}</strong> entre cada correo despachado.
-                              </p>
+                          <div className="grid grid-cols-3 gap-2 text-center pt-2">
+                            <div className="bg-white p-2 rounded-xl border border-slate-200">
+                              <p className="text-[10px] text-slate-500 uppercase font-bold">Enviados</p>
+                              <p className="text-lg font-bold text-emerald-700">{queueStatus.sent}</p>
                             </div>
-                            <button
-                              onClick={handleProcessQueue}
-                              disabled={queueLoading}
-                              className="w-full py-3 bg-gradient-to-r from-brand-gold-dark to-brand-gold hover:from-brand-gold hover:to-brand-gold-light text-brand-navy font-bold rounded-xl shadow-lg shadow-brand-gold/10 hover:shadow-brand-gold/20 transition-all duration-200 flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
-                            >
-                              <Play className="w-4 h-4 fill-current animate-pulse" />
-                              <span>Comenzar Envíos en Cola</span>
-                            </button>
+                            <div className="bg-white p-2 rounded-xl border border-slate-200">
+                              <p className="text-[10px] text-slate-500 uppercase font-bold">Fallidos</p>
+                              <p className="text-lg font-bold text-red-600">{queueStatus.failed}</p>
+                            </div>
+                            <div className="bg-white p-2 rounded-xl border border-slate-200">
+                              <p className="text-[10px] text-slate-500 uppercase font-bold">Pendientes</p>
+                              <p className="text-lg font-bold text-slate-800">{queueStatus.total - (queueStatus.sent + queueStatus.failed)}</p>
+                            </div>
                           </div>
-                        )}
-                      </div>
-                    )}
+                        </div>
+                      ) : (
+                        <div className="py-2 space-y-3">
+                          <p className="text-xs text-slate-600">
+                            {queueItems.length > 0 
+                              ? `Cola lista con ${queueItems.length} contactos cargados en memoria. Configura el intervalo e inicia el despacho.`
+                              : "No hay ninguna campaña cargada actualmente. Sube un archivo CSV para comenzar."
+                            }
+                          </p>
+
+                          {queueItems.length > 0 && (
+                            <div className="space-y-3 pt-1">
+                              {/* Control directo del Intervalo de Envío */}
+                              <div className="bg-white border border-slate-200 rounded-xl p-3 space-y-2 text-xs">
+                                <div className="flex items-center justify-between">
+                                  <label className="text-slate-800 font-bold uppercase tracking-wider flex items-center gap-1.5">
+                                    <Clock className="w-3.5 h-3.5 text-slate-600" />
+                                    Intervalo entre Envíos:
+                                  </label>
+                                  <span className="text-[10px] text-slate-500 font-mono">Control de cadencia</span>
+                                </div>
+                                <div className="flex gap-2">
+                                  <input
+                                    type="number"
+                                    min="1"
+                                    required
+                                    value={sendInterval}
+                                    onChange={(e) => setSendInterval(Number(e.target.value))}
+                                    disabled={queueLoading || queueStatus.isProcessing}
+                                    className="w-1/2 px-3 py-1.5 bg-slate-50 border border-slate-300 rounded-lg text-slate-800 font-mono text-xs outline-none"
+                                  />
+                                  <select
+                                    value={sendIntervalUnit}
+                                    onChange={(e) => setSendIntervalUnit(e.target.value)}
+                                    disabled={queueLoading || queueStatus.isProcessing}
+                                    className="w-1/2 px-3 py-1.5 bg-slate-50 border border-slate-300 rounded-lg text-slate-800 text-xs outline-none"
+                                  >
+                                    <option value="seconds">Segundos</option>
+                                    <option value="minutes">Minutos</option>
+                                    <option value="hours">Horas</option>
+                                  </select>
+                                </div>
+                              </div>
+
+                              <button
+                                onClick={handleProcessQueue}
+                                disabled={queueLoading}
+                                className="w-full py-3 bg-slate-900 hover:bg-slate-800 active:bg-slate-950 text-white font-bold rounded-xl shadow-xs transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50 text-xs"
+                              >
+                                <Play className="w-4 h-4 fill-current text-amber-400" />
+                                <span>Comenzar Envíos en Cola</span>
+                              </button>
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
                   </div>
                 </div>
               </div>
-            </div>
-          </section>
+            </section>
 
             {/* Banner de Resumen de Duplicados / Enfriamiento */}
             {uploadSummary && uploadSummary.skippedCount > 0 && (
-              <div className="bg-amber-500/10 border border-amber-500/30 rounded-xl p-4 text-sm text-amber-200 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
+              <div className="bg-amber-50 border border-amber-200 rounded-2xl p-4 text-sm text-amber-900 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 shadow-xs">
                 <div className="flex items-center gap-3">
-                  <AlertCircle className="w-5 h-5 text-amber-400 shrink-0" />
+                  <AlertCircle className="w-5 h-5 text-amber-700 shrink-0" />
                   <div>
-                    <p className="font-semibold text-amber-300">
+                    <p className="font-bold text-amber-950">
                       Control de Duplicados y Enfriamiento: {uploadSummary.skippedCount} contacto(s) omitido(s)
                     </p>
-                    <p className="text-xs text-amber-200/80">
-                      De los {uploadSummary.totalUploaded} contactos del CSV, se asignó turno a {uploadSummary.validCount} contactos nuevos. Se descartaron {uploadSummary.skippedCount} por contacto reciente (&lt; 60 días) o duplicidad en el archivo.
+                    <p className="text-xs text-amber-800">
+                      De los {uploadSummary.totalUploaded} contactos del CSV, se agregaron {uploadSummary.validCount} nuevos. Se omitieron {uploadSummary.skippedCount} por contacto reciente (&lt; 60 días) o duplicidad.
                     </p>
                   </div>
                 </div>
                 <button
                   type="button"
                   onClick={() => setShowSkippedModal(true)}
-                  className="px-3.5 py-1.5 bg-amber-500/20 hover:bg-amber-500/30 border border-amber-500/40 text-amber-300 rounded-lg text-xs font-semibold whitespace-nowrap cursor-pointer transition-colors"
+                  className="px-3.5 py-1.5 bg-amber-100 hover:bg-amber-200 border border-amber-300 text-amber-900 rounded-lg text-xs font-bold whitespace-nowrap cursor-pointer transition-colors"
                 >
                   Ver {uploadSummary.skippedCount} Omitidos
                 </button>
@@ -2382,16 +2427,16 @@ export default function EmailMonitoringDashboard({ onNavigateToBooking }: EmailM
 
             {/* Modal de Contactos Omitidos */}
             {showSkippedModal && uploadSummary && (
-              <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4">
-                <div className="bg-[#0D1B2A] border border-brand-gold/40 rounded-2xl max-w-2xl w-full p-6 space-y-4 shadow-2xl animate-fade-in max-h-[80vh] flex flex-col">
-                  <div className="flex justify-between items-center border-b border-slate-800 pb-3">
+              <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
+                <div className="bg-white border border-slate-200 rounded-2xl max-w-2xl w-full p-6 space-y-4 shadow-xl animate-fade-in max-h-[80vh] flex flex-col">
+                  <div className="flex justify-between items-center border-b border-slate-100 pb-3">
                     <div>
-                      <h3 className="text-lg font-bold text-brand-gold">Contactos Omitidos por Duplicidad / Enfriamiento</h3>
-                      <p className="text-xs text-slate-400">Estos prospectos no consumieron horarios de agenda para proteger la exclusividad de Afinitive.</p>
+                      <h3 className="text-lg font-bold text-slate-900">Contactos Omitidos por Enfriamiento</h3>
+                      <p className="text-xs text-slate-500">Contactos protegidos para evitar saturación de correos.</p>
                     </div>
                     <button
                       onClick={() => setShowSkippedModal(false)}
-                      className="p-1 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-slate-200"
+                      className="p-1 rounded-lg hover:bg-slate-100 text-slate-400 hover:text-slate-700 cursor-pointer"
                     >
                       <X className="w-5 h-5" />
                     </button>
@@ -2399,13 +2444,13 @@ export default function EmailMonitoringDashboard({ onNavigateToBooking }: EmailM
 
                   <div className="overflow-y-auto flex-1 space-y-2 pr-1">
                     {uploadSummary.skippedContacts.map((c, idx) => (
-                      <div key={idx} className="bg-slate-950/50 border border-slate-800/80 rounded-xl p-3 flex flex-col sm:flex-row justify-between sm:items-center gap-2 text-xs">
+                      <div key={idx} className="bg-slate-50 border border-slate-200 rounded-xl p-3 flex flex-col sm:flex-row justify-between sm:items-center gap-2 text-xs">
                         <div>
-                          <p className="font-semibold text-slate-200">{c.name} <span className="font-normal text-slate-400">({c.email})</span></p>
-                          <p className="text-amber-400/90 text-[11px] mt-0.5">{c.reason}</p>
+                          <p className="font-bold text-slate-800">{c.name} <span className="font-normal text-slate-500">({c.email})</span></p>
+                          <p className="text-amber-800 text-[11px] mt-0.5">{c.reason}</p>
                         </div>
                         {c.daysAgo !== undefined && (
-                          <span className="px-2 py-0.5 bg-slate-800 border border-slate-700 text-slate-300 rounded text-[10px] whitespace-nowrap shrink-0">
+                          <span className="px-2 py-0.5 bg-white border border-slate-200 text-slate-600 rounded text-[10px] whitespace-nowrap shrink-0">
                             {c.daysAgo === 0 ? 'Hoy' : `Hace ${c.daysAgo} días`}
                           </span>
                         )}
@@ -2413,10 +2458,10 @@ export default function EmailMonitoringDashboard({ onNavigateToBooking }: EmailM
                     ))}
                   </div>
 
-                  <div className="flex justify-end pt-2 border-t border-slate-800">
+                  <div className="flex justify-end pt-2 border-t border-slate-100">
                     <button
                       onClick={() => setShowSkippedModal(false)}
-                      className="px-5 py-2 bg-brand-gold text-brand-navy font-bold rounded-xl text-xs hover:bg-brand-gold-light cursor-pointer"
+                      className="px-5 py-2 bg-slate-900 text-white font-bold rounded-xl text-xs hover:bg-slate-800 cursor-pointer"
                     >
                       Cerrar
                     </button>
@@ -2427,105 +2472,104 @@ export default function EmailMonitoringDashboard({ onNavigateToBooking }: EmailM
 
             {/* Tabla de Previsualización y Edición de Citas */}
             {queueItems.length > 0 && (
-              <section className="bg-gradient-to-b from-[#0D1B2A] to-[#0A1420] border border-brand-gold/20 rounded-2xl shadow-xl overflow-hidden">
-                <div className="p-6 border-b border-brand-gold/15 flex justify-between items-center">
+              <section className="bg-white border border-slate-200/90 rounded-2xl shadow-xs overflow-hidden">
+                <div className="p-5 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
                   <div>
-                    <h2 className="text-xl font-semibold text-brand-gold">Previsualización de Envíos Soportados</h2>
-                    <p className="text-sm text-slate-400">Verifica o cambia la cita asignada para cada cliente antes del despacho.</p>
+                    <h2 className="text-base font-bold text-slate-900">Previsualización de Envíos en Cola</h2>
+                    <p className="text-xs text-slate-500">Verifica o ajusta los datos antes de iniciar los despachos.</p>
                   </div>
-                  <span className="px-3 py-1 bg-brand-gold/10 border border-brand-gold/30 text-brand-gold text-xs font-mono rounded-full">
+                  <span className="px-3 py-1 bg-slate-200/80 text-slate-800 text-xs font-mono font-bold rounded-full">
                     {queueItems.length} Contactos
                   </span>
                 </div>
 
-                <div className="overflow-x-auto min-h-[450px]">
+                <div className="overflow-x-auto min-h-[400px]">
                   <table className="w-full text-left border-collapse">
                     <thead>
-                      <tr className="bg-slate-950/40 text-slate-400 text-xs font-semibold tracking-wider uppercase border-b border-slate-800">
-                        <th className="py-4 px-6">Cliente</th>
-                        <th className="py-4 px-6">Etiqueta</th>
-                        <th className="py-4 px-6">Correo</th>
-                        <th className="py-4 px-6">Teléfono</th>
-                        <th className="py-4 px-6">Cita Sugerida (Edición Libre)</th>
-                        <th className="py-4 px-6">Estado</th>
-                        <th className="py-4 px-6 text-center">Acciones</th>
+                      <tr className="bg-slate-50 text-slate-600 text-xs font-bold tracking-wider uppercase border-b border-slate-200">
+                        <th className="py-3.5 px-6">Cliente</th>
+                        <th className="py-3.5 px-5">Etiqueta</th>
+                        <th className="py-3.5 px-5">Correo</th>
+                        <th className="py-3.5 px-5">Teléfono</th>
+                        <th className="py-3.5 px-5">Cita Sugerida</th>
+                        <th className="py-3.5 px-5">Estado</th>
+                        <th className="py-3.5 px-6 text-center">Acciones</th>
                       </tr>
                     </thead>
-                    <tbody className="divide-y divide-slate-800/60 text-sm">
+                    <tbody className="divide-y divide-slate-100 text-sm">
                       {queueItems.map((item) => (
                         <tr 
                           key={item.id} 
-                          className={`hover:bg-slate-900/40 transition-colors duration-150 group ${item.status === 'excluded' ? 'opacity-40' : ''}`}
+                          className={`hover:bg-slate-50/80 transition-colors duration-150 group ${item.status === 'excluded' ? 'opacity-40' : ''}`}
                         >
-                          <td className="py-4 px-6 font-medium text-slate-200">
+                          <td className="py-3.5 px-6 font-bold text-slate-800">
                             {item.recipient_name}
                           </td>
-                          <td className="py-4 px-6 whitespace-nowrap">
+                          <td className="py-3.5 px-5 whitespace-nowrap">
                             {item.tag ? (
-                              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold bg-brand-gold/10 border border-brand-gold/30 text-brand-gold">
-                                <Tag className="w-3 h-3 text-brand-gold shrink-0" />
+                              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold bg-amber-50 border border-amber-200 text-amber-900">
+                                <Tag className="w-3 h-3 text-amber-700 shrink-0" />
                                 <span className="truncate max-w-[130px]" title={item.tag}>{item.tag}</span>
                               </span>
                             ) : (
-                              <span className="text-slate-600 font-mono text-xs italic">—</span>
+                              <span className="text-slate-400 font-mono text-xs italic">—</span>
                             )}
                           </td>
-                          <td className="py-4 px-6 text-slate-400">
+                          <td className="py-3.5 px-5 text-slate-600">
                             <div className="flex items-center gap-1.5">
                               <span className="font-mono text-xs">{item.recipient_email}</span>
                               <button
                                 type="button"
                                 onClick={(e) => handleCopyToClipboard(item.recipient_email, `queue-email-${item.id}`, e)}
-                                className="p-1 rounded-md hover:bg-slate-800 text-slate-500 hover:text-slate-200 transition-colors cursor-pointer shrink-0"
-                                title="Copiar correo electrónico"
+                                className="p-1 rounded-md hover:bg-slate-100 text-slate-400 hover:text-slate-700 transition-colors cursor-pointer shrink-0"
+                                title="Copiar correo"
                               >
                                 {copiedKey === `queue-email-${item.id}` ? (
-                                  <Check className="w-3.5 h-3.5 text-emerald-400" />
+                                  <Check className="w-3.5 h-3.5 text-emerald-600" />
                                 ) : (
-                                  <Copy className="w-3.5 h-3.5 text-slate-400 hover:text-brand-gold" />
+                                  <Copy className="w-3.5 h-3.5" />
                                 )}
                               </button>
                             </div>
                           </td>
-                          <td className="py-4 px-6 text-slate-400">
+                          <td className="py-3.5 px-5 text-slate-600">
                             {item.recipient_phone ? (
                               <div className="flex items-center gap-1.5">
-                                <span className="font-mono text-xs text-emerald-400">{item.recipient_phone}</span>
+                                <span className="font-mono text-xs text-emerald-700 font-bold">{item.recipient_phone}</span>
                                 <button
                                   type="button"
                                   onClick={(e) => handleCopyToClipboard(item.recipient_phone || '', `queue-phone-${item.id}`, e)}
-                                  className="p-1 rounded-md hover:bg-slate-800 text-slate-500 hover:text-slate-200 transition-colors cursor-pointer shrink-0"
-                                  title="Copiar número de celular"
+                                  className="p-1 rounded-md hover:bg-slate-100 text-slate-400 hover:text-emerald-700 transition-colors cursor-pointer shrink-0"
+                                  title="Copiar número"
                                 >
                                   {copiedKey === `queue-phone-${item.id}` ? (
-                                    <Check className="w-3.5 h-3.5 text-emerald-400" />
+                                    <Check className="w-3.5 h-3.5 text-emerald-600" />
                                   ) : (
-                                    <Copy className="w-3.5 h-3.5 text-slate-400 hover:text-emerald-400" />
+                                    <Copy className="w-3.5 h-3.5" />
                                   )}
                                 </button>
                               </div>
                             ) : (
-                              <span className="text-slate-600 italic text-xs">No disponible</span>
+                              <span className="text-slate-400 italic text-xs">Sin teléfono</span>
                             )}
                           </td>
-                          <td className="py-4 px-6 relative">
+                          <td className="py-3.5 px-5 relative">
                             {activePickerId === item.id ? (
-                              <div className="absolute z-50 top-full mt-1 left-0 w-[285px] bg-[#0b1420] border border-brand-gold/30 rounded-xl p-4 shadow-2xl space-y-3 text-slate-100">
-                                <div className="flex justify-between items-center border-b border-slate-800 pb-2">
-                                  <span className="text-xs font-bold text-brand-gold">Seleccionar Fecha Libre</span>
+                              <div className="absolute z-50 top-full mt-1 left-0 w-[285px] bg-white border border-slate-200 rounded-xl p-4 shadow-xl space-y-3 text-slate-800">
+                                <div className="flex justify-between items-center border-b border-slate-100 pb-2">
+                                  <span className="text-xs font-bold text-slate-900">Seleccionar Fecha Libre</span>
                                   <button 
                                     type="button"
                                     onClick={() => {
                                       setActivePickerId(null);
                                       setSelectedDayForPicker(null);
                                     }}
-                                    className="text-slate-400 hover:text-slate-200 text-xs font-bold cursor-pointer"
+                                    className="text-slate-400 hover:text-slate-700 text-xs font-bold cursor-pointer"
                                   >
                                     Cerrar
                                   </button>
                                 </div>
 
-                                {/* Listado de Días Disponibles */}
                                 <div className="grid grid-cols-5 gap-1">
                                   {getNext14Days().map((date) => {
                                     const yyyy = date.getFullYear();
@@ -2544,14 +2588,13 @@ export default function EmailMonitoringDashboard({ onNavigateToBooking }: EmailM
                                         type="button"
                                         disabled={!hasSlots}
                                         onClick={() => setSelectedDayForPicker(yyyymmdd)}
-                                        className={`flex flex-col items-center justify-center p-1 rounded-lg text-[10px] font-semibold transition-all duration-150 cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed ${
+                                        className={`flex flex-col items-center justify-center p-1 rounded-lg text-[10px] font-semibold transition-all cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed ${
                                           isSelected 
-                                            ? 'bg-brand-gold text-[#070F1E] border border-brand-gold shadow-md'
+                                            ? 'bg-slate-900 text-white shadow-xs'
                                             : hasSlots
-                                              ? 'bg-blue-500/20 text-blue-400 border border-blue-500/30 hover:bg-blue-500/35 hover:text-blue-300'
-                                              : 'bg-slate-900/40 text-slate-600 border border-slate-800/40'
+                                              ? 'bg-blue-50 text-blue-700 border border-blue-200 hover:bg-blue-100'
+                                              : 'bg-slate-50 text-slate-400 border border-slate-200'
                                         }`}
-                                        title={hasSlots ? `${freeSlots[yyyymmdd].length} horarios libres` : 'Sin turnos libres'}
                                       >
                                         <span className="uppercase text-[8px] opacity-75">{dayName}</span>
                                         <span className="text-xs font-bold mt-0.5">{dayNum}</span>
@@ -2560,10 +2603,9 @@ export default function EmailMonitoringDashboard({ onNavigateToBooking }: EmailM
                                   })}
                                 </div>
 
-                                {/* Listado de Horarios del Día Seleccionado */}
                                 {selectedDayForPicker && freeSlots[selectedDayForPicker] && (
-                                  <div className="space-y-1.5 border-t border-slate-800/60 pt-2">
-                                    <p className="text-[9px] text-slate-400 uppercase font-semibold">Horarios Libres ({selectedDayForPicker}):</p>
+                                  <div className="space-y-1.5 border-t border-slate-100 pt-2">
+                                    <p className="text-[9px] text-slate-500 uppercase font-semibold">Horarios Libres ({selectedDayForPicker}):</p>
                                     <div className="grid grid-cols-3 gap-1 max-h-[100px] overflow-y-auto pr-1">
                                       {freeSlots[selectedDayForPicker].map((time) => (
                                         <button
@@ -2578,7 +2620,7 @@ export default function EmailMonitoringDashboard({ onNavigateToBooking }: EmailM
                                             setActivePickerId(null);
                                             setSelectedDayForPicker(null);
                                           }}
-                                          className="py-1 px-1.5 text-[9px] font-mono bg-slate-950/60 hover:bg-brand-gold hover:text-[#070F1E] rounded text-slate-300 text-center transition-colors duration-150 cursor-pointer"
+                                          className="py-1 px-1.5 text-[9px] font-mono bg-slate-50 hover:bg-slate-900 hover:text-white rounded text-slate-700 text-center transition-colors cursor-pointer"
                                         >
                                           {time}
                                         </button>
@@ -2586,25 +2628,6 @@ export default function EmailMonitoringDashboard({ onNavigateToBooking }: EmailM
                                     </div>
                                   </div>
                                 )}
-
-                                {/* Entrada Manual de Fecha y Hora */}
-                                <div className="border-t border-slate-800/60 pt-2 flex flex-col gap-1">
-                                  <span className="text-[9px] text-slate-500">¿Fecha libre manual?</span>
-                                  <input
-                                    type="datetime-local"
-                                    defaultValue={item.proposed_time ? item.proposed_time.slice(0, 16) : ''}
-                                    onChange={(e) => {
-                                      const localTime = e.target.value;
-                                      if (localTime) {
-                                        const isoTime = `${localTime}:00-05:00`;
-                                        handleUpdateQueueItem(item.id, isoTime, undefined);
-                                        setActivePickerId(null);
-                                        setSelectedDayForPicker(null);
-                                      }
-                                    }}
-                                    className="w-full px-2 py-1 bg-[#08101A] border border-slate-800 focus:border-brand-gold rounded text-[10px] font-mono text-slate-300 outline-none"
-                                  />
-                                </div>
                               </div>
                             ) : null}
 
@@ -2624,7 +2647,7 @@ export default function EmailMonitoringDashboard({ onNavigateToBooking }: EmailM
                                   }
                                 }
                               }}
-                              className="px-3 py-1.5 w-full bg-[#08101A] border border-brand-gold/25 focus:border-brand-gold/90 hover:border-brand-gold/60 rounded-lg text-slate-100 text-xs font-mono text-left disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-between gap-1 group/btn cursor-pointer transition-colors duration-150"
+                              className="px-3 py-1.5 w-full bg-slate-50 border border-slate-200 focus:border-slate-800 rounded-lg text-slate-800 text-xs font-mono text-left disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-between gap-1 cursor-pointer transition-colors"
                             >
                               <span>
                                 {item.proposed_time 
@@ -2638,66 +2661,56 @@ export default function EmailMonitoringDashboard({ onNavigateToBooking }: EmailM
                                     })
                                   : 'Sin fecha'}
                               </span>
-                              <Calendar className="w-3.5 h-3.5 text-brand-gold/60 group-hover/btn:text-brand-gold transition-colors duration-150" />
+                              <Calendar className="w-3.5 h-3.5 text-slate-500" />
                             </button>
                           </td>
-                          <td className="py-4 px-6">
+                          <td className="py-3.5 px-5">
                             {item.status === 'pending' && (
-                              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xxs font-semibold bg-amber-500/10 border border-amber-500/30 text-amber-400">
+                              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-amber-50 border border-amber-200 text-amber-800">
                                 Pendiente
                               </span>
                             )}
                             {item.status === 'processing' && (
-                              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xxs font-semibold bg-blue-500/10 border border-blue-500/30 text-blue-400 animate-pulse">
+                              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-blue-50 border border-blue-200 text-blue-700 animate-pulse">
                                 Enviando...
                               </span>
                             )}
                             {item.status === 'sent' && (
-                              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xxs font-semibold bg-emerald-500/10 border border-emerald-500/30 text-emerald-400">
+                              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 border border-emerald-200 text-emerald-800">
                                 Enviado
                               </span>
                             )}
                             {item.status === 'failed' && (
-                              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xxs font-semibold bg-red-500/10 border border-red-500/30 text-red-400" title={item.error_message || ''}>
+                              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-red-50 border border-red-200 text-red-700" title={item.error_message || ''}>
                                 Error
                               </span>
                             )}
                             {item.status === 'agendado' && (
-                              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xxs font-semibold bg-purple-500/20 border border-purple-500/50 text-purple-300 shadow-sm">
-                                <CheckCircle className="w-3 h-3 text-purple-400" />
+                              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-purple-100 border border-purple-200 text-purple-800">
+                                <CheckCircle className="w-3 h-3 text-purple-600" />
                                 Cita Agendada
                               </span>
                             )}
                             {item.status === 'excluded' && (
-                              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xxs font-semibold bg-slate-500/10 border border-slate-500/30 text-slate-400">
+                              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-slate-100 border border-slate-200 text-slate-500">
                                 Excluido
                               </span>
                             )}
-
-                            {item.whatsapp_clicked_at && (
-                              <span 
-                                className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xxs font-semibold bg-[#25D366]/20 border border-[#25D366]/50 text-[#25D366] shadow-sm ml-1.5"
-                                title={`Clic en WhatsApp: ${formatDate(item.whatsapp_clicked_at)}`}
-                              >
-                                <MessageCircle className="w-2.5 h-2.5 text-[#25D366]" />
-                                WhatsApp
-                              </span>
-                            )}
                           </td>
-                          <td className="py-4 px-6 text-center">
+                          <td className="py-3.5 px-6 text-center">
                             {item.status === 'excluded' ? (
                               <button
                                 onClick={() => handleUpdateQueueItem(item.id, undefined, 'pending')}
                                 disabled={queueStatus.isProcessing}
-                                className="text-xs text-brand-gold hover:text-brand-gold-light font-medium cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+                                className="text-xs text-slate-700 hover:text-slate-900 font-semibold cursor-pointer disabled:opacity-40"
                               >
-                                Incluir de nuevo
+                                Incluir
                               </button>
                             ) : (
                               <button
                                 onClick={() => handleUpdateQueueItem(item.id, undefined, 'excluded')}
                                 disabled={queueStatus.isProcessing || item.status === 'sent'}
-                                className="text-xs text-red-400 hover:text-red-300 font-medium cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+                                className="text-xs text-red-600 hover:text-red-800 font-semibold cursor-pointer disabled:opacity-40"
                               >
                                 Excluir
                               </button>
@@ -2713,210 +2726,197 @@ export default function EmailMonitoringDashboard({ onNavigateToBooking }: EmailM
           </div>
         )}
 
-        {activeTab === 'agenda' && (
-          <section className="bg-gradient-to-b from-[#0D1B2A] to-[#0A1420] border border-brand-gold/20 rounded-2xl p-6 md:p-8 shadow-xl relative overflow-hidden animate-fade-in">
-            <div className="absolute top-0 right-0 w-64 h-64 bg-brand-gold/5 rounded-full blur-3xl pointer-events-none"></div>
-            
-            <div className="relative z-10 space-y-6">
-              <div className="space-y-1">
-                <h2 className="text-xl font-semibold text-brand-gold">Configuración de Disponibilidad y Envíos</h2>
-                <p className="text-sm text-slate-400">
-                  Establece los bloques de horario hábil del asesor Ricardo, la duración de citas y el intervalo dinámico para envíos.
-                </p>
-              </div>
-
-              <form onSubmit={handleSaveSettings} className="space-y-6 pt-2">
-                
-                {/* Fila 1: Duración de Slot */}
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                  <div className="space-y-1.5">
-                    <label className="text-xs text-brand-gold font-medium uppercase tracking-wider block">Duración de la Cita</label>
-                    <select
-                      value={slotDuration}
-                      onChange={(e) => setSlotDuration(Number(e.target.value))}
-                      className="w-full px-4 py-3 bg-[#08101A] border border-brand-gold/20 hover:border-brand-gold/45 focus:border-brand-gold/90 rounded-xl text-slate-100 outline-none transition-all duration-200 text-sm font-sans"
-                    >
-                      <option value={30}>30 Minutos</option>
-                      <option value={45}>45 Minutos</option>
-                      <option value={60}>1 Hora</option>
-                      <option value={90}>1.5 Horas</option>
-                      <option value={120}>2 Horas</option>
-                    </select>
-                  </div>
-
-                  <div className="space-y-1.5 col-span-2">
-                    <label className="text-xs text-brand-gold font-medium uppercase tracking-wider block">Intervalo entre Envíos de Correo</label>
-                    <div className="flex gap-3">
-                      <input
-                        type="number"
-                        min="1"
-                        required
-                        value={sendInterval}
-                        onChange={(e) => setSendInterval(Number(e.target.value))}
-                        className="w-1/2 px-4 py-3 bg-[#08101A] border border-brand-gold/20 focus:border-brand-gold/90 rounded-xl text-slate-100 outline-none transition-all duration-200 text-sm font-mono"
-                      />
-                      <select
-                        value={sendIntervalUnit}
-                        onChange={(e) => setSendIntervalUnit(e.target.value)}
-                        className="w-1/2 px-4 py-3 bg-[#08101A] border border-brand-gold/20 hover:border-brand-gold/45 focus:border-brand-gold/90 rounded-xl text-slate-100 outline-none transition-all duration-200 text-sm font-sans"
-                      >
-                        <option value="seconds">Segundos</option>
-                        <option value="minutes">Minutos</option>
-                        <option value="hours">Horas</option>
-                      </select>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Fila 2: Rangos Horarios */}
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-2">
-                  
-                  {/* Bloque Mañana */}
-                  <div className="bg-[#08101A]/60 border border-brand-gold/10 rounded-xl p-5 space-y-4">
-                    <h3 className="text-xs font-semibold text-brand-gold uppercase tracking-wider flex items-center gap-1.5">
-                      <Clock className="w-3.5 h-3.5 text-brand-gold" />
-                      Bloque Horario de Mañana
-                    </h3>
-                    <div className="grid grid-cols-2 gap-4">
-                      <div className="space-y-1.5">
-                        <label className="text-[10px] text-slate-400 uppercase font-mono">Hora de Inicio</label>
-                        <input
-                          type="time"
-                          required
-                          value={morningStart}
-                          onChange={(e) => setMorningStart(e.target.value)}
-                          className="w-full px-3 py-2 bg-[#08101A] border border-brand-gold/20 focus:border-brand-gold/90 rounded-lg text-slate-100 outline-none transition-all duration-200 text-xs font-mono"
-                        />
-                      </div>
-                      <div className="space-y-1.5">
-                        <label className="text-[10px] text-slate-400 uppercase font-mono">Hora de Fin</label>
-                        <input
-                          type="time"
-                          required
-                          value={morningEnd}
-                          onChange={(e) => setMorningEnd(e.target.value)}
-                          className="w-full px-3 py-2 bg-[#08101A] border border-brand-gold/20 focus:border-brand-gold/90 rounded-lg text-slate-100 outline-none transition-all duration-200 text-xs font-mono"
-                        />
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Bloque Tarde */}
-                  <div className="bg-[#08101A]/60 border border-brand-gold/10 rounded-xl p-5 space-y-4">
-                    <h3 className="text-xs font-semibold text-brand-gold uppercase tracking-wider flex items-center gap-1.5">
-                      <Clock className="w-3.5 h-3.5 text-brand-gold" />
-                      Bloque Horario de Tarde
-                    </h3>
-                    <div className="grid grid-cols-2 gap-4">
-                      <div className="space-y-1.5">
-                        <label className="text-[10px] text-slate-400 uppercase font-mono">Hora de Inicio</label>
-                        <input
-                          type="time"
-                          required
-                          value={afternoonStart}
-                          onChange={(e) => setAfternoonStart(e.target.value)}
-                          className="w-full px-3 py-2 bg-[#08101A] border border-brand-gold/20 focus:border-brand-gold/90 rounded-lg text-slate-100 outline-none transition-all duration-200 text-xs font-mono"
-                        />
-                      </div>
-                      <div className="space-y-1.5">
-                        <label className="text-[10px] text-slate-400 uppercase font-mono">Hora de Fin</label>
-                        <input
-                          type="time"
-                          required
-                          value={afternoonEnd}
-                          onChange={(e) => setAfternoonEnd(e.target.value)}
-                          className="w-full px-3 py-2 bg-[#08101A] border border-brand-gold/20 focus:border-brand-gold/90 rounded-lg text-slate-100 outline-none transition-all duration-200 text-xs font-mono"
-                        />
-                      </div>
-                    </div>
-                  </div>
-
-                </div>
-
-                {/* Fila 3: Configuración Dinámica del Número de WhatsApp */}
-                <div className="bg-[#08101A]/80 border border-[#25D366]/30 hover:border-[#25D366]/60 rounded-xl p-5 space-y-4 transition-all duration-200 shadow-lg shadow-[#25D366]/5">
-                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-800/80 pb-3">
-                    <div className="space-y-0.5">
-                      <h3 className="text-xs font-semibold text-emerald-400 uppercase tracking-wider flex items-center gap-2">
-                        <MessageCircle className="w-4 h-4 text-[#25D366]" />
-                        Número de Atención WhatsApp (Chat Directo)
-                      </h3>
-                      <p className="text-xs text-slate-400">
-                        Los prospectos que hagan clic en el botón de WhatsApp desde el correo serán redirigidos de inmediato a este chat.
-                      </p>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <span className="text-[11px] text-slate-400">Número activo:</span>
-                      <span className="inline-flex items-center gap-1.5 px-3 py-1 bg-[#25D366]/15 border border-[#25D366]/40 text-[#25D366] font-mono text-xs font-bold rounded-lg shadow-sm">
-                        <span className="w-2 h-2 rounded-full bg-[#25D366] animate-pulse"></span>
-                        +{whatsappNumber.replace(/\D/g, '') || '51982100208'}
-                      </span>
-                    </div>
-                  </div>
-
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-end">
-                    <div className="space-y-1.5 md:col-span-2">
-                      <label className="text-xs text-slate-300 font-medium flex items-center gap-1.5">
-                        <Phone className="w-3.5 h-3.5 text-[#25D366]" />
-                        Modificar Celular / WhatsApp de Atención
-                      </label>
-                      <div className="relative">
-                        <input
-                          type="text"
-                          required
-                          value={whatsappNumber}
-                          onChange={(e) => setWhatsappNumber(e.target.value)}
-                          placeholder="Ej: 51982100208 o +51 982 100 208"
-                          className="w-full px-4 py-3 bg-[#0D1B2A] border border-brand-gold/20 focus:border-[#25D366] rounded-xl text-slate-100 placeholder-slate-600 outline-none transition-all duration-200 text-sm font-mono"
-                        />
-                      </div>
-                      <p className="text-[11px] text-slate-500">
-                        💡 Incluye el código de país (Ejemplo Perú: <strong className="text-slate-400 font-mono">51</strong> seguido de los 9 dígitos de celular).
-                      </p>
-                    </div>
-
-                    <div className="flex gap-2">
-                      <a
-                        href={`https://wa.me/${whatsappNumber.replace(/\D/g, '') || '51982100208'}?text=${encodeURIComponent('Hola Ricardo, prueba de enlace dinámico desde Afinitive.')}`}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="w-full py-3 bg-[#25D366]/20 hover:bg-[#25D366]/30 border border-[#25D366]/50 text-[#25D366] hover:text-emerald-300 font-semibold rounded-xl text-xs flex items-center justify-center gap-2 transition-all cursor-pointer shadow-sm"
-                      >
-                        <ExternalLink className="w-3.5 h-3.5" />
-                        <span>Probar Enlace WhatsApp</span>
-                      </a>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Botón de Guardado */}
-                <div className="flex justify-end pt-4">
-                  <button
-                    type="submit"
-                    disabled={settingsLoading}
-                    className="px-8 py-3.5 bg-gradient-to-r from-brand-gold-dark to-brand-gold hover:from-brand-gold hover:to-brand-gold-light text-brand-navy font-bold rounded-xl shadow-lg shadow-brand-gold/10 hover:shadow-brand-gold/20 transition-all duration-200 flex items-center gap-2 cursor-pointer disabled:opacity-50"
-                  >
-                    {settingsLoading ? (
-                      <>
-                        <RefreshCw className="w-4 h-4 animate-spin" />
-                        <span>Guardando Configuraciones...</span>
-                      </>
-                    ) : (
-                      <>
-                        <Settings className="w-4 h-4" />
-                        <span>Guardar Cambios de Disponibilidad y Envíos</span>
-                      </>
-                    )}
-                  </button>
-                </div>
-              </form>
-            </div>
-          </section>
+        {/* ========================================================================= */}
+        {/* PESTAÑA 4: 📅 EVENTOS & LANDINGS (Integración de EventManagerTab)          */}
+        {/* ========================================================================= */}
+        {activeTab === 'eventos' && (
+          <div className="animate-fade-in">
+            <EventManagerTab onUseAsCampaign={handleUseEventAsCampaign} />
+          </div>
         )}
 
-        {/* Pestaña: Gestor de Eventos & Landings */}
-        {activeTab === 'eventos' && (
-          <EventManagerTab onUseAsCampaign={handleUseEventAsCampaign} />
+        {/* ========================================================================= */}
+        {/* PESTAÑA 5: ⚙️ CONFIGURACIÓN Y AGENDA                                      */}
+        {/* ========================================================================= */}
+        {activeTab === 'agenda' && (
+          <section className="bg-white border border-slate-200/90 rounded-2xl p-6 sm:p-8 shadow-xs space-y-6 animate-fade-in max-w-4xl">
+            <div className="space-y-1 border-b border-slate-100 pb-4">
+              <h2 className="text-xl font-bold text-slate-900">Configuración de Disponibilidad y Parámetros</h2>
+              <p className="text-xs text-slate-500">
+                Establece los bloques de horario hábil de Ricardo, la duración de citas y el número de atención de WhatsApp.
+              </p>
+            </div>
+
+            <form onSubmit={handleSaveSettings} className="space-y-6">
+              
+              {/* Fila 1: Duración de Slot e Intervalo de Envíos */}
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+                <div className="space-y-1.5">
+                  <label className="text-xs text-slate-700 font-bold uppercase tracking-wider block">Duración de Cita</label>
+                  <select
+                    value={slotDuration}
+                    onChange={(e) => setSlotDuration(Number(e.target.value))}
+                    className="w-full px-3 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-slate-800 outline-none text-xs font-sans"
+                  >
+                    <option value={30}>30 Minutos</option>
+                    <option value={45}>45 Minutos</option>
+                    <option value={60}>1 Hora</option>
+                    <option value={90}>1.5 Horas</option>
+                    <option value={120}>2 Horas</option>
+                  </select>
+                </div>
+
+                <div className="space-y-1.5 col-span-2">
+                  <label className="text-xs text-slate-700 font-bold uppercase tracking-wider block">Intervalo entre Envíos de Correo</label>
+                  <div className="flex gap-2">
+                    <input
+                      type="number"
+                      min="1"
+                      required
+                      value={sendInterval}
+                      onChange={(e) => setSendInterval(Number(e.target.value))}
+                      className="w-1/2 px-3 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-slate-800 outline-none text-xs font-mono"
+                    />
+                    <select
+                      value={sendIntervalUnit}
+                      onChange={(e) => setSendIntervalUnit(e.target.value)}
+                      className="w-1/2 px-3 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-slate-800 outline-none text-xs font-sans"
+                    >
+                      <option value="seconds">Segundos</option>
+                      <option value="minutes">Minutos</option>
+                      <option value="hours">Horas</option>
+                    </select>
+                  </div>
+                </div>
+              </div>
+
+              {/* Fila 2: Rangos Horarios Mañana y Tarde */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                {/* Bloque Mañana */}
+                <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 space-y-3">
+                  <h3 className="text-xs font-bold text-slate-800 uppercase tracking-wider flex items-center gap-1.5">
+                    <Clock className="w-3.5 h-3.5 text-amber-600" />
+                    Horario de Mañana
+                  </h3>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="space-y-1">
+                      <label className="text-[10px] text-slate-500 uppercase font-mono font-bold">Inicio</label>
+                      <input
+                        type="time"
+                        required
+                        value={morningStart}
+                        onChange={(e) => setMorningStart(e.target.value)}
+                        className="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg text-slate-800 text-xs font-mono"
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <label className="text-[10px] text-slate-500 uppercase font-mono font-bold">Fin</label>
+                      <input
+                        type="time"
+                        required
+                        value={morningEnd}
+                        onChange={(e) => setMorningEnd(e.target.value)}
+                        className="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg text-slate-800 text-xs font-mono"
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                {/* Bloque Tarde */}
+                <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 space-y-3">
+                  <h3 className="text-xs font-bold text-slate-800 uppercase tracking-wider flex items-center gap-1.5">
+                    <Clock className="w-3.5 h-3.5 text-amber-600" />
+                    Horario de Tarde
+                  </h3>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="space-y-1">
+                      <label className="text-[10px] text-slate-500 uppercase font-mono font-bold">Inicio</label>
+                      <input
+                        type="time"
+                        required
+                        value={afternoonStart}
+                        onChange={(e) => setAfternoonStart(e.target.value)}
+                        className="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg text-slate-800 text-xs font-mono"
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <label className="text-[10px] text-slate-500 uppercase font-mono font-bold">Fin</label>
+                      <input
+                        type="time"
+                        required
+                        value={afternoonEnd}
+                        onChange={(e) => setAfternoonEnd(e.target.value)}
+                        className="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg text-slate-800 text-xs font-mono"
+                      />
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Fila 3: Configuración de WhatsApp */}
+              <div className="bg-emerald-50/50 border border-emerald-200 rounded-xl p-5 space-y-4">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-emerald-100 pb-3">
+                  <div>
+                    <h3 className="text-xs font-bold text-emerald-900 uppercase tracking-wider flex items-center gap-1.5">
+                      <MessageCircle className="w-4 h-4 text-[#25D366]" />
+                      Número de Atención WhatsApp (Chat Directo)
+                    </h3>
+                    <p className="text-xs text-emerald-800 mt-0.5">
+                      Los prospectos que hagan clic en el botón de WhatsApp serán redirigidos a este chat.
+                    </p>
+                  </div>
+                  <span className="inline-flex items-center gap-1.5 px-3 py-1 bg-white border border-emerald-200 text-[#128C7E] font-mono text-xs font-bold rounded-lg shadow-xs">
+                    +{whatsappNumber.replace(/\D/g, '') || '51982100208'}
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-end">
+                  <div className="space-y-1 md:col-span-2">
+                    <label className="text-xs text-slate-700 font-bold">Número de Celular con Código de País</label>
+                    <input
+                      type="text"
+                      required
+                      value={whatsappNumber}
+                      onChange={(e) => setWhatsappNumber(e.target.value)}
+                      placeholder="Ej: 51982100208"
+                      className="w-full px-3 py-2 bg-white border border-slate-300 rounded-xl text-slate-800 text-xs font-mono"
+                    />
+                  </div>
+
+                  <a
+                    href={`https://wa.me/${whatsappNumber.replace(/\D/g, '') || '51982100208'}?text=${encodeURIComponent('Hola Ricardo, prueba de enlace de WhatsApp desde Afinitive.')}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="w-full py-2.5 bg-white hover:bg-emerald-50 border border-emerald-300 text-[#128C7E] font-bold rounded-xl text-xs flex items-center justify-center gap-1.5 transition-all shadow-xs"
+                  >
+                    <ExternalLink className="w-3.5 h-3.5" />
+                    <span>Probar Chat</span>
+                  </a>
+                </div>
+              </div>
+
+              {/* Botón de Guardado */}
+              <div className="flex justify-end pt-2">
+                <button
+                  type="submit"
+                  disabled={settingsLoading}
+                  className="px-6 py-3 bg-slate-900 hover:bg-slate-800 text-white font-bold rounded-xl shadow-xs transition-all flex items-center gap-2 cursor-pointer disabled:opacity-50 text-xs"
+                >
+                  {settingsLoading ? (
+                    <>
+                      <RefreshCw className="w-4 h-4 animate-spin text-amber-400" />
+                      <span>Guardando Cambios...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Settings className="w-4 h-4 text-amber-400" />
+                      <span>Guardar Cambios de Disponibilidad</span>
+                    </>
+                  )}
+                </button>
+              </div>
+            </form>
+          </section>
         )}
 
         {/* Modal de Gestión y Carga de Plantillas */}
@@ -2932,14 +2932,14 @@ export default function EmailMonitoringDashboard({ onNavigateToBooking }: EmailM
 
       </main>
 
-      {/* Pie de página */}
-      <footer className="py-6 px-8 text-center text-xs text-slate-500 border-t border-slate-900 mt-auto bg-slate-950/20">
-        <p className="flex items-center justify-center gap-1.5">
-          <span>Afinitive Inc. — Monitoreo Omnicanal</span>
-          <span className="w-1 h-1 rounded-full bg-slate-600"></span>
-          <span className="text-brand-gold font-semibold flex items-center gap-0.5">
-            Ricardo Bertalmio Ruibal <ArrowRight className="w-3 h-3 inline" /> Suite de Correo Omnicanal
-          </span>
+      {/* Pie de página Limpio */}
+      <footer className="py-5 px-8 text-center text-xs text-slate-500 border-t border-slate-200 mt-auto bg-white">
+        <p className="flex items-center justify-center gap-2">
+          <span>Afinitive Inc.</span>
+          <span>•</span>
+          <span className="font-semibold text-slate-700">Ricardo Bertalmio Ruibal</span>
+          <span>•</span>
+          <span>Suite de Monitoreo y Conversión</span>
         </p>
       </footer>
     </div>
