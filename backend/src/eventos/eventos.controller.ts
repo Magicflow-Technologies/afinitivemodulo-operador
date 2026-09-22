@@ -19,8 +19,9 @@ import { EventosService } from './eventos.service';
 export class CreateEventoDto {
   id?: string;
   nombre: string;
-  fecha_inicio: string;
-  link_reunion: string;
+  tipo?: 'webinar' | 'lead_form';
+  fecha_inicio?: string;
+  link_reunion?: string;
   descripcion?: string;
   duracion_minutos?: number;
   activo?: boolean;
@@ -31,6 +32,8 @@ export class RegistroAsistenteDto {
   nombre: string;
   correo: string;
   celular: string;
+  pais?: string;
+  interes_inversion?: string;
   persona_contacto?: string;
 }
 
@@ -43,6 +46,13 @@ export class EventosController {
   async getAllEvents() {
     const eventos = await this.eventosService.findAllEvents();
     return { success: true, data: eventos };
+  }
+
+  // Obtener todos los asistentes consolidados con información del evento
+  @Get('asistentes/todos')
+  async getTodosAsistentes() {
+    const asistentes = await this.eventosService.getAllAsistentes();
+    return { success: true, data: asistentes };
   }
 
   // Subir imagen / flyer a Supabase Storage

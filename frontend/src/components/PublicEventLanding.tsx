@@ -22,6 +22,7 @@ import {
 } from 'lucide-react';
 
 import { createClient } from '@supabase/supabase-js';
+import PublicGoogleStyleForm from './PublicGoogleStyleForm';
 
 // Cliente Supabase para lectura directa de respaldo
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || 'https://mqsupabase.dashbportal.com';
@@ -33,6 +34,7 @@ const supabaseDirect = (supabaseUrl && supabaseKey)
 interface EventoDetails {
   id: string;
   nombre: string;
+  tipo?: string;
   fecha_inicio: string;
   link_reunion: string;
   descripcion?: string;
@@ -268,6 +270,17 @@ export default function PublicEventLanding({ eventId: propEventId }: PublicEvent
   };
 
   const dateInfo = formatEventDate(evento.fecha_inicio);
+
+  // Si el evento es un formulario de captura / TikTok / Bio Link, renderizar la interfaz estilo Google
+  if (evento.tipo === 'lead_form') {
+    return (
+      <PublicGoogleStyleForm 
+        evento={evento} 
+        backendUrl={getBackendUrl()} 
+        onBackToDashboard={propEventId ? undefined : () => window.location.href = '/'}
+      />
+    );
+  }
 
   return (
     <div className="min-h-screen bg-[#FDFDFD] text-slate-900 flex flex-col font-sans selection:bg-[#C9A84C]/20 selection:text-amber-900 antialiased">

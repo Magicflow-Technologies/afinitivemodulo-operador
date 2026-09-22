@@ -9,8 +9,9 @@ import * as path from 'path';
 export interface EventoData {
   id?: string;
   nombre: string;
-  fecha_inicio: string;
-  link_reunion: string;
+  tipo?: 'webinar' | 'lead_form';
+  fecha_inicio?: string;
+  link_reunion?: string;
   descripcion?: string;
   duracion_minutos?: number;
   activo?: boolean;
@@ -21,6 +22,8 @@ export interface RegistroAsistenteData {
   nombre: string;
   correo: string;
   celular: string;
+  pais?: string;
+  interes_inversion?: string;
   persona_contacto?: string;
 }
 
@@ -73,6 +76,7 @@ export class EventosService implements OnModuleInit {
         const defaultEvent = {
           id: defaultId,
           nombre: '🏙️ THE NEW YORK TOWER 🏙️',
+          tipo: 'webinar',
           fecha_inicio: '2026-09-23T19:30:00-05:00', // Miércoles 23 de septiembre 7:30 p.m.
           link_reunion: 'https://us06web.zoom.us/launch/jc/86782072926',
           descripcion: `Una oportunidad de inversión inmobiliaria con concepto Manhattan, ahora en Lima.\nTe invito a una presentación privada donde conocerás cómo invertir utilizando financiamiento y renta por alquiler.\n\n📈 Retorno proyectado: + 17%\n📅 Miércoles 23 de septiembre\n⏰ 7:30 p.m.\n\nEn 45 minutos te mostraremos el modelo y sus números.`,
@@ -108,6 +112,7 @@ export class EventosService implements OnModuleInit {
 
     return {
       ...ev,
+      tipo: ev.tipo || 'webinar',
       imagen_url,
       descripcion,
     };
@@ -182,12 +187,17 @@ export class EventosService implements OnModuleInit {
     }
   }
 
-  // 3. Crear nuevo evento
+  // 3. Crear nuevo evento o formulario de captura
   async createEvent(data: EventoData): Promise<any> {
     if (!this.supabase) throw new BadRequestException('Supabase no disponible');
 
-    if (!data.nombre || !data.fecha_inicio || !data.link_reunion) {
-      throw new BadRequestException('El nombre, fecha de inicio y link de reunión son obligatorios');
+    if (!data.nombre) {
+      throw new BadRequestException('El nombre del evento / formulario es obligatorio');
+    }
+
+    const esLeadForm = data.tipo === 'lead_form';
+    if (!esLeadForm && (!data.fecha_inicio || !data.link_reunion)) {
+      throw new BadRequestException('Para un webinar, la fecha de inicio y link de reunión son obligatorios');
     }
 
     // Generar slug si no se envía ID
@@ -201,11 +211,12 @@ export class EventosService implements OnModuleInit {
           .replace(/-+/g, '-')
           .substring(0, 40) + '-' + Date.now().toString().slice(-4);
 
-    const payload = {
+    const payload: any = {
       id: eventId,
       nombre: data.nombre.trim(),
-      fecha_inicio: data.fecha_inicio,
-      link_reunion: data.link_reunion.trim(),
+      tipo: data.tipo || 'webinar',
+      fecha_inicio: data.fecha_inicio || (esLeadForm ? null : new Date().toISOString()),
+      link_reunion: (data.link_reunion || '').trim(),
       descripcion: data.descripcion || '',
       duracion_minutos: Number(data.duracion_minutos) || 45,
       activo: data.activo !== false,
@@ -299,7 +310,7 @@ export class EventosService implements OnModuleInit {
     return { success: true };
   }
 
-  // 6. Obtener asistentes de un evento
+  // 6. Obtener asistentes de un evento específico
   async getAsistentesByEvento(eventoId: string): Promise<any[]> {
     if (!this.supabase) return [];
 
@@ -316,7 +327,43 @@ export class EventosService implements OnModuleInit {
     return data || [];
   }
 
-  // 7. Registrar Asistente + Inyectar en Google Calendar (Cliente y Ricardo) + Correo
+  // 6.b Obtener TODOS los asistentes consolidados con información del evento/landing
+  async getAllAsistentes(): Promise<any[]> {
+    if (!this.supabase) return [];
+
+    try {
+      const { data: asistentes, error } = await this.supabase
+        .from('asistentes_evento')
+        .select('*')
+        .order('created_at', { ascending: false });
+
+      if (error) throw error;
+
+      // Obtener todos los eventos para cruzar nombres y tipos
+      const { data: eventos } = await this.supabase
+        .from('eventos')
+        .select('id, nombre, tipo, fecha_inicio');
+
+      const eventosMap: { [key: string]: any } = {};
+      if (eventos) {
+        eventos.forEach((ev: any) => {
+          eventosMap[ev.id] = ev;
+        });
+      }
+
+      return (asistentes || []).map((asistente: any) => ({
+        ...asistente,
+        evento_nombre: eventosMap[asistente.evento_id]?.nombre || asistente.evento_id,
+        evento_tipo: eventosMap[asistente.evento_id]?.tipo || 'webinar',
+        evento_fecha: eventosMap[asistente.evento_id]?.fecha_inicio || null,
+      }));
+    } catch (err: any) {
+      this.logger.error(`Error al listar todos los asistentes: ${err.message}`);
+      return [];
+    }
+  }
+
+  // 7. Registrar Asistente / Lead
   async registrarAsistente(eventoId: string, data: RegistroAsistenteData): Promise<any> {
     if (!this.supabase) throw new BadRequestException('Supabase no disponible');
 
@@ -327,13 +374,15 @@ export class EventosService implements OnModuleInit {
     // 1. Obtener detalles del evento
     const evento = await this.findEventById(eventoId);
     if (!evento) {
-      throw new NotFoundException('Evento no encontrado');
+      throw new NotFoundException('Evento o formulario no encontrado');
     }
 
     const emailClean = data.correo.trim().toLowerCase();
     const nombreClean = data.nombre.trim();
     const celularClean = data.celular.trim();
-    const personaContactoClean = data.persona_contacto?.trim() || 'Landing Oficial';
+    const paisClean = data.pais?.trim() || 'Perú';
+    const interesClean = data.interes_inversion?.trim() || null;
+    const personaContactoClean = data.persona_contacto?.trim() || (evento.tipo === 'lead_form' ? 'Formulario TikTok' : 'Landing Oficial');
 
     // 2. Comprobar si la persona ya está registrada para este evento en específico
     const { data: existente } = await this.supabase
@@ -344,8 +393,8 @@ export class EventosService implements OnModuleInit {
       .limit(1)
       .maybeSingle();
 
-    // 3. Generar enlaces de calendario directos para el cliente
-    const calendarLinks = this.generarEnlacesCalendario(evento, nombreClean);
+    const esLeadForm = evento.tipo === 'lead_form';
+    const calendarLinks = esLeadForm ? {} : this.generarEnlacesCalendario(evento, nombreClean);
 
     if (existente) {
       this.logger.log(`Asistente ya registrado previamente en evento ${eventoId}: ${emailClean} / ${celularClean}`);
@@ -356,44 +405,69 @@ export class EventosService implements OnModuleInit {
         evento: {
           id: evento.id,
           nombre: evento.nombre,
+          tipo: evento.tipo,
           fecha_inicio: evento.fecha_inicio,
           link_reunion: evento.link_reunion,
           duracion_minutos: evento.duracion_minutos,
         },
         calendar_links: calendarLinks,
-        message: `¡Hola ${existente.nombre}! Ya te encuentras registrado para este evento. Tu lugar está asegurado.`,
+        message: esLeadForm
+          ? `¡Hola ${existente.nombre}! Tus datos ya se encuentran registrados. Te contactaremos pronto.`
+          : `¡Hola ${existente.nombre}! Ya te encuentras registrado para este evento. Tu lugar está asegurado.`,
       };
     }
 
     // 4. Si es nuevo registro, insertar asistente en afinitivebd.asistentes_evento
-    const asistentePayload = {
+    const asistentePayload: any = {
       evento_id: eventoId,
       nombre: nombreClean,
       correo: emailClean,
       celular: celularClean,
+      pais: paisClean,
+      interes_inversion: interesClean,
       persona_contacto: personaContactoClean,
     };
 
-    const { data: asistenteInsertado, error: insertError } = await this.supabase
+    let { data: asistenteInsertado, error: insertError } = await this.supabase
       .from('asistentes_evento')
       .insert(asistentePayload)
       .select()
       .single();
+
+    // Si falla por columnas pais o interes_inversion no migradas aún, reintentar sin ellas
+    if (insertError && (insertError.message?.includes('pais') || insertError.message?.includes('interes_inversion') || insertError.code === 'PGRST204')) {
+      const fallbackPayload = {
+        evento_id: eventoId,
+        nombre: nombreClean,
+        correo: emailClean,
+        celular: celularClean,
+        persona_contacto: `${personaContactoClean} | País: ${paisClean} | Interés: ${interesClean || 'No especificado'}`,
+      };
+      const retry = await this.supabase
+        .from('asistentes_evento')
+        .insert(fallbackPayload)
+        .select()
+        .single();
+      asistenteInsertado = retry.data;
+      insertError = retry.error;
+    }
 
     if (insertError) {
       this.logger.error(`Error al registrar asistente: ${insertError.message}`);
       throw new BadRequestException(`Error al guardar registro: ${insertError.message}`);
     }
 
-    // 5. Enviar Correo de Confirmación con Enlace de Zoom e Invitación al Cliente
-    try {
-      await this.enviarCorreoConfirmacion(evento, {
-        nombre: nombreClean,
-        correo: emailClean,
-        celular: celularClean,
-      });
-    } catch (mailErr) {
-      this.logger.warn(`No se pudo enviar correo de confirmación: ${mailErr.message}`);
+    // 5. Enviar Correo de Confirmación solo si es un webinar con fecha
+    if (!esLeadForm && evento.fecha_inicio && evento.link_reunion) {
+      try {
+        await this.enviarCorreoConfirmacion(evento, {
+          nombre: nombreClean,
+          correo: emailClean,
+          celular: celularClean,
+        });
+      } catch (mailErr) {
+        this.logger.warn(`No se pudo enviar correo de confirmación: ${mailErr.message}`);
+      }
     }
 
     return {
@@ -403,12 +477,15 @@ export class EventosService implements OnModuleInit {
       evento: {
         id: evento.id,
         nombre: evento.nombre,
+        tipo: evento.tipo,
         fecha_inicio: evento.fecha_inicio,
         link_reunion: evento.link_reunion,
         duracion_minutos: evento.duracion_minutos,
       },
       calendar_links: calendarLinks,
-      message: '¡Asistencia confirmada con éxito! Tu lugar ha sido reservado.',
+      message: esLeadForm
+        ? '¡Tus datos han sido registrados exitosamente! Nos pondremos en contacto contigo a la brevedad.'
+        : '¡Asistencia confirmada con éxito! Tu lugar ha sido reservado.',
     };
   }
 
