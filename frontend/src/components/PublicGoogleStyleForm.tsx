@@ -3,7 +3,10 @@ import {
   CheckCircle2, 
   Send, 
   Loader2, 
-  AlertCircle
+  AlertCircle,
+  Building2,
+  TrendingUp,
+  PieChart
 } from 'lucide-react';
 import { createClient } from '@supabase/supabase-js';
 
@@ -36,22 +39,22 @@ const PAISES_LATAM = [
   { code: 'EC', name: 'Ecuador', dial: '+593', flag: '🇪🇨' },
   { code: 'BO', name: 'Bolivia', dial: '+591', flag: '🇧🇴' },
   { code: 'ES', name: 'España', dial: '+34', flag: '🇪🇸' },
-  { code: 'US', name: 'Estados Unidos', dial: '+1', flag: '🇺🇸' },
+  { code: 'US', name: 'EE.UU.', dial: '+1', flag: '🇺🇸' },
   { code: 'PA', name: 'Panamá', dial: '+507', flag: '🇵🇦' },
   { code: 'CR', name: 'Costa Rica', dial: '+506', flag: '🇨🇷' },
-  { code: 'DO', name: 'República Dominicana', dial: '+1', flag: '🇩🇴' },
+  { code: 'DO', name: 'Rep. Dom.', dial: '+1', flag: '🇩🇴' },
   { code: 'UY', name: 'Uruguay', dial: '+598', flag: '🇺🇾' },
   { code: 'PY', name: 'Paraguay', dial: '+595', flag: '🇵🇾' },
   { code: 'GT', name: 'Guatemala', dial: '+502', flag: '🇬🇹' },
   { code: 'SV', name: 'El Salvador', dial: '+503', flag: '🇸🇻' },
   { code: 'HN', name: 'Honduras', dial: '+504', flag: '🇭🇳' },
-  { code: 'OTRO', name: 'Otro país', dial: '+', flag: '🌐' },
+  { code: 'OTRO', name: 'Otro', dial: '+', flag: '🌐' },
 ];
 
 const OPCIONES_INVERSION = [
-  'Inmobiliaria',
-  'Bolsa de Valores',
-  'Fondos',
+  { id: 'Inmobiliaria', label: 'Inmobiliaria', icon: Building2 },
+  { id: 'Bolsa de Valores', label: 'Bolsa de Valores', icon: TrendingUp },
+  { id: 'Fondos', label: 'Fondos', icon: PieChart },
 ];
 
 export default function PublicGoogleStyleForm({ evento, backendUrl, onBackToDashboard }: PublicGoogleStyleFormProps) {
@@ -73,23 +76,22 @@ export default function PublicGoogleStyleForm({ evento, backendUrl, onBackToDash
     setErrorMsg(null);
 
     if (!formData.nombre.trim()) {
-      setErrorMsg('Por favor ingresa tus nombres completos');
+      setErrorMsg('Ingresa tus nombres completos');
       return;
     }
 
     if (!formData.celular.trim()) {
-      setErrorMsg('Por favor ingresa tu número de celular o WhatsApp');
+      setErrorMsg('Ingresa tu número de WhatsApp');
       return;
     }
 
     if (!formData.correo.trim() || !formData.correo.includes('@')) {
-      setErrorMsg('Por favor ingresa un correo electrónico válido');
+      setErrorMsg('Ingresa un correo electrónico válido');
       return;
     }
 
     setSubmitting(true);
 
-    // Formatear celular con código internacional
     let telefonoFinal = formData.celular.trim();
     if (!telefonoFinal.startsWith('+')) {
       telefonoFinal = `${formData.codigoPais} ${telefonoFinal}`;
@@ -101,12 +103,12 @@ export default function PublicGoogleStyleForm({ evento, backendUrl, onBackToDash
       celular: telefonoFinal,
       pais: formData.pais,
       interes_inversion: formData.interes_inversion || undefined,
-      persona_contacto: 'Formulario TikTok / Redes',
+      persona_contacto: 'TikTok Bio Form',
     };
 
     let guardadoExitoso = false;
 
-    // 1. Intentar registrar a través del Backend API
+    // 1. Intentar Backend API
     try {
       if (backendUrl) {
         const res = await fetch(`${backendUrl}/api/eventos/${evento.id}/registro`, {
@@ -123,10 +125,10 @@ export default function PublicGoogleStyleForm({ evento, backendUrl, onBackToDash
         }
       }
     } catch (apiErr) {
-      console.warn('Backend no respondió, intentando fallback directo en Supabase...', apiErr);
+      console.warn('Backend API falló, reintentando con Supabase directo...', apiErr);
     }
 
-    // 2. Fallback de respaldo directo en Supabase si el backend estuviera inaccesible
+    // 2. Fallback Supabase directo
     if (!guardadoExitoso && supabaseDirect) {
       try {
         const { error: sbError } = await supabaseDirect
@@ -141,14 +143,11 @@ export default function PublicGoogleStyleForm({ evento, backendUrl, onBackToDash
             persona_contacto: payload.persona_contacto,
           });
 
-        if (!sbError) {
-          guardadoExitoso = true;
-        } else if (sbError.code === '23505') {
-          // Ya estaba registrado (clave única)
+        if (!sbError || sbError.code === '23505') {
           guardadoExitoso = true;
         }
       } catch (directErr) {
-        console.error('Error en Supabase directo:', directErr);
+        console.error('Error directo:', directErr);
       }
     }
 
@@ -156,9 +155,8 @@ export default function PublicGoogleStyleForm({ evento, backendUrl, onBackToDash
 
     if (guardadoExitoso) {
       setSubmitted(true);
-      window.scrollTo({ top: 0, behavior: 'smooth' });
     } else {
-      setErrorMsg('No se pudo procesar tu registro. Por favor verifica tu conexión y vuelve a intentar.');
+      setErrorMsg('Error al enviar. Por favor vuelve a intentar.');
     }
   };
 
@@ -173,71 +171,55 @@ export default function PublicGoogleStyleForm({ evento, backendUrl, onBackToDash
   };
 
   return (
-    <div className="min-h-screen bg-[#f0f4f8] text-[#202124] font-sans antialiased py-6 px-4 sm:py-12 sm:px-6 flex flex-col items-center justify-center selection:bg-blue-100 selection:text-blue-900">
+    <div className="min-h-[100dvh] w-full bg-white text-[#202124] font-sans antialiased flex flex-col justify-between p-3.5 sm:p-6 select-none">
       
-      {/* Botón flotante para volver al panel si es operador */}
+      {/* Botón flotante para operador si aplica */}
       {onBackToDashboard && (
         <button
           onClick={onBackToDashboard}
-          className="fixed top-4 left-4 z-50 bg-white/90 backdrop-blur border border-gray-300 text-gray-700 text-xs font-semibold px-3 py-1.5 rounded-full shadow-sm hover:bg-gray-100 transition-all"
+          className="fixed top-2 left-2 z-50 bg-gray-100 hover:bg-gray-200 text-gray-700 text-[10px] font-semibold px-2.5 py-1 rounded-full shadow-sm"
         >
-          ← Volver al Dashboard
+          ← Dashboard
         </button>
       )}
 
-      {/* Contenedor Principal Estilo Google Form */}
-      <div className="w-full max-w-xl space-y-4">
+      {/* Contenedor Compacto de Pantalla Completa */}
+      <div className="w-full max-w-md mx-auto my-auto flex flex-col justify-center">
         
-        {/* Banner Superior Decorativo / Imagen Opcional */}
-        {evento.imagen_url && (
-          <div className="w-full h-40 sm:h-52 rounded-xl overflow-hidden shadow-sm border border-gray-200 bg-white">
+        {/* Header Compacto */}
+        <div className="text-center mb-3">
+          <div className="inline-flex items-center justify-center mb-1.5">
             <img 
-              src={evento.imagen_url} 
-              alt={evento.nombre} 
-              className="w-full h-full object-cover"
+              src="https://links.afinitive.com.pe/img/logo_arvol_oscuro_fondo_blanco.png" 
+              alt="Afinitive" 
+              className="h-7 sm:h-8 object-contain"
+              onError={(e) => {
+                (e.target as HTMLElement).style.display = 'none';
+              }}
             />
           </div>
-        )}
-
-        {/* Tarjeta de Encabezado / Título */}
-        <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden relative">
-          {/* Barra superior de acento Google Forms */}
-          <div className="h-2.5 bg-[#1a73e8] w-full" />
           
-          <div className="p-6 sm:p-8">
-            <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 tracking-tight leading-snug">
-              {evento.nombre || 'Formulario de Registro'}
-            </h1>
-            
-            {evento.descripcion ? (
-              <div className="mt-3 text-sm sm:text-base text-gray-700 whitespace-pre-line leading-relaxed border-t border-gray-100 pt-3">
-                {evento.descripcion}
-              </div>
-            ) : (
-              <p className="mt-2 text-sm text-gray-600">
-                Por favor completa los siguientes datos para brindarte información exclusiva y personalizada.
-              </p>
-            )}
-
-            <div className="mt-4 pt-3 border-t border-gray-100 flex items-center text-xs text-red-600 font-medium">
-              * Indica que la pregunta es obligatoria
-            </div>
-          </div>
+          <h1 className="text-lg sm:text-xl font-bold text-gray-900 tracking-tight leading-snug">
+            {evento.nombre || 'Registro de Asesoría'}
+          </h1>
+          
+          <p className="text-xs text-gray-500 mt-0.5 max-w-xs mx-auto line-clamp-2">
+            {evento.descripcion || 'Completa tus datos para recibir información personalizada.'}
+          </p>
         </div>
 
-        {/* Pantalla de Confirmación / Envío Exitoso */}
+        {/* Estado: Confirmación Enviada */}
         {submitted ? (
-          <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-8 sm:p-10 text-center animate-in fade-in zoom-in-95 duration-300">
-            <div className="w-16 h-16 bg-green-50 rounded-full flex items-center justify-center mx-auto mb-4 border border-green-200 text-green-600">
-              <CheckCircle2 className="w-10 h-10" />
+          <div className="bg-white border border-gray-200 rounded-2xl p-6 text-center shadow-sm animate-in fade-in zoom-in-95 duration-200">
+            <div className="w-12 h-12 bg-emerald-50 text-emerald-600 rounded-full flex items-center justify-center mx-auto mb-3 border border-emerald-200">
+              <CheckCircle2 className="w-7 h-7" />
             </div>
-            <h2 className="text-2xl font-bold text-gray-900 mb-2">
-              ¡Se ha registrado tu respuesta!
+            <h2 className="text-lg font-bold text-gray-900 mb-1">
+              ¡Registro exitoso!
             </h2>
-            <p className="text-gray-600 text-sm sm:text-base max-w-md mx-auto leading-relaxed mb-6">
-              Gracias por tu interés, <span className="font-semibold text-gray-900">{formData.nombre}</span>. Un asesor ejecutivo se pondrá en contacto contigo muy pronto a través de WhatsApp o correo electrónico.
+            <p className="text-xs text-gray-600 mb-4 leading-relaxed">
+              Gracias <span className="font-semibold text-gray-900">{formData.nombre}</span>. Nos comunicaremos contigo por WhatsApp para brindarte todos los detalles.
             </p>
-            
             <button
               type="button"
               onClick={() => {
@@ -251,189 +233,159 @@ export default function PublicGoogleStyleForm({ evento, backendUrl, onBackToDash
                   interes_inversion: '',
                 });
               }}
-              className="text-sm font-medium text-[#1a73e8] hover:text-blue-800 hover:underline transition-all"
+              className="text-xs font-semibold text-[#1a73e8] hover:underline"
             >
-              Enviar otra respuesta
+              Registrar otra persona
             </button>
           </div>
         ) : (
-          /* Formulario Interactivo */
-          <form onSubmit={handleSubmit} className="space-y-4">
+          /* Formulario Compacto (Entra 100% en 1 sola pantalla móvil) */
+          <form onSubmit={handleSubmit} className="space-y-2.5">
             
             {/* Campo 1: Nombres Completos */}
-            <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 transition-all hover:border-gray-300 focus-within:border-blue-500 focus-within:ring-1 focus-within:ring-blue-500">
-              <label className="block text-sm sm:text-base font-semibold text-gray-900 mb-1">
-                Nombres completos <span className="text-red-500">*</span>
+            <div>
+              <label className="block text-[11px] font-semibold text-gray-700 mb-0.5">
+                Nombres y Apellidos
               </label>
-              <p className="text-xs text-gray-500 mb-3">Escribe tu nombre y apellido</p>
               <input
                 type="text"
                 required
-                placeholder="Tu respuesta"
+                placeholder="Ej: Carlos Ramírez"
                 value={formData.nombre}
                 onChange={(e) => setFormData({ ...formData, nombre: e.target.value })}
-                className="w-full text-sm sm:text-base text-gray-900 pb-2 border-b border-gray-300 focus:border-[#1a73e8] outline-none transition-colors placeholder-gray-400 bg-transparent"
+                className="w-full bg-gray-50/50 border border-gray-300 rounded-lg px-3 py-2 text-xs sm:text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:border-[#1a73e8] focus:ring-1 focus:ring-[#1a73e8] transition-all"
               />
             </div>
 
-            {/* Campo 2: Celular / WhatsApp */}
-            <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 transition-all hover:border-gray-300 focus-within:border-blue-500 focus-within:ring-1 focus-within:ring-blue-500">
-              <label className="block text-sm sm:text-base font-semibold text-gray-900 mb-1">
-                Número de Celular / WhatsApp <span className="text-red-500">*</span>
+            {/* Campo 2: Celular WhatsApp (Con selector de código) */}
+            <div>
+              <label className="block text-[11px] font-semibold text-gray-700 mb-0.5">
+                Número de Celular / WhatsApp
               </label>
-              <p className="text-xs text-gray-500 mb-3">Para enviarte detalles directos y novedades</p>
-              
-              <div className="flex gap-2 items-center">
-                <div className="w-24 shrink-0 border-b border-gray-300 pb-2 flex items-center justify-between text-sm text-gray-700 font-medium">
-                  <span>{formData.codigoPais}</span>
+              <div className="flex gap-1.5">
+                <div className="w-[72px] shrink-0 bg-gray-100 border border-gray-300 rounded-lg px-2 py-2 flex items-center justify-center text-xs font-medium text-gray-700">
+                  {formData.codigoPais}
                 </div>
                 <input
                   type="tel"
                   required
-                  placeholder="Ej: 987 654 321"
+                  placeholder="987 654 321"
                   value={formData.celular}
                   onChange={(e) => setFormData({ ...formData, celular: e.target.value })}
-                  className="w-full text-sm sm:text-base text-gray-900 pb-2 border-b border-gray-300 focus:border-[#1a73e8] outline-none transition-colors placeholder-gray-400 bg-transparent"
+                  className="w-full bg-gray-50/50 border border-gray-300 rounded-lg px-3 py-2 text-xs sm:text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:border-[#1a73e8] focus:ring-1 focus:ring-[#1a73e8] transition-all"
                 />
               </div>
             </div>
 
             {/* Campo 3: Correo Electrónico */}
-            <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 transition-all hover:border-gray-300 focus-within:border-blue-500 focus-within:ring-1 focus-within:ring-blue-500">
-              <label className="block text-sm sm:text-base font-semibold text-gray-900 mb-1">
-                Correo Electrónico <span className="text-red-500">*</span>
+            <div>
+              <label className="block text-[11px] font-semibold text-gray-700 mb-0.5">
+                Correo Electrónico
               </label>
-              <p className="text-xs text-gray-500 mb-3">Dirección donde recibirás las presentaciones e informes</p>
               <input
                 type="email"
                 required
-                placeholder="ejemplo@correo.com"
+                placeholder="carlos@correo.com"
                 value={formData.correo}
                 onChange={(e) => setFormData({ ...formData, correo: e.target.value })}
-                className="w-full text-sm sm:text-base text-gray-900 pb-2 border-b border-gray-300 focus:border-[#1a73e8] outline-none transition-colors placeholder-gray-400 bg-transparent"
+                className="w-full bg-gray-50/50 border border-gray-300 rounded-lg px-3 py-2 text-xs sm:text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:border-[#1a73e8] focus:ring-1 focus:ring-[#1a73e8] transition-all"
               />
             </div>
 
-            {/* Campo 4: País de Residencia */}
-            <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 transition-all hover:border-gray-300 focus-within:border-blue-500 focus-within:ring-1 focus-within:ring-blue-500">
-              <label className="block text-sm sm:text-base font-semibold text-gray-900 mb-1">
-                País de residencia <span className="text-red-500">*</span>
+            {/* Campo 4: País */}
+            <div>
+              <label className="block text-[11px] font-semibold text-gray-700 mb-0.5">
+                País de Residencia
               </label>
-              <p className="text-xs text-gray-500 mb-3">Selecciona tu país actual</p>
-              
               <select
                 value={formData.pais}
                 onChange={handleCountryChange}
-                className="w-full text-sm sm:text-base text-gray-900 pb-2 border-b border-gray-300 focus:border-[#1a73e8] outline-none bg-transparent cursor-pointer"
+                className="w-full bg-gray-50/50 border border-gray-300 rounded-lg px-2.5 py-2 text-xs sm:text-sm text-gray-900 focus:outline-none focus:border-[#1a73e8] focus:ring-1 focus:ring-[#1a73e8] transition-all cursor-pointer"
               >
-                {PAISES_LATAM.map((pais) => (
-                  <option key={pais.code} value={pais.name}>
-                    {pais.flag} {pais.name} ({pais.dial})
+                {PAISES_LATAM.map((p) => (
+                  <option key={p.code} value={p.name}>
+                    {p.flag} {p.name} ({p.dial})
                   </option>
                 ))}
               </select>
             </div>
 
-            {/* Campo 5: ¿En qué te interesa invertir? (Opcional - Únicamente Inmobiliaria, Bolsa de Valores, Fondos) */}
-            <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 transition-all hover:border-gray-300">
+            {/* Campo 5: ¿En qué te interesa invertir? (Opcional - Chips Horizontales Ultra Compactos) */}
+            <div>
               <div className="flex items-center justify-between mb-1">
-                <label className="block text-sm sm:text-base font-semibold text-gray-900">
+                <label className="text-[11px] font-semibold text-gray-700">
                   ¿En qué te interesa invertir?
                 </label>
-                <span className="text-xs text-gray-500 bg-gray-100 px-2 py-0.5 rounded-full font-medium">
-                  Opcional
-                </span>
+                <span className="text-[10px] text-gray-400">Opcional</span>
               </div>
-              <p className="text-xs text-gray-500 mb-4">Elige el área de tu principal preferencia</p>
 
-              <div className="space-y-3">
-                {OPCIONES_INVERSION.map((opcion) => (
-                  <label
-                    key={opcion}
-                    className={`flex items-center gap-3 p-3 rounded-lg border cursor-pointer transition-all ${
-                      formData.interes_inversion === opcion
-                        ? 'border-[#1a73e8] bg-blue-50/40 text-blue-900'
-                        : 'border-gray-200 hover:bg-gray-50 text-gray-800'
-                    }`}
-                  >
-                    <input
-                      type="radio"
-                      name="interes_inversion"
-                      value={opcion}
-                      checked={formData.interes_inversion === opcion}
-                      onChange={(e) => setFormData({ ...formData, interes_inversion: e.target.value })}
-                      className="w-4 h-4 text-[#1a73e8] focus:ring-[#1a73e8] border-gray-300"
-                    />
-                    <span className="text-sm font-medium">{opcion}</span>
-                  </label>
-                ))}
-
-                {formData.interes_inversion && (
-                  <button
-                    type="button"
-                    onClick={() => setFormData({ ...formData, interes_inversion: '' })}
-                    className="text-xs text-gray-500 hover:text-gray-700 underline mt-1"
-                  >
-                    Borrar selección
-                  </button>
-                )}
+              <div className="grid grid-cols-3 gap-1.5">
+                {OPCIONES_INVERSION.map((opcion) => {
+                  const isSelected = formData.interes_inversion === opcion.id;
+                  const Icon = opcion.icon;
+                  return (
+                    <button
+                      key={opcion.id}
+                      type="button"
+                      onClick={() => setFormData(prev => ({
+                        ...prev,
+                        interes_inversion: isSelected ? '' : opcion.id
+                      }))}
+                      className={`py-1.5 px-1 rounded-lg border text-center transition-all flex flex-col items-center justify-center gap-0.5 cursor-pointer ${
+                        isSelected
+                          ? 'border-[#1a73e8] bg-blue-50 text-[#1a73e8] font-bold shadow-xs'
+                          : 'border-gray-200 bg-white hover:bg-gray-50 text-gray-700 font-medium'
+                      }`}
+                    >
+                      <Icon className={`w-3.5 h-3.5 ${isSelected ? 'text-[#1a73e8]' : 'text-gray-500'}`} />
+                      <span className="text-[10px] leading-tight truncate w-full">
+                        {opcion.label}
+                      </span>
+                    </button>
+                  );
+                })}
               </div>
             </div>
 
-            {/* Mensaje de Error si ocurre */}
+            {/* Mensaje de Error */}
             {errorMsg && (
-              <div className="p-4 bg-red-50 border border-red-200 rounded-xl flex items-center gap-3 text-red-700 text-sm">
-                <AlertCircle className="w-5 h-5 shrink-0 text-red-500" />
+              <div className="p-2 bg-red-50 border border-red-200 rounded-lg flex items-center gap-1.5 text-red-700 text-[11px]">
+                <AlertCircle className="w-3.5 h-3.5 shrink-0 text-red-500" />
                 <span>{errorMsg}</span>
               </div>
             )}
 
-            {/* Botón de Envío y Pie */}
-            <div className="flex flex-col sm:flex-row items-center justify-between gap-4 pt-2">
+            {/* Botón de Envío Principal Estilo Google */}
+            <div className="pt-1">
               <button
                 type="submit"
                 disabled={submitting}
-                className="w-full sm:w-auto px-8 py-3 bg-[#1a73e8] hover:bg-[#1557b0] text-white font-semibold text-sm rounded-lg shadow-sm hover:shadow transition-all flex items-center justify-center gap-2 disabled:opacity-70 disabled:cursor-not-allowed"
+                className="w-full py-2.5 px-4 bg-[#1a73e8] hover:bg-[#1557b0] active:bg-[#174ea6] text-white font-semibold text-xs sm:text-sm rounded-lg shadow-sm hover:shadow transition-all flex items-center justify-center gap-1.5 disabled:opacity-70 cursor-pointer"
               >
                 {submitting ? (
                   <>
                     <Loader2 className="w-4 h-4 animate-spin" />
-                    <span>Enviando respuesta...</span>
+                    <span>Enviando...</span>
                   </>
                 ) : (
                   <>
-                    <span>Enviar</span>
-                    <Send className="w-4 h-4" />
+                    <span>Enviar Registro</span>
+                    <Send className="w-3.5 h-3.5" />
                   </>
                 )}
               </button>
-
-              <button
-                type="button"
-                onClick={() => {
-                  setFormData({
-                    nombre: '',
-                    correo: '',
-                    celular: '',
-                    codigoPais: '+51',
-                    pais: 'Perú',
-                    interes_inversion: '',
-                  });
-                  setErrorMsg(null);
-                }}
-                className="text-xs text-gray-500 hover:text-gray-800 font-medium transition-colors"
-              >
-                Borrar formulario
-              </button>
             </div>
+
           </form>
         )}
 
-        {/* Footer Minimalista */}
-        <div className="text-center text-xs text-gray-500 pt-6 pb-2">
-          <span>Formulario protegido por Afinitive Wealth Management.</span>
-        </div>
       </div>
+
+      {/* Footer Mínimo */}
+      <div className="text-center text-[10px] text-gray-400 py-1">
+        Afinitive Wealth Management © {new Date().getFullYear()}
+      </div>
+
     </div>
   );
 }
