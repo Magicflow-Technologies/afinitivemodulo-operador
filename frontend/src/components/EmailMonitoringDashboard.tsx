@@ -596,6 +596,12 @@ export default function EmailMonitoringDashboard({ onNavigateToBooking }: EmailM
     const file = e.target.files?.[0];
     if (!file) return;
 
+    if (!campaignTag.trim()) {
+      setErrorMsg('⚠️ El campo ETIQUETA es obligatorio. Por favor asigna un nombre a la campaña antes de subir el archivo CSV.');
+      if (e.target) e.target.value = '';
+      return;
+    }
+
     setQueueLoading(true);
     setErrorMsg(null);
     setSuccessMsg(null);
@@ -2263,32 +2269,56 @@ export default function EmailMonitoringDashboard({ onNavigateToBooking }: EmailM
 
               {/* Paso 2: Definir Etiqueta y Subir Archivo CSV */}
               <div className="space-y-4">
-                <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 space-y-2">
+                <div className={`border rounded-xl p-4 space-y-2 transition-all ${
+                  campaignTag.trim() 
+                    ? 'bg-slate-50 border-slate-200' 
+                    : 'bg-amber-50/50 border-amber-300 shadow-xs'
+                }`}>
                   <div className="flex items-center justify-between">
                     <label className="text-xs text-slate-800 font-bold uppercase tracking-wider flex items-center gap-1.5">
                       <Tag className="w-4 h-4 text-amber-600" />
-                      Paso 2: Asignar Nombre de Etiqueta a esta Campaña
+                      PASO 2: ASIGNAR NOMBRE DE ETIQUETA A ESTA CAMPAÑA <span className="text-red-500 text-sm">*</span>
                     </label>
-                    <span className="text-[10px] px-2 py-0.5 rounded-full bg-amber-100 text-amber-900 font-semibold">
-                      Recomendado
+                    <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold uppercase tracking-wider border ${
+                      campaignTag.trim()
+                        ? 'bg-emerald-100 text-emerald-800 border-emerald-300'
+                        : 'bg-rose-100 text-rose-800 border-rose-300 animate-pulse'
+                    }`}>
+                      {campaignTag.trim() ? '✓ Etiqueta Lista' : 'Obligatorio'}
                     </span>
                   </div>
                   <div className="relative">
                     <input
                       type="text"
+                      required
                       placeholder="Ej: Inversores Marzo 2026, Leads LinkedIn, Conferencia Lima..."
                       value={campaignTag}
                       onChange={(e) => setCampaignTag(e.target.value)}
                       disabled={queueLoading || queueStatus.isProcessing}
-                      className="w-full pl-10 pr-4 py-2.5 bg-white border border-slate-300 hover:border-slate-400 focus:border-slate-800 rounded-xl text-slate-800 placeholder-slate-400 outline-none text-sm font-sans"
+                      className={`w-full pl-10 pr-4 py-2.5 bg-white border rounded-xl text-slate-800 placeholder-slate-400 outline-none text-sm font-sans transition-all ${
+                        campaignTag.trim() 
+                          ? 'border-slate-300 focus:border-slate-800' 
+                          : 'border-amber-400 focus:border-amber-600 focus:ring-1 focus:ring-amber-400'
+                      }`}
                     />
-                    <Tag className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+                    <Tag className={`w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none transition-colors ${
+                      campaignTag.trim() ? 'text-slate-400' : 'text-amber-500'
+                    }`} />
                   </div>
+                  {!campaignTag.trim() && (
+                    <p className="text-[11px] text-amber-700 font-medium pt-0.5">
+                      * Campo obligatorio: Asigna una etiqueta para clasificar y realizar el seguimiento de estos contactos.
+                    </p>
+                  )}
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-stretch">
                   {/* Zona de Arrastrar CSV */}
-                  <div className="border-2 border-dashed border-slate-300 hover:border-slate-400 rounded-2xl p-8 text-center bg-slate-50/50 transition-all relative group flex flex-col items-center justify-center">
+                  <div className={`border-2 border-dashed rounded-2xl p-8 text-center transition-all relative group flex flex-col items-center justify-center ${
+                    campaignTag.trim()
+                      ? 'border-slate-300 hover:border-slate-500 bg-slate-50/50 cursor-pointer'
+                      : 'border-amber-300/80 bg-amber-50/30'
+                  }`}>
                     <input
                       type="file"
                       accept=".csv"
@@ -2296,10 +2326,16 @@ export default function EmailMonitoringDashboard({ onNavigateToBooking }: EmailM
                       disabled={queueLoading || queueStatus.isProcessing}
                       className="absolute inset-0 w-full h-full opacity-0 cursor-pointer disabled:cursor-not-allowed"
                     />
-                    <Upload className="w-10 h-10 text-slate-400 group-hover:text-slate-700 mx-auto mb-3 transition-colors" />
+                    <Upload className={`w-10 h-10 mx-auto mb-3 transition-colors ${
+                      campaignTag.trim() ? 'text-slate-400 group-hover:text-slate-700' : 'text-amber-500'
+                    }`} />
                     <p className="text-sm font-bold text-slate-800">Arrastra tu archivo CSV o haz clic aquí</p>
                     <p className="text-xs text-slate-500 mt-1">
-                      Columnas requeridas: Nombre, Correo, Celular {campaignTag.trim() ? `• Etiqueta: "${campaignTag.trim()}"` : ''}
+                      {campaignTag.trim() ? (
+                        <>Columnas requeridas: Nombre, Correo, Celular • <span className="font-semibold text-slate-700">Etiqueta: "{campaignTag.trim()}"</span></>
+                      ) : (
+                        <span className="text-amber-700 font-semibold">⚠️ Primero ingresa la etiqueta en el paso de arriba</span>
+                      )}
                     </p>
                   </div>
 
