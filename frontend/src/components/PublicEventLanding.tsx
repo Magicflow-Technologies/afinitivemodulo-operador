@@ -45,7 +45,6 @@ interface EventoDetails {
 
 interface PublicEventLandingProps {
   eventId?: string;
-  onBackToDashboard?: () => void;
 }
 
 export default function PublicEventLanding({ eventId: propEventId }: PublicEventLandingProps) {
@@ -351,7 +350,6 @@ export default function PublicEventLanding({ eventId: propEventId }: PublicEvent
       <PublicGoogleStyleForm 
         evento={evento} 
         backendUrl={getBackendUrl()} 
-        onBackToDashboard={propEventId ? undefined : () => window.location.href = '/'}
       />
     );
   }

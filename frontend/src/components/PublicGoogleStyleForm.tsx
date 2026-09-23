@@ -27,7 +27,6 @@ interface EventoDetails {
 interface PublicGoogleStyleFormProps {
   evento: EventoDetails;
   backendUrl: string;
-  onBackToDashboard?: () => void;
 }
 
 const PAISES_LATAM = [
@@ -57,7 +56,7 @@ const OPCIONES_INVERSION = [
   { id: 'Fondos', label: 'Fondos', icon: PieChart },
 ];
 
-export default function PublicGoogleStyleForm({ evento, backendUrl, onBackToDashboard }: PublicGoogleStyleFormProps) {
+export default function PublicGoogleStyleForm({ evento, backendUrl }: PublicGoogleStyleFormProps) {
   const [formData, setFormData] = useState({
     nombre: '',
     correo: '',
@@ -173,16 +172,6 @@ export default function PublicGoogleStyleForm({ evento, backendUrl, onBackToDash
   return (
     <div className="min-h-[100dvh] w-full bg-white text-[#202124] font-sans antialiased flex flex-col justify-between p-3.5 sm:p-6 select-none">
       
-      {/* Botón flotante para operador si aplica */}
-      {onBackToDashboard && (
-        <button
-          onClick={onBackToDashboard}
-          className="fixed top-2 left-2 z-50 bg-gray-100 hover:bg-gray-200 text-gray-700 text-[10px] font-semibold px-2.5 py-1 rounded-full shadow-sm"
-        >
-          ← Dashboard
-        </button>
-      )}
-
       {/* Contenedor Compacto de Pantalla Completa */}
       <div className="w-full max-w-md mx-auto my-auto flex flex-col justify-center">
         

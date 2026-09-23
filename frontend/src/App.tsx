@@ -80,21 +80,16 @@ function App() {
     setCurrentRoute('booking');
   };
 
-  const navigateToDashboard = () => {
-    window.history.pushState({}, '', '/');
-    setCurrentRoute('dashboard');
-  };
-
   if (currentRoute === 'bio') {
-    return <PublicBioLink onBackToDashboard={navigateToDashboard} />;
+    return <PublicBioLink />;
   }
 
   if (currentRoute === 'evento') {
-    return <PublicEventLanding onBackToDashboard={navigateToDashboard} />;
+    return <PublicEventLanding />;
   }
 
   if (currentRoute === 'booking') {
-    return <PublicCalendarBooking onBackToDashboard={navigateToDashboard} />;
+    return <PublicCalendarBooking />;
   }
 
   return <EmailMonitoringDashboard onNavigateToBooking={navigateToBooking} />;

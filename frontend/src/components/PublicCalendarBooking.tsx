@@ -11,7 +11,6 @@ import {
   Mail, 
   Phone, 
   MessageSquare, 
-  ArrowLeft, 
   ShieldCheck, 
   ExternalLink,
   Copy,
@@ -32,11 +31,7 @@ const INVESTMENT_RANGES = [
   { id: 'mas_550k', label: 'Más de S/550,000', subtitle: 'Cuentas Offshore y Banca Privada Internacional' },
 ];
 
-interface PublicCalendarBookingProps {
-  onBackToDashboard?: () => void;
-}
-
-export default function PublicCalendarBooking({ onBackToDashboard }: PublicCalendarBookingProps) {
+export default function PublicCalendarBooking() {
   // Stepper: 'datetime' (1) -> 'investment' (2) -> 'contact_consent' (3) -> 'success' (4)
   const [currentStep, setCurrentStep] = useState<'datetime' | 'investment' | 'contact_consent' | 'success'>('datetime');
   const [isWhatsAppMode, setIsWhatsAppMode] = useState(false);
@@ -352,22 +347,12 @@ export default function PublicCalendarBooking({ onBackToDashboard }: PublicCalen
       
       {/* Barra superior de navegación */}
       <div className="w-full max-w-4xl flex items-center justify-between mb-4">
-        {onBackToDashboard ? (
-          <button
-            onClick={onBackToDashboard}
-            className="flex items-center gap-2 text-xs font-semibold text-zinc-600 hover:text-zinc-950 px-3 py-1.5 rounded-lg bg-white border border-zinc-200 hover:border-zinc-300 shadow-sm transition-all cursor-pointer"
-          >
-            <ArrowLeft className="w-3.5 h-3.5" />
-            <span>Volver a Suite Operador</span>
-          </button>
-        ) : (
-          <div className="flex items-center gap-2">
-            <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
-            <span className="text-xs font-medium text-zinc-500">
-              {isWhatsAppMode ? 'Perfilamiento para WhatsApp Directo' : 'Calendario Oficial En Vivo'}
-            </span>
-          </div>
-        )}
+        <div className="flex items-center gap-2">
+          <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+          <span className="text-xs font-medium text-zinc-500">
+            {isWhatsAppMode ? 'Perfilamiento para WhatsApp Directo' : 'Calendario Oficial En Vivo'}
+          </span>
+        </div>
 
         <div className="flex items-center gap-2">
           <button

@@ -50,10 +50,6 @@ const supabaseDirect = (supabaseUrl && supabaseKey)
   ? createClient(supabaseUrl, supabaseKey, { db: { schema: 'afinitivebd' } })
   : null;
 
-interface PublicBioLinkProps {
-  onBackToDashboard?: () => void;
-}
-
 const PAISES_LATAM = [
   { code: 'PE', name: 'Perú', dial: '+51', flag: '🇵🇪' },
   { code: 'MX', name: 'México', dial: '+52', flag: '🇲🇽' },
@@ -87,7 +83,7 @@ import {
   fetchBioButtons 
 } from '../utils/bioLinkConfig';
 
-export default function PublicBioLink({ onBackToDashboard }: PublicBioLinkProps) {
+export default function PublicBioLink() {
   const [copiedLink, setCopiedLink] = useState(false);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [buttonsConfig, setButtonsConfig] = useState<BioButtonItem[]>(getStoredBioButtonsSync);
@@ -266,16 +262,6 @@ export default function PublicBioLink({ onBackToDashboard }: PublicBioLinkProps)
       
       {/* Fondo con textura y matiz de elegancia financiera sutil */}
       <div className="fixed inset-0 pointer-events-none bg-[radial-gradient(#e7ded3_1px,transparent_1px)] [background-size:24px_24px] opacity-40"></div>
-
-      {/* Botón flotante para operador si aplica */}
-      {onBackToDashboard && (
-        <button
-          onClick={onBackToDashboard}
-          className="fixed top-3 left-3 z-40 bg-white/95 backdrop-blur-xs border border-amber-900/15 hover:bg-amber-50 text-stone-800 text-[11px] font-bold px-3 py-1.5 rounded-full shadow-xs transition-all cursor-pointer"
-        >
-          ← Volver al Panel
-        </button>
-      )}
 
       {/* Botón flotante para compartir */}
       <button
