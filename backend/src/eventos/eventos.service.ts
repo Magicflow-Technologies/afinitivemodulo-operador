@@ -57,44 +57,7 @@ export class EventosService implements OnModuleInit {
   }
 
   async onModuleInit() {
-    await this.ensureDefaultEvent();
-  }
-
-  // Asegura que el evento de "THE NEW YORK TOWER" exista por defecto en la BD
-  private async ensureDefaultEvent() {
-    if (!this.supabase) return;
-
-    try {
-      const defaultId = 'the-new-york-tower-2026';
-      const { data: existing } = await this.supabase
-        .from('eventos')
-        .select('id')
-        .eq('id', defaultId)
-        .maybeSingle();
-
-      if (!existing) {
-        const defaultEvent = {
-          id: defaultId,
-          nombre: '🏙️ THE NEW YORK TOWER 🏙️',
-          tipo: 'webinar',
-          fecha_inicio: '2026-09-23T19:30:00-05:00', // Miércoles 23 de septiembre 7:30 p.m.
-          link_reunion: 'https://us06web.zoom.us/launch/jc/86782072926',
-          descripcion: `Una oportunidad de inversión inmobiliaria con concepto Manhattan, ahora en Lima.\nTe invito a una presentación privada donde conocerás cómo invertir utilizando financiamiento y renta por alquiler.\n\n📈 Retorno proyectado: + 17%\n📅 Miércoles 23 de septiembre\n⏰ 7:30 p.m.\n\nEn 45 minutos te mostraremos el modelo y sus números.`,
-          duracion_minutos: 45,
-          activo: true,
-          imagen_url: 'https://images.unsplash.com/photo-1486406146926-c627a92ad1ab?w=1200&auto=format&fit=crop&q=80',
-        };
-
-        const { error } = await this.supabase.from('eventos').insert(defaultEvent);
-        if (error) {
-          this.logger.warn(`No se pudo insertar evento por defecto: ${error.message}`);
-        } else {
-          this.logger.log(`Evento por defecto '${defaultId}' inicializado con éxito en Supabase`);
-        }
-      }
-    } catch (err) {
-      this.logger.error(`Error al asegurar evento por defecto: ${err.message}`);
-    }
+    // No se reinsertan eventos predeterminados para respetar los eventos eliminados por el usuario
   }
 
   private parseEvent(ev: any): any {

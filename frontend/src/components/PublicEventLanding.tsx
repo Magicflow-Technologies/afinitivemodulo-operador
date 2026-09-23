@@ -63,20 +63,12 @@ export default function PublicEventLanding({ eventId: propEventId }: PublicEvent
     if (hash.includes('/evento/')) {
       return hash.split('/evento/')[1].split('?')[0];
     }
-    return 'the-new-york-tower-2026';
+    return '';
   };
 
   const [eventId] = useState<string>(getEventIdFromUrl);
-  const [evento, setEvento] = useState<EventoDetails>({
-    id: 'the-new-york-tower-2026',
-    nombre: '🏙️ THE NEW YORK TOWER 🏙️',
-    fecha_inicio: '2026-09-23T19:30:00-05:00',
-    link_reunion: 'https://us06web.zoom.us/launch/jc/86782072926',
-    descripcion: 'Una oportunidad de inversión inmobiliaria con concepto Manhattan, ahora en Lima.\nTe invito a una presentación privada donde conocerás cómo invertir utilizando financiamiento y renta por alquiler.\n\n📈 Retorno proyectado: + 17%\n📅 Miércoles 23 de septiembre\n⏰ 7:30 p.m.\n\nTe mostraremos el modelo financiero y sus números.',
-    duracion_minutos: 60,
-    activo: true,
-    imagen_url: 'https://images.unsplash.com/photo-1486406146926-c627a92ad1ab?w=1200&auto=format&fit=crop&q=80',
-  });
+  const [evento, setEvento] = useState<EventoDetails | null>(null);
+  const [loadingEvent, setLoadingEvent] = useState(true);
 
   const [submitting, setSubmitting] = useState(false);
   const [registered, setRegistered] = useState(false);
@@ -121,7 +113,6 @@ export default function PublicEventLanding({ eventId: propEventId }: PublicEvent
       }
     }
 
-    // Limpiar menciones de 45 minutos si vienen en la descripción
     if (descripcion) {
       descripcion = descripcion.replace(/En \d+ minutos te mostraremos el modelo y sus números\.?/gi, 'Te mostraremos el modelo financiero y sus números.');
     }
@@ -138,38 +129,86 @@ export default function PublicEventLanding({ eventId: propEventId }: PublicEvent
   }, [eventId]);
 
   const fetchEventDetails = async () => {
-    // 1. Intentar obtener desde Backend API
+    setLoadingEvent(true);
+    const backendUrl = getBackendUrl();
+
+    // 1. Si hay un ID específico, consultar ese evento
+    if (eventId) {
+      try {
+        if (backendUrl) {
+          const res = await fetch(`${backendUrl}/api/eventos/${eventId}`);
+          if (res.ok) {
+            const data = await res.json();
+            if (data.success && data.data) {
+              setEvento(parseEventData(data.data));
+              setLoadingEvent(false);
+              return;
+            }
+          }
+        }
+      } catch (err) {
+        console.warn('Backend API falló buscando evento específico, probando Supabase directo...', err);
+      }
+
+      if (supabaseDirect) {
+        try {
+          const { data, error } = await supabaseDirect
+            .from('eventos')
+            .select('*')
+            .eq('id', eventId)
+            .maybeSingle();
+
+          if (!error && data) {
+            setEvento(parseEventData(data));
+            setLoadingEvent(false);
+            return;
+          }
+        } catch (sbErr) {
+          console.error('Error en Supabase directo:', sbErr);
+        }
+      }
+    }
+
+    // 2. Si NO hay ID específico o no se encontró, consultar el evento/formulario activo más reciente
     try {
-      const backendUrl = getBackendUrl();
-      const res = await fetch(`${backendUrl}/api/eventos/${eventId}`);
-      if (res.ok) {
-        const data = await res.json();
-        if (data.success && data.data) {
-          setEvento(parseEventData(data.data));
-          return;
+      if (backendUrl) {
+        const res = await fetch(`${backendUrl}/api/eventos`);
+        if (res.ok) {
+          const data = await res.json();
+          if (data.success && Array.isArray(data.data) && data.data.length > 0) {
+            const activo = data.data.find((e: any) => e.activo !== false) || data.data[0];
+            setEvento(parseEventData(activo));
+            setLoadingEvent(false);
+            return;
+          }
         }
       }
     } catch (err) {
-      console.warn('Backend API falló o no disponible, intentando Supabase directo...', err);
+      console.warn('Error al buscar evento más reciente en backend:', err);
     }
 
-    // 2. Fallback: Consultar directamente a Supabase
     if (supabaseDirect) {
       try {
         const { data, error } = await supabaseDirect
           .from('eventos')
           .select('*')
-          .eq('id', eventId)
+          .eq('activo', true)
+          .order('created_at', { ascending: false })
+          .limit(1)
           .maybeSingle();
 
         if (!error && data) {
           setEvento(parseEventData(data));
+          setLoadingEvent(false);
           return;
         }
       } catch (sbErr) {
-        console.error('Error al consultar Supabase directamente:', sbErr);
+        console.error('Error al consultar evento activo en Supabase:', sbErr);
       }
     }
+
+    setEvento(null);
+    setLoadingEvent(false);
   };
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -192,6 +231,7 @@ export default function PublicEventLanding({ eventId: propEventId }: PublicEvent
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!evento) return;
     if (!formData.nombre || !formData.correo || !formData.celular) {
       setErrorMsg('Por favor completa todos los campos requeridos (*)');
       return;
@@ -252,6 +292,7 @@ export default function PublicEventLanding({ eventId: propEventId }: PublicEvent
   };
 
   const handleDownloadIcs = () => {
+    if (!evento) return;
     const backendUrl = getBackendUrl();
     window.open(`${backendUrl}/api/eventos/${evento.id}/ics`, '_blank');
   };
@@ -269,7 +310,40 @@ export default function PublicEventLanding({ eventId: propEventId }: PublicEvent
     }
   };
 
-  const dateInfo = formatEventDate(evento.fecha_inicio);
+  if (loadingEvent) {
+    return (
+      <div className="min-h-screen bg-white flex flex-col items-center justify-center p-4">
+        <div className="w-8 h-8 border-2 border-blue-600 border-t-transparent rounded-full animate-spin mb-3"></div>
+        <p className="text-xs text-gray-500 font-medium">Cargando...</p>
+      </div>
+    );
+  }
+
+  if (!evento) {
+    return (
+      <div className="min-h-screen bg-white flex flex-col items-center justify-center p-6 text-center">
+        <div className="max-w-md space-y-3">
+          <img 
+            src="https://links.afinitive.com.pe/img/logo_arvol_oscuro_fondo_blanco.png" 
+            alt="Afinitive" 
+            className="h-9 mx-auto mb-4 object-contain"
+          />
+          <h2 className="text-xl font-bold text-gray-900">Enlace no disponible</h2>
+          <p className="text-xs text-gray-500 leading-relaxed">
+            El evento o formulario al que intentas acceder ha sido finalizado, eliminado o no existe actualmente.
+          </p>
+          <a
+            href="https://afinitive.com.pe"
+            className="inline-block mt-4 px-5 py-2.5 bg-gray-900 text-white rounded-xl text-xs font-semibold hover:bg-gray-800 transition-colors"
+          >
+            Ir al sitio principal
+          </a>
+        </div>
+      </div>
+    );
+  }
+
+  const dateInfo = formatEventDate(evento.fecha_inicio || '');
 
   // Si el evento es un formulario de captura / TikTok / Bio Link, renderizar la interfaz estilo Google
   if (evento.tipo === 'lead_form') {
