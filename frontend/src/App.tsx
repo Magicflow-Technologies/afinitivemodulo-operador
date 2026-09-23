@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import EmailMonitoringDashboard from './components/EmailMonitoringDashboard';
 import PublicCalendarBooking from './components/PublicCalendarBooking';
 import PublicEventLanding from './components/PublicEventLanding';
+import PublicBioLink from './components/PublicBioLink';
 
 function App() {
   const getActiveRoute = () => {
@@ -10,12 +11,27 @@ function App() {
     const search = window.location.search.toLowerCase();
     const hostname = window.location.hostname.toLowerCase();
 
-    // 1. Detectar si el subdominio es eventos.afinitive.com.pe
+    // 1. Detectar si es Link in Bio (TikTok / Instagram) de Dr. Finanzas
+    if (
+      path.includes('/bio') ||
+      path.includes('/links') ||
+      path.includes('/drfinanzas') ||
+      path.includes('/dr-finanzas') ||
+      hash.includes('bio') ||
+      hash.includes('drfinanzas') ||
+      search.includes('bio') ||
+      search.includes('id=dr-finanzas') ||
+      search.includes('id=bio')
+    ) {
+      return 'bio';
+    }
+
+    // 2. Detectar si el subdominio es eventos.afinitive.com.pe
     if (hostname.startsWith('eventos.') || hostname.includes('eventos.afinitive')) {
       return 'evento';
     }
 
-    // 2. Detectar si es ruta de Evento Público en otros dominios o localhost
+    // 3. Detectar si es ruta de Evento Público en otros dominios o localhost
     if (
       path.includes('/evento') ||
       path.includes('/eventos') ||
@@ -27,7 +43,7 @@ function App() {
       return 'evento';
     }
 
-    // 2. Detectar si es ruta de Agendamiento Público
+    // 4. Detectar si es ruta de Agendamiento Público
     if (
       path.includes('/agendar') || 
       path.includes('/booking') || 
@@ -39,7 +55,7 @@ function App() {
       return 'booking';
     }
 
-    // 3. Por defecto Dashboard del Operador
+    // 5. Por defecto Dashboard del Operador
     return 'dashboard';
   };
 
@@ -68,6 +84,10 @@ function App() {
     window.history.pushState({}, '', '/');
     setCurrentRoute('dashboard');
   };
+
+  if (currentRoute === 'bio') {
+    return <PublicBioLink onBackToDashboard={navigateToDashboard} />;
+  }
 
   if (currentRoute === 'evento') {
     return <PublicEventLanding onBackToDashboard={navigateToDashboard} />;

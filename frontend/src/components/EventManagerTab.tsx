@@ -70,6 +70,7 @@ export default function EventManagerTab({ onUseAsCampaign }: EventManagerTabProp
   const [tipoFilter, setTipoFilter] = useState<'todos' | 'webinar' | 'lead_form'>('todos');
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [copiedWspId, setCopiedWspId] = useState<string | null>(null);
+  const [copiedBio, setCopiedBio] = useState(false);
 
   // Global Attendees State (Sección Clientes Registrados)
   const [allAttendees, setAllAttendees] = useState<Asistente[]>([]);
@@ -331,6 +332,29 @@ export default function EventManagerTab({ onUseAsCampaign }: EventManagerTabProp
     return `${origin}/evento?id=${eventoId}`;
   };
 
+  const getBioLinkUrl = () => {
+    const configuredEventsBase = import.meta.env.VITE_PUBLIC_EVENTS_URL;
+    if (configuredEventsBase) {
+      return `${configuredEventsBase.replace(/\/$/, '')}/bio`;
+    }
+
+    const hostname = window.location.hostname.toLowerCase();
+    if (hostname.includes('afinitive.com.pe')) {
+      return `https://eventos.afinitive.com.pe/bio`;
+    }
+
+    const origin = window.location.origin;
+    return `${origin}/bio`;
+  };
+
+  const handleCopyBioLink = () => {
+    const url = getBioLinkUrl();
+    navigator.clipboard.writeText(url);
+    setCopiedBio(true);
+    showToast('Enlace de Link in Bio (TikTok/Instagram) copiado al portapapeles', 'success');
+    setTimeout(() => setCopiedBio(false), 2500);
+  };
+
   const handleCopyLink = (eventoId: string) => {
     const url = getPublicLandingUrl(eventoId);
     navigator.clipboard.writeText(url);
@@ -533,6 +557,71 @@ export default function EventManagerTab({ onUseAsCampaign }: EventManagerTabProp
       {activeSubTab === 'eventos' && (
         <div className="space-y-4">
           
+          {/* Tarjeta Destacada: Link in Bio Dr. Finanzas (TikTok / Redes) */}
+          <div className="bg-gradient-to-r from-amber-50/70 via-white to-stone-50 border-2 border-amber-800/20 rounded-2xl p-4 sm:p-5 shadow-xs flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+            <div className="flex items-center gap-3.5">
+              <div className="w-12 h-12 rounded-full overflow-hidden p-0.5 bg-gradient-to-tr from-[#8B5A2B] via-[#C9A84C] to-[#5c3a1e] shrink-0 shadow-xs">
+                <img 
+                  src="/ricardo_bertalmio.jpg" 
+                  alt="Dr. Finanzas" 
+                  className="w-full h-full object-cover rounded-full bg-white"
+                />
+              </div>
+              <div>
+                <div className="flex items-center gap-2 flex-wrap">
+                  <h3 className="text-sm sm:text-base font-extrabold text-stone-900 tracking-tight">
+                    Link in Bio TikTok & Redes — Dr. Finanzas
+                  </h3>
+                  <span className="px-2 py-0.5 rounded-full bg-amber-500/15 text-[#8B5A2B] text-[10px] font-extrabold tracking-wide uppercase border border-amber-600/20">
+                    Oficial
+                  </span>
+                </div>
+                <p className="text-xs text-stone-600 mt-0.5">
+                  Página principal con 7 botones (Formulario de captación, Web, Facebook, Instagram, WhatsApp, YouTube y LinkedIn).
+                </p>
+                <div className="flex items-center gap-2 mt-1.5 text-[11px] font-mono text-amber-900/90 font-medium">
+                  <span className="text-stone-400">URL:</span>
+                  <code className="bg-amber-100/60 px-2 py-0.5 rounded border border-amber-200 text-stone-800">
+                    {getBioLinkUrl()}
+                  </code>
+                </div>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2 w-full md:w-auto shrink-0">
+              <button
+                onClick={handleCopyBioLink}
+                className={`flex-1 md:flex-none inline-flex items-center justify-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer shadow-xs ${
+                  copiedBio
+                    ? 'bg-emerald-600 text-white shadow-emerald-600/20'
+                    : 'bg-[#8B5A2B] hover:bg-[#724820] text-white shadow-amber-950/10 active:scale-95'
+                }`}
+              >
+                {copiedBio ? (
+                  <>
+                    <Check className="w-3.5 h-3.5" />
+                    ¡Copiado!
+                  </>
+                ) : (
+                  <>
+                    <Share2 className="w-3.5 h-3.5" />
+                    Copiar Link TikTok
+                  </>
+                )}
+              </button>
+
+              <a
+                href={getBioLinkUrl()}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center justify-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold bg-white hover:bg-slate-50 text-stone-800 border border-slate-300 transition-all cursor-pointer shadow-xs"
+              >
+                <Eye className="w-3.5 h-3.5 text-stone-600" />
+                Ver Página
+              </a>
+            </div>
+          </div>
+
           {/* Filter / Search Bar */}
           <div className="flex flex-col sm:flex-row items-center justify-between gap-3 bg-white p-3 rounded-xl border border-slate-200">
             <div className="relative flex-1 w-full max-w-md">

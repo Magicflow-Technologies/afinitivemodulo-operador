@@ -335,7 +335,21 @@ export class EventosService implements OnModuleInit {
     }
 
     // 1. Obtener detalles del evento
-    const evento = await this.findEventById(eventoId);
+    let evento: any = null;
+    try {
+      evento = await this.findEventById(eventoId);
+    } catch {
+      if (eventoId === 'dr-finanzas-bio' || eventoId === 'bio') {
+        evento = {
+          id: eventoId,
+          nombre: 'Dr. Finanzas - Link in Bio',
+          tipo: 'lead_form',
+          descripcion: 'Registro desde Link in Bio TikTok / Instagram',
+          activo: true,
+        };
+      }
+    }
+
     if (!evento) {
       throw new NotFoundException('Evento o formulario no encontrado');
     }
