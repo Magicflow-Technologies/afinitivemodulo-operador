@@ -12,7 +12,6 @@ import {
   Search, 
   Check, 
   Building2, 
-  Image as ImageIcon,
   MessageCircle,
   X,
   Upload,
@@ -350,7 +349,7 @@ export default function EventManagerTab({ onUseAsCampaign }: EventManagerTabProp
         '',
         `${evento.descripcion || 'Regístrate aquí para recibir información exclusiva y asesoría patrimonial:'}`,
         '',
-        `👉 *Enlace de Registro (Fondo Blanco / Google Style):*`,
+        `👉 *Enlace de Registro:*`,
         `${url}`,
       ].join('\n');
     } else {
@@ -378,7 +377,7 @@ export default function EventManagerTab({ onUseAsCampaign }: EventManagerTabProp
         `📅 *Fecha:* ${fechaStr} (Hora Perú)`,
         `⏱️ *Duración:* ${evento.duracion_minutos || 45} minutos`,
         '',
-        `👉 *Confirma tu asistencia aquí para recibir el acceso:*`,
+        `👉 *Confirma tu asistencia aquí:*`,
         `${url}`,
       ].join('\n');
     }
@@ -453,52 +452,52 @@ export default function EventManagerTab({ onUseAsCampaign }: EventManagerTabProp
   return (
     <div className="space-y-6 animate-in fade-in duration-300">
       
-      {/* Top Header Card */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-slate-900/80 border border-slate-800 p-5 rounded-2xl backdrop-blur-md shadow-xl">
+      {/* Top Header Card (Estilo Blanco Limpio) */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white border border-slate-200 p-5 rounded-2xl shadow-xs">
         <div>
           <div className="flex items-center gap-2 mb-1">
-            <span className="w-2.5 h-2.5 rounded-full bg-amber-400 animate-pulse"></span>
-            <h2 className="text-xl font-bold text-white tracking-tight">
+            <span className="w-2.5 h-2.5 rounded-full bg-amber-500"></span>
+            <h2 className="text-xl font-bold text-slate-900 tracking-tight">
               Gestor de Eventos & Formularios de Captura
             </h2>
           </div>
-          <p className="text-xs text-slate-400 max-w-2xl">
-            Crea enlaces de webinars o formularios de captura estilo Google para el perfil de TikTok / redes sociales. Todos los prospectos se sincronizan automáticamente en Supabase.
+          <p className="text-xs text-slate-500 max-w-2xl">
+            Crea enlaces de webinars o formularios de captura para el perfil de TikTok / redes sociales. Todos los prospectos se registran en Supabase.
           </p>
         </div>
 
-        <div className="flex items-center gap-2 flex-wrap">
+        <div className="flex items-center gap-2.5 flex-wrap">
           <button
             onClick={() => handleOpenCreate('lead_form')}
-            className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-blue-600/90 hover:bg-blue-600 text-white font-bold text-xs shadow-md shadow-blue-900/30 transition-all cursor-pointer hover:scale-102 active:scale-98"
+            className="inline-flex items-center gap-1.5 px-4 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs shadow-xs transition-all cursor-pointer"
             title="Crear un link simple tipo Google Forms para biografía de TikTok/Instagram"
           >
-            <FileText className="w-3.5 h-3.5" />
+            <FileText className="w-4 h-4" />
             + Formulario TikTok / Bio
           </button>
 
           <button
             onClick={() => handleOpenCreate('webinar')}
-            className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-gradient-to-r from-amber-500 via-amber-400 to-amber-500 hover:from-amber-400 hover:to-amber-300 text-slate-950 font-bold text-xs shadow-lg shadow-amber-500/20 transition-all cursor-pointer hover:scale-102 active:scale-98"
+            className="inline-flex items-center gap-1.5 px-4 py-2.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs shadow-xs transition-all cursor-pointer"
           >
-            <Video className="w-3.5 h-3.5" />
+            <Video className="w-4 h-4 text-amber-400" />
             + Crear Webinar
           </button>
         </div>
       </div>
 
-      {/* Sub-Navigation Tabs */}
-      <div className="flex items-center justify-between border-b border-slate-800 pb-2">
+      {/* Sub-Navigation Tabs (Fondo Blanco Limpio) */}
+      <div className="flex items-center justify-between border-b border-slate-200 pb-2">
         <div className="flex items-center gap-2">
           <button
             onClick={() => setActiveSubTab('eventos')}
             className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
               activeSubTab === 'eventos'
-                ? 'bg-amber-400/15 text-amber-300 border border-amber-400/40 shadow-sm'
-                : 'text-slate-400 hover:text-white hover:bg-slate-800/60 border border-transparent'
+                ? 'bg-amber-50 text-amber-900 border border-amber-300 shadow-xs'
+                : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100 border border-transparent'
             }`}
           >
-            <Building2 className="w-4 h-4" />
+            <Building2 className="w-4 h-4 text-amber-600" />
             <span>Eventos & Formularios Creados ({eventos.length})</span>
           </button>
 
@@ -509,11 +508,11 @@ export default function EventManagerTab({ onUseAsCampaign }: EventManagerTabProp
             }}
             className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
               activeSubTab === 'registrados'
-                ? 'bg-sky-400/15 text-sky-300 border border-sky-400/40 shadow-sm'
-                : 'text-slate-400 hover:text-white hover:bg-slate-800/60 border border-transparent'
+                ? 'bg-blue-50 text-blue-900 border border-blue-300 shadow-xs'
+                : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100 border border-transparent'
             }`}
           >
-            <Users className="w-4 h-4" />
+            <Users className="w-4 h-4 text-blue-600" />
             <span>👥 Clientes Registrados / Leads ({totalRegistradosCount})</span>
           </button>
         </div>
@@ -522,9 +521,9 @@ export default function EventManagerTab({ onUseAsCampaign }: EventManagerTabProp
           <button
             onClick={() => handleExportCsv(filteredGlobalAttendees, 'todos_los_clientes_registrados')}
             disabled={!filteredGlobalAttendees.length}
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-950/60 hover:bg-emerald-900/80 text-emerald-300 text-xs font-bold border border-emerald-700/50 transition-all cursor-pointer disabled:opacity-40"
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-50 hover:bg-emerald-100 text-emerald-800 text-xs font-bold border border-emerald-300 transition-all cursor-pointer disabled:opacity-40"
           >
-            <Download className="w-3.5 h-3.5" />
+            <Download className="w-3.5 h-3.5 text-emerald-600" />
             Exportar CSV
           </button>
         )}
@@ -535,7 +534,7 @@ export default function EventManagerTab({ onUseAsCampaign }: EventManagerTabProp
         <div className="space-y-4">
           
           {/* Filter / Search Bar */}
-          <div className="flex flex-col sm:flex-row items-center justify-between gap-3">
+          <div className="flex flex-col sm:flex-row items-center justify-between gap-3 bg-white p-3 rounded-xl border border-slate-200">
             <div className="relative flex-1 w-full max-w-md">
               <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
               <input
@@ -543,35 +542,41 @@ export default function EventManagerTab({ onUseAsCampaign }: EventManagerTabProp
                 placeholder="Buscar por nombre o descripción..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full bg-slate-900/70 border border-slate-800 rounded-xl py-2 pl-10 pr-4 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-amber-400 transition-all"
+                className="w-full bg-slate-50 border border-slate-200 rounded-lg py-1.5 pl-10 pr-4 text-xs text-slate-800 placeholder-slate-400 focus:outline-none focus:border-blue-600 focus:bg-white transition-all"
               />
             </div>
 
             {/* Tipo Selector Filter */}
             <div className="flex items-center gap-1.5 self-end sm:self-center">
-              <span className="text-[11px] text-slate-400 mr-1 flex items-center gap-1">
+              <span className="text-[11px] text-slate-500 mr-1 flex items-center gap-1 font-medium">
                 <Filter className="w-3 h-3" /> Tipo:
               </span>
               <button
                 onClick={() => setTipoFilter('todos')}
-                className={`text-xs px-2.5 py-1 rounded-lg font-medium transition-all ${
-                  tipoFilter === 'todos' ? 'bg-slate-700 text-white font-bold' : 'bg-slate-900 text-slate-400 hover:text-white'
+                className={`text-xs px-2.5 py-1 rounded-lg font-medium transition-all cursor-pointer ${
+                  tipoFilter === 'todos' 
+                    ? 'bg-slate-900 text-white font-bold' 
+                    : 'bg-slate-100 text-slate-600 hover:text-slate-900'
                 }`}
               >
                 Todos
               </button>
               <button
                 onClick={() => setTipoFilter('webinar')}
-                className={`text-xs px-2.5 py-1 rounded-lg font-medium transition-all ${
-                  tipoFilter === 'webinar' ? 'bg-amber-500/20 text-amber-300 font-bold border border-amber-500/30' : 'bg-slate-900 text-slate-400 hover:text-white'
+                className={`text-xs px-2.5 py-1 rounded-lg font-medium transition-all cursor-pointer ${
+                  tipoFilter === 'webinar' 
+                    ? 'bg-amber-100 text-amber-900 font-bold border border-amber-300' 
+                    : 'bg-slate-100 text-slate-600 hover:text-slate-900'
                 }`}
               >
                 🎙️ Webinars
               </button>
               <button
                 onClick={() => setTipoFilter('lead_form')}
-                className={`text-xs px-2.5 py-1 rounded-lg font-medium transition-all ${
-                  tipoFilter === 'lead_form' ? 'bg-blue-500/20 text-blue-300 font-bold border border-blue-500/30' : 'bg-slate-900 text-slate-400 hover:text-white'
+                className={`text-xs px-2.5 py-1 rounded-lg font-medium transition-all cursor-pointer ${
+                  tipoFilter === 'lead_form' 
+                    ? 'bg-blue-100 text-blue-900 font-bold border border-blue-300' 
+                    : 'bg-slate-100 text-slate-600 hover:text-slate-900'
                 }`}
               >
                 📋 Formularios TikTok
@@ -581,28 +586,28 @@ export default function EventManagerTab({ onUseAsCampaign }: EventManagerTabProp
 
           {/* Events Grid */}
           {loading ? (
-            <div className="py-20 text-center text-slate-400">
-              <div className="w-8 h-8 border-2 border-amber-400 border-t-transparent rounded-full animate-spin mx-auto mb-3"></div>
-              <p className="text-xs">Cargando enlaces desde Supabase...</p>
+            <div className="py-20 text-center text-slate-400 bg-white rounded-2xl border border-slate-200">
+              <div className="w-8 h-8 border-2 border-blue-600 border-t-transparent rounded-full animate-spin mx-auto mb-3"></div>
+              <p className="text-xs font-medium text-slate-600">Cargando enlaces desde Supabase...</p>
             </div>
           ) : filteredEventos.length === 0 ? (
-            <div className="bg-slate-900/40 border border-slate-800/80 rounded-2xl p-12 text-center">
-              <Building2 className="w-12 h-12 text-slate-600 mx-auto mb-3" />
-              <h3 className="text-base font-bold text-white mb-1">No se encontraron eventos o formularios</h3>
-              <p className="text-xs text-slate-400 max-w-sm mx-auto mb-4">
+            <div className="bg-white border border-slate-200 rounded-2xl p-12 text-center shadow-xs">
+              <Building2 className="w-12 h-12 text-slate-300 mx-auto mb-3" />
+              <h3 className="text-base font-bold text-slate-800 mb-1">No se encontraron eventos o formularios</h3>
+              <p className="text-xs text-slate-500 max-w-sm mx-auto mb-4">
                 Aún no has creado ningún link o no coincide con tu búsqueda actual.
               </p>
               <div className="flex items-center justify-center gap-3">
                 <button
                   onClick={() => handleOpenCreate('lead_form')}
-                  className="px-3.5 py-2 rounded-lg bg-blue-600 text-white font-bold text-xs inline-flex items-center gap-1.5"
+                  className="px-3.5 py-2 rounded-lg bg-blue-600 text-white font-bold text-xs inline-flex items-center gap-1.5 cursor-pointer shadow-xs"
                 >
                   <FileText className="w-3.5 h-3.5" />
                   Crear Formulario TikTok
                 </button>
                 <button
                   onClick={() => handleOpenCreate('webinar')}
-                  className="px-3.5 py-2 rounded-lg bg-amber-500 text-slate-950 font-bold text-xs inline-flex items-center gap-1.5"
+                  className="px-3.5 py-2 rounded-lg bg-slate-900 text-white font-bold text-xs inline-flex items-center gap-1.5 cursor-pointer shadow-xs"
                 >
                   <Plus className="w-3.5 h-3.5" />
                   Crear Webinar
@@ -632,64 +637,62 @@ export default function EventManagerTab({ onUseAsCampaign }: EventManagerTabProp
                 return (
                   <div 
                     key={ev.id}
-                    className="bg-slate-900/80 border border-slate-800 hover:border-amber-500/40 rounded-2xl overflow-hidden shadow-xl hover:shadow-2xl transition-all duration-300 flex flex-col group"
+                    className="bg-white border border-slate-200 hover:border-slate-300 rounded-2xl overflow-hidden shadow-xs hover:shadow-md transition-all duration-300 flex flex-col group"
                   >
-                    {/* Image Banner */}
-                    <div className="relative h-44 bg-slate-950 overflow-hidden">
+                    {/* Image Banner / Placeholder */}
+                    <div className="relative h-40 bg-slate-100 overflow-hidden border-b border-slate-100">
                       {ev.imagen_url ? (
                         <img 
                           src={ev.imagen_url} 
                           alt={ev.nombre}
-                          className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                          className="w-full h-full object-cover group-hover:scale-103 transition-transform duration-500"
                           onError={(e) => {
                             (e.target as HTMLElement).style.display = 'none';
                           }}
                         />
                       ) : (
-                        <div className="w-full h-full flex flex-col items-center justify-center bg-gradient-to-br from-slate-900 to-[#0d1b2a] text-slate-600 gap-2">
+                        <div className="w-full h-full flex flex-col items-center justify-center bg-gradient-to-br from-slate-50 to-slate-100 text-slate-400 gap-1.5">
                           {esLeadForm ? (
                             <>
-                              <FileText className="w-10 h-10 text-blue-400/60" />
-                              <span className="text-[11px] font-semibold text-blue-300/80">Formulario TikTok Google Style</span>
+                              <FileText className="w-8 h-8 text-blue-500" />
+                              <span className="text-[11px] font-bold text-blue-700">Formulario TikTok (Fondo Blanco)</span>
                             </>
                           ) : (
                             <>
-                              <ImageIcon className="w-10 h-10" />
-                              <span className="text-[11px] text-slate-500">Webinar Virtual</span>
+                              <Video className="w-8 h-8 text-amber-600" />
+                              <span className="text-[11px] font-bold text-slate-600">Webinar Virtual Zoom</span>
                             </>
                           )}
                         </div>
                       )}
 
-                      <div className="absolute inset-0 bg-gradient-to-t from-slate-900 via-transparent to-transparent"></div>
-
                       {/* Badges Superiores */}
-                      <div className="absolute top-3 left-3 flex items-center gap-1.5">
+                      <div className="absolute top-2.5 left-2.5 flex items-center gap-1.5">
                         {esLeadForm ? (
-                          <span className="text-[10px] font-bold px-2.5 py-0.5 rounded-full uppercase tracking-wider bg-blue-500/20 text-blue-300 border border-blue-500/40 flex items-center gap-1">
+                          <span className="text-[10px] font-bold px-2.5 py-0.5 rounded-full uppercase tracking-wider bg-blue-50 text-blue-700 border border-blue-200 shadow-xs flex items-center gap-1">
                             <FileText className="w-3 h-3" />
                             TikTok / Bio Form
                           </span>
                         ) : (
-                          <span className="text-[10px] font-bold px-2.5 py-0.5 rounded-full uppercase tracking-wider bg-amber-500/20 text-amber-300 border border-amber-500/40 flex items-center gap-1">
-                            <Video className="w-3 h-3" />
+                          <span className="text-[10px] font-bold px-2.5 py-0.5 rounded-full uppercase tracking-wider bg-amber-50 text-amber-800 border border-amber-200 shadow-xs flex items-center gap-1">
+                            <Video className="w-3 h-3 text-amber-600" />
                             Webinar Zoom
                           </span>
                         )}
                       </div>
 
-                      <div className="absolute top-3 right-3 flex items-center gap-1.5">
-                        <span className={`text-[10px] font-bold px-2.5 py-0.5 rounded-full uppercase tracking-wider ${
+                      <div className="absolute top-2.5 right-2.5 flex items-center gap-1.5">
+                        <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider ${
                           ev.activo !== false 
-                            ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30' 
-                            : 'bg-slate-700 text-slate-300'
+                            ? 'bg-emerald-50 text-emerald-800 border border-emerald-200' 
+                            : 'bg-slate-100 text-slate-600 border border-slate-200'
                         }`}>
                           {ev.activo !== false ? 'Activo' : 'Pausado'}
                         </span>
                       </div>
 
-                      <div className="absolute bottom-3 left-3 right-3">
-                        <span className="text-[10px] text-amber-400 font-bold uppercase tracking-wider bg-black/60 backdrop-blur-sm px-2 py-0.5 rounded">
+                      <div className="absolute bottom-2 left-2.5">
+                        <span className="text-[10px] text-slate-700 font-bold uppercase tracking-wider bg-white/95 backdrop-blur-xs px-2 py-0.5 rounded border border-slate-200 shadow-2xs">
                           ID: {ev.id}
                         </span>
                       </div>
@@ -699,49 +702,49 @@ export default function EventManagerTab({ onUseAsCampaign }: EventManagerTabProp
                     <div className="p-5 flex-1 flex flex-col justify-between space-y-4">
                       
                       <div>
-                        <h3 className="text-base font-bold text-white line-clamp-1 mb-2">
+                        <h3 className="text-base font-bold text-slate-900 line-clamp-1 mb-1.5">
                           {ev.nombre}
                         </h3>
-                        <p className="text-xs text-slate-400 line-clamp-2 leading-relaxed">
+                        <p className="text-xs text-slate-500 line-clamp-2 leading-relaxed">
                           {ev.descripcion || 'Sin descripción adicional'}
                         </p>
                       </div>
 
                       {/* Metadata Row */}
-                      <div className="space-y-2 text-xs border-y border-slate-800/80 py-3">
+                      <div className="space-y-2 text-xs bg-slate-50/70 border border-slate-100 rounded-xl p-3">
                         {!esLeadForm && (
-                          <div className="flex items-center justify-between text-slate-300">
-                            <span className="flex items-center gap-1.5 text-slate-400">
-                              <Calendar className="w-3.5 h-3.5 text-amber-400" />
+                          <div className="flex items-center justify-between text-slate-700">
+                            <span className="flex items-center gap-1.5 text-slate-500 font-medium">
+                              <Calendar className="w-3.5 h-3.5 text-amber-600" />
                               Fecha & Hora:
                             </span>
-                            <span className="font-semibold capitalize text-white truncate max-w-[170px] text-right">
+                            <span className="font-semibold capitalize text-slate-900 truncate max-w-[170px] text-right">
                               {fechaFormatted}
                             </span>
                           </div>
                         )}
 
-                        <div className="flex items-center justify-between text-slate-300">
-                          <span className="flex items-center gap-1.5 text-slate-400">
-                            <Users className="w-3.5 h-3.5 text-sky-400" />
+                        <div className="flex items-center justify-between text-slate-700">
+                          <span className="flex items-center gap-1.5 text-slate-500 font-medium">
+                            <Users className="w-3.5 h-3.5 text-blue-600" />
                             Registrados:
                           </span>
-                          <span className="font-bold text-amber-400 bg-amber-500/10 px-2 py-0.5 rounded border border-amber-500/30">
+                          <span className="font-bold text-blue-700 bg-blue-50 px-2 py-0.5 rounded border border-blue-200">
                             {ev.asistentes_count || 0} prospectos
                           </span>
                         </div>
 
                         {!esLeadForm && ev.link_reunion && (
-                          <div className="flex items-center justify-between text-slate-300 truncate">
-                            <span className="flex items-center gap-1.5 text-slate-400">
-                              <Video className="w-3.5 h-3.5 text-purple-400" />
+                          <div className="flex items-center justify-between text-slate-700 truncate">
+                            <span className="flex items-center gap-1.5 text-slate-500 font-medium">
+                              <Video className="w-3.5 h-3.5 text-purple-600" />
                               Zoom:
                             </span>
                             <a 
                               href={ev.link_reunion} 
                               target="_blank" 
                               rel="noreferrer"
-                              className="text-sky-400 hover:underline truncate max-w-[150px]"
+                              className="text-blue-600 hover:underline truncate max-w-[150px] font-mono"
                             >
                               {ev.link_reunion}
                             </a>
@@ -749,12 +752,12 @@ export default function EventManagerTab({ onUseAsCampaign }: EventManagerTabProp
                         )}
 
                         {esLeadForm && (
-                          <div className="flex items-center justify-between text-slate-300">
-                            <span className="flex items-center gap-1.5 text-slate-400">
-                              <Sparkles className="w-3.5 h-3.5 text-blue-400" />
-                              Estilo:
+                          <div className="flex items-center justify-between text-slate-700">
+                            <span className="flex items-center gap-1.5 text-slate-500 font-medium">
+                              <Sparkles className="w-3.5 h-3.5 text-blue-600" />
+                              Diseño:
                             </span>
-                            <span className="text-blue-300 font-medium">
+                            <span className="text-blue-700 font-medium">
                               Google Form (Fondo Blanco)
                             </span>
                           </div>
@@ -768,17 +771,17 @@ export default function EventManagerTab({ onUseAsCampaign }: EventManagerTabProp
                         <div className="grid grid-cols-2 gap-2">
                           <button
                             onClick={() => handleCopyLink(ev.id)}
-                            className="flex items-center justify-center gap-1.5 py-2 px-3 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold border border-slate-700 transition-colors cursor-pointer"
+                            className="flex items-center justify-center gap-1.5 py-2 px-3 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-800 text-xs font-bold border border-slate-200 transition-colors cursor-pointer"
                             title="Copiar link para poner en TikTok o redes"
                           >
                             {copiedId === ev.id ? (
                               <>
-                                <Check className="w-3.5 h-3.5 text-emerald-400" />
-                                <span className="text-emerald-300">¡Copiado!</span>
+                                <Check className="w-3.5 h-3.5 text-emerald-600" />
+                                <span className="text-emerald-700">¡Copiado!</span>
                               </>
                             ) : (
                               <>
-                                <Share2 className="w-3.5 h-3.5 text-sky-400" />
+                                <Share2 className="w-3.5 h-3.5 text-blue-600" />
                                 <span>Copiar Link</span>
                               </>
                             )}
@@ -786,39 +789,39 @@ export default function EventManagerTab({ onUseAsCampaign }: EventManagerTabProp
 
                           <button
                             onClick={() => handleCopyWhatsappInvitation(ev)}
-                            className="flex items-center justify-center gap-1.5 py-2 px-3 rounded-lg bg-emerald-950/40 hover:bg-emerald-900/60 text-emerald-300 text-xs font-semibold border border-emerald-700/50 transition-colors cursor-pointer"
+                            className="flex items-center justify-center gap-1.5 py-2 px-3 rounded-xl bg-emerald-50 hover:bg-emerald-100 text-emerald-800 text-xs font-bold border border-emerald-200 transition-colors cursor-pointer"
                             title="Copiar texto formateado listo para WhatsApp"
                           >
                             {copiedWspId === ev.id ? (
                               <>
-                                <Check className="w-3.5 h-3.5 text-emerald-400" />
+                                <Check className="w-3.5 h-3.5 text-emerald-600" />
                                 <span>¡Copiado!</span>
                               </>
                             ) : (
                               <>
-                                <MessageCircle className="w-3.5 h-3.5 text-emerald-400" />
+                                <MessageCircle className="w-3.5 h-3.5 text-emerald-600" />
                                 <span>Copia WhatsApp</span>
                               </>
                             )}
                           </button>
                         </div>
 
-                        {/* Botón: Crear Campaña Masiva de Correo con este Evento (Si es webinar) */}
+                        {/* Botón: Crear Campaña Masiva de Correo con este Evento */}
                         {!esLeadForm && onUseAsCampaign && (
                           <button
                             onClick={() => onUseAsCampaign(ev)}
-                            className="w-full flex items-center justify-center gap-2 py-2 px-3 rounded-lg bg-gradient-to-r from-amber-500/15 via-amber-500/25 to-amber-500/15 hover:from-amber-500/30 hover:to-amber-500/30 text-amber-300 border border-amber-500/40 text-xs font-bold transition-all shadow-sm cursor-pointer active:scale-98"
+                            className="w-full flex items-center justify-center gap-2 py-2 px-3 rounded-xl bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-200 text-xs font-bold transition-all shadow-2xs cursor-pointer"
                           >
-                            <Mail className="w-3.5 h-3.5 text-amber-400" />
+                            <Mail className="w-3.5 h-3.5 text-amber-600" />
                             <span>✉️ Usar como Plantilla de Correo Masivo</span>
                           </button>
                         )}
 
                         {/* Secondary Management Row */}
-                        <div className="flex items-center justify-between pt-2 border-t border-slate-800/60">
+                        <div className="flex items-center justify-between pt-2 border-t border-slate-100">
                           <button
                             onClick={() => handleOpenAttendees(ev)}
-                            className="text-xs text-sky-400 hover:text-sky-300 font-medium inline-flex items-center gap-1 cursor-pointer"
+                            className="text-xs text-blue-600 hover:text-blue-800 font-bold inline-flex items-center gap-1 cursor-pointer"
                           >
                             <Users className="w-3.5 h-3.5" />
                             Ver Asistentes ({ev.asistentes_count || 0})
@@ -829,21 +832,21 @@ export default function EventManagerTab({ onUseAsCampaign }: EventManagerTabProp
                               href={`/evento?id=${ev.id}`}
                               target="_blank"
                               rel="noreferrer"
-                              className="p-1.5 text-slate-400 hover:text-white rounded-lg hover:bg-slate-800 transition-colors"
+                              className="p-1.5 text-slate-500 hover:text-slate-900 rounded-lg hover:bg-slate-100 transition-colors"
                               title="Abrir formulario/landing en nueva pestaña"
                             >
                               <Eye className="w-4 h-4" />
                             </a>
                             <button
                               onClick={() => handleOpenEdit(ev)}
-                              className="p-1.5 text-slate-400 hover:text-amber-400 rounded-lg hover:bg-slate-800 transition-colors cursor-pointer"
+                              className="p-1.5 text-slate-500 hover:text-amber-600 rounded-lg hover:bg-slate-100 transition-colors cursor-pointer"
                               title="Editar configuración"
                             >
                               <Edit3 className="w-4 h-4" />
                             </button>
                             <button
                               onClick={() => setDeleteModal({ isOpen: true, id: ev.id, nombre: ev.nombre })}
-                              className="p-1.5 text-slate-400 hover:text-red-400 rounded-lg hover:bg-slate-800 transition-colors cursor-pointer"
+                              className="p-1.5 text-slate-500 hover:text-red-600 rounded-lg hover:bg-slate-100 transition-colors cursor-pointer"
                               title="Eliminar enlace"
                             >
                               <Trash2 className="w-4 h-4" />
@@ -866,45 +869,45 @@ export default function EventManagerTab({ onUseAsCampaign }: EventManagerTabProp
       {activeSubTab === 'registrados' && (
         <div className="space-y-4 animate-in fade-in duration-200">
           
-          {/* Métricas Rápidas */}
+          {/* Métricas Rápidas (Fondo Blanco Limpio) */}
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-            <div className="bg-slate-900/80 border border-slate-800 p-4 rounded-xl flex items-center gap-3.5">
-              <div className="w-11 h-11 rounded-xl bg-sky-500/10 border border-sky-500/20 text-sky-400 flex items-center justify-center">
+            <div className="bg-white border border-slate-200 p-4 rounded-2xl flex items-center gap-3.5 shadow-xs">
+              <div className="w-11 h-11 rounded-xl bg-blue-50 border border-blue-200 text-blue-600 flex items-center justify-center">
                 <Users className="w-6 h-6" />
               </div>
               <div>
-                <span className="text-[11px] font-semibold text-slate-400 block uppercase tracking-wider">
+                <span className="text-[11px] font-bold text-slate-500 block uppercase tracking-wider">
                   Total Registrados
                 </span>
-                <span className="text-2xl font-bold text-white">
+                <span className="text-2xl font-bold text-slate-900">
                   {totalRegistradosCount}
                 </span>
               </div>
             </div>
 
-            <div className="bg-slate-900/80 border border-slate-800 p-4 rounded-xl flex items-center gap-3.5">
-              <div className="w-11 h-11 rounded-xl bg-blue-500/10 border border-blue-500/20 text-blue-400 flex items-center justify-center">
+            <div className="bg-white border border-slate-200 p-4 rounded-2xl flex items-center gap-3.5 shadow-xs">
+              <div className="w-11 h-11 rounded-xl bg-indigo-50 border border-indigo-200 text-indigo-600 flex items-center justify-center">
                 <FileText className="w-6 h-6" />
               </div>
               <div>
-                <span className="text-[11px] font-semibold text-slate-400 block uppercase tracking-wider">
+                <span className="text-[11px] font-bold text-slate-500 block uppercase tracking-wider">
                   Leads TikTok / Bio
                 </span>
-                <span className="text-2xl font-bold text-blue-300">
+                <span className="text-2xl font-bold text-indigo-900">
                   {totalTikTokLeadsCount}
                 </span>
               </div>
             </div>
 
-            <div className="bg-slate-900/80 border border-slate-800 p-4 rounded-xl flex items-center gap-3.5">
-              <div className="w-11 h-11 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-400 flex items-center justify-center">
+            <div className="bg-white border border-slate-200 p-4 rounded-2xl flex items-center gap-3.5 shadow-xs">
+              <div className="w-11 h-11 rounded-xl bg-amber-50 border border-amber-200 text-amber-600 flex items-center justify-center">
                 <Video className="w-6 h-6" />
               </div>
               <div>
-                <span className="text-[11px] font-semibold text-slate-400 block uppercase tracking-wider">
+                <span className="text-[11px] font-bold text-slate-500 block uppercase tracking-wider">
                   Inscritos a Webinars
                 </span>
-                <span className="text-2xl font-bold text-amber-300">
+                <span className="text-2xl font-bold text-amber-900">
                   {totalWebinarLeadsCount}
                 </span>
               </div>
@@ -912,7 +915,7 @@ export default function EventManagerTab({ onUseAsCampaign }: EventManagerTabProp
           </div>
 
           {/* Filtros de la Tabla de Registrados */}
-          <div className="bg-slate-900/70 border border-slate-800 p-4 rounded-xl flex flex-col md:flex-row items-center justify-between gap-3">
+          <div className="bg-white border border-slate-200 p-4 rounded-2xl flex flex-col md:flex-row items-center justify-between gap-3 shadow-xs">
             
             {/* Buscador */}
             <div className="relative flex-1 w-full max-w-md">
@@ -922,20 +925,20 @@ export default function EventManagerTab({ onUseAsCampaign }: EventManagerTabProp
                 placeholder="Buscar por nombre, correo, teléfono o país..."
                 value={attendeeSearchGlobal}
                 onChange={(e) => setAttendeeSearchGlobal(e.target.value)}
-                className="w-full bg-slate-950 border border-slate-800 rounded-lg py-1.5 pl-10 pr-4 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-sky-400 transition-all"
+                className="w-full bg-slate-50 border border-slate-200 rounded-xl py-2 pl-10 pr-4 text-xs text-slate-800 placeholder-slate-400 focus:outline-none focus:border-blue-600 focus:bg-white transition-all"
               />
             </div>
 
             {/* Selectores de Filtro */}
-            <div className="flex items-center gap-2 flex-wrap w-full md:w-auto justify-end">
+            <div className="flex items-center gap-2.5 flex-wrap w-full md:w-auto justify-end">
               
               {/* Filtro por Evento / Link */}
               <div className="flex items-center gap-1.5">
-                <span className="text-xs text-slate-400 font-medium">Link / Evento:</span>
+                <span className="text-xs text-slate-500 font-bold">Link / Evento:</span>
                 <select
                   value={selectedEventFilter}
                   onChange={(e) => setSelectedEventFilter(e.target.value)}
-                  className="bg-slate-950 border border-slate-800 rounded-lg py-1.5 px-2.5 text-xs text-white focus:outline-none focus:border-sky-400 cursor-pointer max-w-[200px] truncate"
+                  className="bg-slate-50 border border-slate-200 rounded-xl py-1.5 px-3 text-xs text-slate-800 focus:outline-none focus:border-blue-600 cursor-pointer max-w-[200px] truncate font-medium"
                 >
                   <option value="todos">Todos los Links</option>
                   {eventos.map((ev) => (
@@ -948,11 +951,11 @@ export default function EventManagerTab({ onUseAsCampaign }: EventManagerTabProp
 
               {/* Filtro por Interés de Inversión */}
               <div className="flex items-center gap-1.5">
-                <span className="text-xs text-slate-400 font-medium">Interés:</span>
+                <span className="text-xs text-slate-500 font-bold">Interés:</span>
                 <select
                   value={interestFilter}
                   onChange={(e) => setInterestFilter(e.target.value)}
-                  className="bg-slate-950 border border-slate-800 rounded-lg py-1.5 px-2.5 text-xs text-white focus:outline-none focus:border-sky-400 cursor-pointer"
+                  className="bg-slate-50 border border-slate-200 rounded-xl py-1.5 px-3 text-xs text-slate-800 focus:outline-none focus:border-blue-600 cursor-pointer font-medium"
                 >
                   <option value="todos">Todos los intereses</option>
                   <option value="Inmobiliaria">Inmobiliaria</option>
@@ -964,22 +967,22 @@ export default function EventManagerTab({ onUseAsCampaign }: EventManagerTabProp
             </div>
           </div>
 
-          {/* Tabla de Clientes Registrados */}
-          <div className="bg-slate-900/80 border border-slate-800 rounded-2xl overflow-hidden shadow-xl">
+          {/* Tabla de Clientes Registrados (Fondo Blanco) */}
+          <div className="bg-white border border-slate-200 rounded-2xl overflow-hidden shadow-xs">
             {loadingAllAttendees ? (
               <div className="py-16 text-center text-slate-400 text-xs">
-                <Loader2 className="w-6 h-6 animate-spin mx-auto mb-2 text-sky-400" />
+                <Loader2 className="w-6 h-6 animate-spin mx-auto mb-2 text-blue-600" />
                 Cargando lista de clientes registrados...
               </div>
             ) : filteredGlobalAttendees.length === 0 ? (
-              <div className="py-16 text-center text-slate-400 text-xs">
+              <div className="py-16 text-center text-slate-500 text-xs">
                 No hay clientes registrados que coincidan con los filtros seleccionados.
               </div>
             ) : (
               <div className="overflow-x-auto">
                 <table className="w-full text-left text-xs border-collapse">
                   <thead>
-                    <tr className="border-b border-slate-800 bg-slate-950/60 text-slate-400 font-semibold uppercase tracking-wider">
+                    <tr className="border-b border-slate-200 bg-slate-50 text-slate-600 font-bold uppercase tracking-wider">
                       <th className="py-3 px-4">Cliente</th>
                       <th className="py-3 px-4">WhatsApp / Celular</th>
                       <th className="py-3 px-4">Correo</th>
@@ -989,7 +992,7 @@ export default function EventManagerTab({ onUseAsCampaign }: EventManagerTabProp
                       <th className="py-3 px-4">Fecha Registro</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-slate-800/60">
+                  <tbody className="divide-y divide-slate-100">
                     {filteredGlobalAttendees.map((a) => {
                       let formattedCreatedAt = a.created_at;
                       try {
@@ -1003,16 +1006,16 @@ export default function EventManagerTab({ onUseAsCampaign }: EventManagerTabProp
                       const whatsappUrl = `https://wa.me/${cleanPhone}?text=Hola%20${encodeURIComponent(a.nombre)},%20te%20escribo%20de%20Afinitive%20Wealth%20Management%20en%20relaci%C3%B3n%20a%20tu%20registro.`;
 
                       return (
-                        <tr key={a.id} className="hover:bg-slate-800/40 transition-colors">
+                        <tr key={a.id} className="hover:bg-slate-50 transition-colors">
                           
                           {/* Cliente */}
-                          <td className="py-3.5 px-4 font-semibold text-white">
+                          <td className="py-3.5 px-4 font-semibold text-slate-900">
                             <div className="flex items-center gap-2">
-                              <div className="w-7 h-7 rounded-full bg-slate-800 flex items-center justify-center text-slate-300 font-bold text-xs uppercase">
+                              <div className="w-7 h-7 rounded-full bg-slate-100 border border-slate-200 flex items-center justify-center text-slate-700 font-bold text-xs uppercase">
                                 {a.nombre ? a.nombre.charAt(0) : 'U'}
                               </div>
                               <div>
-                                <span className="block text-white font-bold">{a.nombre}</span>
+                                <span className="block text-slate-900 font-bold">{a.nombre}</span>
                                 <span className="text-[10px] text-slate-500 font-normal">
                                   {a.persona_contacto || 'Registro Web'}
                                 </span>
@@ -1026,55 +1029,55 @@ export default function EventManagerTab({ onUseAsCampaign }: EventManagerTabProp
                               href={whatsappUrl}
                               target="_blank"
                               rel="noreferrer"
-                              className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-emerald-950/50 hover:bg-emerald-900/70 text-emerald-400 border border-emerald-700/40 text-xs font-mono font-bold transition-all shadow-sm cursor-pointer"
+                              className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-300 text-xs font-mono font-bold transition-all shadow-2xs cursor-pointer"
                               title="Abrir chat de WhatsApp con el cliente"
                             >
-                              <MessageCircle className="w-3.5 h-3.5 text-emerald-400" />
+                              <MessageCircle className="w-3.5 h-3.5 text-emerald-600" />
                               <span>{a.celular}</span>
                             </a>
                           </td>
 
                           {/* Correo */}
-                          <td className="py-3.5 px-4 text-slate-300 font-mono text-[11px]">
-                            <a href={`mailto:${a.correo}`} className="text-sky-400 hover:underline">
+                          <td className="py-3.5 px-4 text-slate-700 font-mono text-[11px]">
+                            <a href={`mailto:${a.correo}`} className="text-blue-600 hover:underline">
                               {a.correo}
                             </a>
                           </td>
 
                           {/* País */}
-                          <td className="py-3.5 px-4 text-slate-200">
-                            <span className="inline-flex items-center gap-1 bg-slate-950 px-2 py-0.5 rounded border border-slate-800 font-medium">
-                              <Globe className="w-3 h-3 text-slate-400" />
+                          <td className="py-3.5 px-4 text-slate-700">
+                            <span className="inline-flex items-center gap-1 bg-slate-100 px-2 py-0.5 rounded border border-slate-200 font-medium text-[11px]">
+                              <Globe className="w-3 h-3 text-slate-500" />
                               {a.pais || 'Perú'}
                             </span>
                           </td>
 
-                          {/* Interés de Inversión (Solo Inmobiliaria, Bolsa de Valores, Fondos) */}
+                          {/* Interés de Inversión */}
                           <td className="py-3.5 px-4">
                             {a.interes_inversion ? (
                               <span className={`inline-flex items-center gap-1 text-[11px] font-bold px-2.5 py-0.5 rounded-full border ${
                                 a.interes_inversion === 'Inmobiliaria'
-                                  ? 'bg-amber-500/15 text-amber-300 border-amber-500/30'
+                                  ? 'bg-amber-50 text-amber-800 border-amber-200'
                                   : a.interes_inversion === 'Bolsa de Valores'
-                                  ? 'bg-emerald-500/15 text-emerald-300 border-emerald-500/30'
-                                  : 'bg-purple-500/15 text-purple-300 border-purple-500/30'
+                                  ? 'bg-emerald-50 text-emerald-800 border-emerald-200'
+                                  : 'bg-purple-50 text-purple-800 border-purple-200'
                               }`}>
                                 <Briefcase className="w-3 h-3" />
                                 {a.interes_inversion}
                               </span>
                             ) : (
-                              <span className="text-slate-500 text-[11px] italic">No especificado</span>
+                              <span className="text-slate-400 text-[11px] italic">No especificado</span>
                             )}
                           </td>
 
                           {/* Evento Origen */}
-                          <td className="py-3.5 px-4 text-slate-300">
+                          <td className="py-3.5 px-4 text-slate-700">
                             <div className="flex flex-col max-w-[180px]">
-                              <span className="truncate font-semibold text-white text-xs" title={a.evento_nombre}>
+                              <span className="truncate font-semibold text-slate-900 text-xs" title={a.evento_nombre}>
                                 {a.evento_nombre || a.evento_id}
                               </span>
                               <span className={`text-[10px] uppercase tracking-wider font-bold ${
-                                a.evento_tipo === 'lead_form' ? 'text-blue-400' : 'text-amber-400'
+                                a.evento_tipo === 'lead_form' ? 'text-blue-600' : 'text-amber-700'
                               }`}>
                                 {a.evento_tipo === 'lead_form' ? '📋 Formulario TikTok' : '🎙️ Webinar'}
                               </span>
@@ -1082,7 +1085,7 @@ export default function EventManagerTab({ onUseAsCampaign }: EventManagerTabProp
                           </td>
 
                           {/* Fecha */}
-                          <td className="py-3.5 px-4 text-slate-400 font-mono text-[11px]">
+                          <td className="py-3.5 px-4 text-slate-500 font-mono text-[11px]">
                             {formattedCreatedAt}
                           </td>
 
@@ -1098,29 +1101,29 @@ export default function EventManagerTab({ onUseAsCampaign }: EventManagerTabProp
         </div>
       )}
 
-      {/* ================= MODAL: CREATE / EDIT EVENT ================= */}
+      {/* ================= MODAL: CREATE / EDIT EVENT (Fondo Blanco Limpio) ================= */}
       {isEditModalOpen && editingEvento && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-in fade-in duration-200">
-          <div className="bg-slate-900 border border-slate-700 rounded-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto shadow-2xl">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-xs animate-in fade-in duration-200">
+          <div className="bg-white border border-slate-200 rounded-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto shadow-2xl">
             
-            <div className="p-6 border-b border-slate-800 flex items-center justify-between sticky top-0 bg-slate-900/95 backdrop-blur-md z-10">
+            <div className="p-6 border-b border-slate-100 flex items-center justify-between sticky top-0 bg-white/95 backdrop-blur-md z-10">
               <div className="flex items-center gap-2">
                 {editingEvento.tipo === 'lead_form' ? (
-                  <FileText className="w-5 h-5 text-blue-400" />
+                  <FileText className="w-5 h-5 text-blue-600" />
                 ) : (
-                  <Building2 className="w-5 h-5 text-amber-400" />
+                  <Building2 className="w-5 h-5 text-amber-600" />
                 )}
-                <h3 className="text-lg font-bold text-white">
+                <h3 className="text-lg font-bold text-slate-900">
                   {editingEvento.id && eventos.some(ev => ev.id === editingEvento.id) 
                     ? 'Editar Enlace' 
                     : editingEvento.tipo === 'lead_form' 
-                    ? 'Crear Formulario de Captura TikTok (Google Style)' 
+                    ? 'Crear Formulario de Captura TikTok' 
                     : 'Crear Nuevo Webinar'}
                 </h3>
               </div>
               <button 
                 onClick={() => setIsEditModalOpen(false)}
-                className="text-slate-400 hover:text-white p-1 rounded-lg hover:bg-slate-800 cursor-pointer"
+                className="text-slate-400 hover:text-slate-700 p-1.5 rounded-lg hover:bg-slate-100 cursor-pointer"
               >
                 <X className="w-5 h-5" />
               </button>
@@ -1130,24 +1133,24 @@ export default function EventManagerTab({ onUseAsCampaign }: EventManagerTabProp
               
               {/* Selector de Tipo de Evento / Enlace */}
               <div>
-                <label className="block text-xs font-semibold text-slate-300 mb-1.5">
-                  Tipo de Enlace / Landing <span className="text-amber-400">*</span>
+                <label className="block text-xs font-bold text-slate-700 mb-1.5">
+                  Tipo de Enlace / Landing <span className="text-red-500">*</span>
                 </label>
                 <div className="grid grid-cols-2 gap-3">
                   <button
                     type="button"
                     onClick={() => setEditingEvento({ ...editingEvento, tipo: 'webinar' })}
-                    className={`p-3 rounded-xl border text-left transition-all cursor-pointer ${
+                    className={`p-3.5 rounded-xl border text-left transition-all cursor-pointer ${
                       editingEvento.tipo !== 'lead_form'
-                        ? 'border-amber-400 bg-amber-500/10 text-white'
-                        : 'border-slate-800 bg-slate-950 text-slate-400 hover:border-slate-700'
+                        ? 'border-amber-400 bg-amber-50/70 text-slate-900 shadow-2xs'
+                        : 'border-slate-200 bg-slate-50 text-slate-500 hover:border-slate-300'
                     }`}
                   >
-                    <div className="flex items-center gap-2 font-bold text-xs mb-1 text-amber-300">
-                      <Video className="w-4 h-4" />
+                    <div className="flex items-center gap-2 font-bold text-xs mb-1 text-amber-900">
+                      <Video className="w-4 h-4 text-amber-600" />
                       Webinar / Conferencia
                     </div>
-                    <p className="text-[11px] text-slate-400 leading-snug">
+                    <p className="text-[11px] text-slate-600 leading-snug">
                       Con fecha, hora y enlace de videollamada Zoom/Meet.
                     </p>
                   </button>
@@ -1155,17 +1158,17 @@ export default function EventManagerTab({ onUseAsCampaign }: EventManagerTabProp
                   <button
                     type="button"
                     onClick={() => setEditingEvento({ ...editingEvento, tipo: 'lead_form' })}
-                    className={`p-3 rounded-xl border text-left transition-all cursor-pointer ${
+                    className={`p-3.5 rounded-xl border text-left transition-all cursor-pointer ${
                       editingEvento.tipo === 'lead_form'
-                        ? 'border-blue-400 bg-blue-500/10 text-white'
-                        : 'border-slate-800 bg-slate-950 text-slate-400 hover:border-slate-700'
+                        ? 'border-blue-400 bg-blue-50/70 text-slate-900 shadow-2xs'
+                        : 'border-slate-200 bg-slate-50 text-slate-500 hover:border-slate-300'
                     }`}
                   >
-                    <div className="flex items-center gap-2 font-bold text-xs mb-1 text-blue-300">
-                      <FileText className="w-4 h-4" />
+                    <div className="flex items-center gap-2 font-bold text-xs mb-1 text-blue-900">
+                      <FileText className="w-4 h-4 text-blue-600" />
                       Formulario TikTok / Bio
                     </div>
-                    <p className="text-[11px] text-slate-400 leading-snug">
+                    <p className="text-[11px] text-slate-600 leading-snug">
                       Fondo blanco, estilo Google, sin fecha ni link de videollamada.
                     </p>
                   </button>
@@ -1174,22 +1177,22 @@ export default function EventManagerTab({ onUseAsCampaign }: EventManagerTabProp
 
               {/* Event Name */}
               <div>
-                <label className="block text-xs font-semibold text-slate-300 mb-1">
-                  Título del {editingEvento.tipo === 'lead_form' ? 'Formulario' : 'Evento'} <span className="text-amber-400">*</span>
+                <label className="block text-xs font-bold text-slate-700 mb-1">
+                  Título del {editingEvento.tipo === 'lead_form' ? 'Formulario' : 'Evento'} <span className="text-red-500">*</span>
                 </label>
                 <input
                   type="text"
                   required
                   value={editingEvento.nombre || ''}
                   onChange={(e) => setEditingEvento({ ...editingEvento, nombre: e.target.value })}
-                  placeholder={editingEvento.tipo === 'lead_form' ? 'Ej: Registro Exclusivo - Asesoría Financiera Patrimonial' : 'Ej: 🏙️ THE NEW YORK TOWER 🏙️'}
-                  className="w-full bg-slate-950 border border-slate-700 rounded-xl py-2.5 px-3 text-sm text-white focus:outline-none focus:border-amber-400"
+                  placeholder={editingEvento.tipo === 'lead_form' ? 'Ej: Registro Exclusivo - Asesoría Patrimonial' : 'Ej: 🏙️ THE NEW YORK TOWER 🏙️'}
+                  className="w-full bg-white border border-slate-300 rounded-xl py-2 px-3 text-xs sm:text-sm text-slate-900 focus:outline-none focus:border-blue-600 focus:ring-1 focus:ring-blue-600"
                 />
               </div>
 
               {/* Slug / ID */}
               <div>
-                <label className="block text-xs font-semibold text-slate-300 mb-1">
+                <label className="block text-xs font-bold text-slate-700 mb-1">
                   ID Personalizado (URL Slug)
                 </label>
                 <input
@@ -1197,9 +1200,9 @@ export default function EventManagerTab({ onUseAsCampaign }: EventManagerTabProp
                   value={editingEvento.id || ''}
                   onChange={(e) => setEditingEvento({ ...editingEvento, id: e.target.value.toLowerCase().replace(/[^a-z0-9_-]/g, '-') })}
                   placeholder="ej: registro-tiktok-afinitive (se autogenera si se deja vacío)"
-                  className="w-full bg-slate-950 border border-slate-700 rounded-xl py-2 px-3 text-xs text-white focus:outline-none focus:border-amber-400 font-mono"
+                  className="w-full bg-white border border-slate-300 rounded-xl py-2 px-3 text-xs text-slate-900 focus:outline-none focus:border-blue-600 font-mono"
                 />
-                <small className="text-[11px] text-slate-400">
+                <small className="text-[11px] text-slate-500">
                   Aparecerá en la URL: <code>/evento?id=<b>{editingEvento.id || 'slug-automatico'}</b></code>
                 </small>
               </div>
@@ -1209,22 +1212,22 @@ export default function EventManagerTab({ onUseAsCampaign }: EventManagerTabProp
                 <>
                   {/* Date Input */}
                   <div>
-                    <label className="block text-xs font-semibold text-slate-300 mb-1">
-                      Fecha y Hora de Inicio (Hora Perú UTC-5) <span className="text-amber-400">*</span>
+                    <label className="block text-xs font-bold text-slate-700 mb-1">
+                      Fecha y Hora de Inicio (Hora Perú UTC-5) <span className="text-red-500">*</span>
                     </label>
                     <input
                       type="datetime-local"
                       required
                       value={editingEvento.fecha_inicio || ''}
                       onChange={(e) => setEditingEvento({ ...editingEvento, fecha_inicio: e.target.value })}
-                      className="w-full bg-slate-950 border border-slate-700 rounded-xl py-2 px-3 text-xs text-white focus:outline-none focus:border-amber-400"
+                      className="w-full bg-white border border-slate-300 rounded-xl py-2 px-3 text-xs text-slate-900 focus:outline-none focus:border-blue-600"
                     />
                   </div>
 
                   {/* Zoom Link */}
                   <div>
-                    <label className="block text-xs font-semibold text-slate-300 mb-1">
-                      Enlace de Reunión / Zoom <span className="text-amber-400">*</span>
+                    <label className="block text-xs font-bold text-slate-700 mb-1">
+                      Enlace de Reunión / Zoom <span className="text-red-500">*</span>
                     </label>
                     <input
                       type="url"
@@ -1232,38 +1235,38 @@ export default function EventManagerTab({ onUseAsCampaign }: EventManagerTabProp
                       value={editingEvento.link_reunion || ''}
                       onChange={(e) => setEditingEvento({ ...editingEvento, link_reunion: e.target.value })}
                       placeholder="https://us06web.zoom.us/launch/jc/86782072926"
-                      className="w-full bg-slate-950 border border-slate-700 rounded-xl py-2 px-3 text-xs text-white focus:outline-none focus:border-amber-400"
+                      className="w-full bg-white border border-slate-300 rounded-xl py-2 px-3 text-xs text-slate-900 focus:outline-none focus:border-blue-600"
                     />
                   </div>
                 </>
               )}
 
               {/* Image Upload & Storage Section */}
-              <div className="space-y-3 bg-slate-950/80 border border-slate-800 p-4 rounded-xl">
+              <div className="space-y-3 bg-slate-50 border border-slate-200 p-4 rounded-xl">
                 <div className="flex items-center justify-between">
-                  <label className="text-xs font-bold text-amber-400 uppercase tracking-wider flex items-center gap-1.5">
-                    <Upload className="w-4 h-4 text-amber-400" />
+                  <label className="text-xs font-bold text-slate-700 uppercase tracking-wider flex items-center gap-1.5">
+                    <Upload className="w-4 h-4 text-blue-600" />
                     Banner / Imagen Opcional (Supabase Storage)
                   </label>
                   {editingEvento.imagen_url && (
-                    <span className="text-[10px] font-bold text-emerald-400 bg-emerald-500/10 border border-emerald-500/30 px-2 py-0.5 rounded-full">
+                    <span className="text-[10px] font-bold text-emerald-800 bg-emerald-100 border border-emerald-300 px-2 py-0.5 rounded-full">
                       ✓ Imagen Cargada
                     </span>
                   )}
                 </div>
 
                 {uploadError && (
-                  <div className="p-2.5 rounded-lg bg-red-900/40 border border-red-500/50 text-red-200 text-xs">
+                  <div className="p-2.5 rounded-lg bg-red-50 border border-red-200 text-red-700 text-xs">
                     {uploadError}
                   </div>
                 )}
 
-                {/* Botón de Subida Principal */}
+                {/* Botón de Subida */}
                 <div className="flex flex-col gap-2">
                   <label className={`w-full border-2 border-dashed rounded-xl p-5 text-center cursor-pointer transition-all flex flex-col items-center justify-center gap-2 ${
                     uploadingImage 
-                      ? 'border-amber-400 bg-amber-500/10' 
-                      : 'border-amber-500/40 hover:border-amber-400 bg-slate-900/90 hover:bg-slate-900 shadow-md'
+                      ? 'border-blue-400 bg-blue-50/50' 
+                      : 'border-slate-300 hover:border-blue-500 bg-white shadow-2xs'
                   }`}>
                     <input
                       type="file"
@@ -1274,45 +1277,45 @@ export default function EventManagerTab({ onUseAsCampaign }: EventManagerTabProp
                     />
                     {uploadingImage ? (
                       <div className="flex flex-col items-center gap-2 py-1">
-                        <Loader2 className="w-7 h-7 text-amber-400 animate-spin" />
-                        <span className="text-xs text-amber-300 font-bold">Subiendo archivo a Supabase Storage...</span>
+                        <Loader2 className="w-7 h-7 text-blue-600 animate-spin" />
+                        <span className="text-xs text-blue-700 font-bold">Subiendo a Supabase Storage...</span>
                       </div>
                     ) : (
                       <div className="flex flex-col items-center gap-1.5 py-1">
-                        <div className="w-10 h-10 rounded-full bg-amber-500/20 text-amber-400 flex items-center justify-center mb-0.5">
+                        <div className="w-10 h-10 rounded-full bg-blue-50 text-blue-600 flex items-center justify-center mb-0.5">
                           <Upload className="w-5 h-5" />
                         </div>
-                        <span className="text-sm text-white font-bold block">
-                          📁 Haz clic aquí para Seleccionar y Subir Imagen / Flyer
+                        <span className="text-xs sm:text-sm text-slate-800 font-bold block">
+                          📁 Haz clic para subir imagen o flyer
                         </span>
-                        <span className="text-xs text-slate-400 block">
-                          Se guardará directamente en tu Supabase Storage (JPG, PNG, WEBP)
+                        <span className="text-[11px] text-slate-500 block">
+                          Formatos aceptados: JPG, PNG, WEBP (Hasta 10MB)
                         </span>
                       </div>
                     )}
                   </label>
                 </div>
 
-                {/* Preview de la imagen si ya existe */}
+                {/* Preview */}
                 {editingEvento.imagen_url && (
-                  <div className="relative rounded-xl overflow-hidden border border-slate-700 bg-slate-900 p-3 flex items-center gap-3">
+                  <div className="relative rounded-xl overflow-hidden border border-slate-200 bg-white p-3 flex items-center gap-3">
                     <img 
                       src={editingEvento.imagen_url} 
                       alt="Preview" 
-                      className="w-24 h-16 object-cover rounded-lg flex-shrink-0 border border-slate-700 shadow-md" 
+                      className="w-20 h-14 object-cover rounded-lg flex-shrink-0 border border-slate-200" 
                     />
-                    <div className="flex-1 min-w-0 space-y-1">
-                      <span className="text-[11px] font-bold text-emerald-400 block truncate">
-                        URL en Supabase Storage:
+                    <div className="flex-1 min-w-0">
+                      <span className="text-[11px] font-bold text-slate-700 block truncate">
+                        Imagen vinculada:
                       </span>
-                      <p className="text-[11px] text-slate-400 truncate font-mono bg-slate-950 px-2 py-1 rounded border border-slate-800">
+                      <p className="text-[11px] text-slate-500 truncate font-mono">
                         {editingEvento.imagen_url}
                       </p>
                     </div>
                     <button
                       type="button"
                       onClick={() => setEditingEvento({ ...editingEvento, imagen_url: '' })}
-                      className="p-2 text-slate-400 hover:text-red-400 rounded-lg hover:bg-slate-800 transition-colors cursor-pointer"
+                      className="p-2 text-slate-400 hover:text-red-600 rounded-lg hover:bg-slate-100 transition-colors cursor-pointer"
                       title="Eliminar imagen"
                     >
                       <Trash2 className="w-4 h-4" />
@@ -1321,46 +1324,46 @@ export default function EventManagerTab({ onUseAsCampaign }: EventManagerTabProp
                 )}
               </div>
 
-              {/* Description & Value Proposition */}
+              {/* Description */}
               <div>
-                <label className="block text-xs font-semibold text-slate-300 mb-1">
+                <label className="block text-xs font-bold text-slate-700 mb-1">
                   Descripción / Instrucciones del Formulario
                 </label>
                 <textarea
                   rows={4}
                   value={editingEvento.descripcion || ''}
                   onChange={(e) => setEditingEvento({ ...editingEvento, descripcion: e.target.value })}
-                  placeholder="Describe la oportunidad o instrucciones para los prospectos que abran este link..."
-                  className="w-full bg-slate-950 border border-slate-700 rounded-xl py-2 px-3 text-xs text-white focus:outline-none focus:border-amber-400 leading-relaxed"
+                  placeholder="Describe la propuesta de valor o instrucciones..."
+                  className="w-full bg-white border border-slate-300 rounded-xl py-2 px-3 text-xs text-slate-900 focus:outline-none focus:border-blue-600 leading-relaxed"
                 />
               </div>
 
               {/* Status Toggle */}
-              <div className="flex items-center gap-2 pt-2">
+              <div className="flex items-center gap-2 pt-1">
                 <input
                   type="checkbox"
                   id="activo-check"
                   checked={editingEvento.activo !== false}
                   onChange={(e) => setEditingEvento({ ...editingEvento, activo: e.target.checked })}
-                  className="w-4 h-4 rounded border-slate-700 text-amber-500 focus:ring-amber-400 bg-slate-950 cursor-pointer"
+                  className="w-4 h-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500 cursor-pointer"
                 />
-                <label htmlFor="activo-check" className="text-xs text-slate-300 font-medium cursor-pointer">
+                <label htmlFor="activo-check" className="text-xs text-slate-700 font-semibold cursor-pointer">
                   Enlace activo y habilitado para recibir registros
                 </label>
               </div>
 
               {/* Form Buttons */}
-              <div className="flex items-center justify-end gap-3 pt-4 border-t border-slate-800">
+              <div className="flex items-center justify-end gap-3 pt-4 border-t border-slate-100">
                 <button
                   type="button"
                   onClick={() => setIsEditModalOpen(false)}
-                  className="px-4 py-2 text-xs font-semibold text-slate-400 hover:text-white rounded-lg hover:bg-slate-800 transition-colors cursor-pointer"
+                  className="px-4 py-2 text-xs font-semibold text-slate-600 hover:text-slate-900 rounded-xl hover:bg-slate-100 transition-colors cursor-pointer"
                 >
                   Cancelar
                 </button>
                 <button
                   type="submit"
-                  className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-amber-500 to-amber-400 text-slate-950 font-bold text-xs shadow-lg shadow-amber-500/20 hover:from-amber-400 hover:to-amber-300 transition-all cursor-pointer"
+                  className="px-5 py-2.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs shadow-xs transition-all cursor-pointer"
                 >
                   Guardar Enlace
                 </button>
@@ -1372,22 +1375,22 @@ export default function EventManagerTab({ onUseAsCampaign }: EventManagerTabProp
         </div>
       )}
 
-      {/* ================= MODAL: ATTENDEES LIST (Por Evento Específico) ================= */}
+      {/* ================= MODAL: ATTENDEES LIST (Fondo Blanco) ================= */}
       {isAttendeesModalOpen && selectedEventoAttendees && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-in fade-in duration-200">
-          <div className="bg-slate-900 border border-slate-700 rounded-2xl w-full max-w-4xl max-h-[90vh] overflow-hidden flex flex-col shadow-2xl">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-xs animate-in fade-in duration-200">
+          <div className="bg-white border border-slate-200 rounded-2xl w-full max-w-4xl max-h-[90vh] overflow-hidden flex flex-col shadow-2xl">
             
             {/* Modal Header */}
-            <div className="p-6 border-b border-slate-800 flex items-center justify-between bg-slate-900 sticky top-0 z-10">
+            <div className="p-6 border-b border-slate-100 flex items-center justify-between bg-white sticky top-0 z-10">
               <div>
                 <div className="flex items-center gap-2">
-                  <Users className="w-5 h-5 text-sky-400" />
-                  <h3 className="text-lg font-bold text-white">
+                  <Users className="w-5 h-5 text-blue-600" />
+                  <h3 className="text-lg font-bold text-slate-900">
                     Registrados en: {selectedEventoAttendees.nombre}
                   </h3>
                 </div>
-                <p className="text-xs text-slate-400 mt-0.5">
-                  Total de inscritos en este enlace: <span className="text-amber-400 font-semibold">{attendeesList.length}</span>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  Total inscritos en este enlace: <span className="text-blue-600 font-bold">{attendeesList.length}</span>
                 </p>
               </div>
 
@@ -1395,15 +1398,15 @@ export default function EventManagerTab({ onUseAsCampaign }: EventManagerTabProp
                 <button
                   onClick={() => handleExportCsv(attendeesList, `asistentes_${selectedEventoAttendees.id}`)}
                   disabled={!attendeesList.length}
-                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold border border-slate-700 transition-colors disabled:opacity-50 cursor-pointer"
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-50 hover:bg-emerald-100 text-emerald-800 text-xs font-bold border border-emerald-300 transition-colors disabled:opacity-50 cursor-pointer"
                   title="Exportar lista a CSV"
                 >
-                  <Download className="w-3.5 h-3.5 text-emerald-400" />
+                  <Download className="w-3.5 h-3.5 text-emerald-600" />
                   Exportar CSV
                 </button>
                 <button 
                   onClick={() => setIsAttendeesModalOpen(false)}
-                  className="text-slate-400 hover:text-white p-1 rounded-lg hover:bg-slate-800 cursor-pointer"
+                  className="text-slate-400 hover:text-slate-700 p-1.5 rounded-lg hover:bg-slate-100 cursor-pointer"
                 >
                   <X className="w-5 h-5" />
                 </button>
@@ -1411,7 +1414,7 @@ export default function EventManagerTab({ onUseAsCampaign }: EventManagerTabProp
             </div>
 
             {/* Filter in Modal */}
-            <div className="p-4 border-b border-slate-800 bg-slate-950/40">
+            <div className="p-4 border-b border-slate-100 bg-slate-50">
               <div className="relative">
                 <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
                 <input
@@ -1419,7 +1422,7 @@ export default function EventManagerTab({ onUseAsCampaign }: EventManagerTabProp
                   placeholder="Filtrar por nombre, correo, teléfono o país..."
                   value={attendeeSearch}
                   onChange={(e) => setAttendeeSearch(e.target.value)}
-                  className="w-full bg-slate-900 border border-slate-800 rounded-lg py-1.5 pl-9 pr-3 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-sky-400"
+                  className="w-full bg-white border border-slate-200 rounded-lg py-1.5 pl-9 pr-3 text-xs text-slate-800 placeholder-slate-400 focus:outline-none focus:border-blue-600"
                 />
               </div>
             </div>
@@ -1437,7 +1440,7 @@ export default function EventManagerTab({ onUseAsCampaign }: EventManagerTabProp
               ) : (
                 <table className="w-full text-left text-xs border-collapse">
                   <thead>
-                    <tr className="border-b border-slate-800 text-slate-400 font-semibold uppercase tracking-wider">
+                    <tr className="border-b border-slate-200 text-slate-600 font-bold uppercase tracking-wider bg-slate-50">
                       <th className="py-2.5 px-3">Nombre</th>
                       <th className="py-2.5 px-3">WhatsApp / Celular</th>
                       <th className="py-2.5 px-3">Correo</th>
@@ -1446,7 +1449,7 @@ export default function EventManagerTab({ onUseAsCampaign }: EventManagerTabProp
                       <th className="py-2.5 px-3">Fecha</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-slate-800/60">
+                  <tbody className="divide-y divide-slate-100">
                     {attendeesList
                       .filter(a =>
                         a.nombre.toLowerCase().includes(attendeeSearch.toLowerCase()) ||
@@ -1467,8 +1470,8 @@ export default function EventManagerTab({ onUseAsCampaign }: EventManagerTabProp
                         const whatsappUrl = `https://wa.me/${cleanPhone}?text=Hola%20${encodeURIComponent(a.nombre)},%20te%20escribo%20de%20Afinitive%20en%20relaci%C3%B3n%20a%20tu%20registro.`;
 
                         return (
-                          <tr key={a.id} className="hover:bg-slate-800/40 transition-colors">
-                            <td className="py-3 px-3 font-semibold text-white">
+                          <tr key={a.id} className="hover:bg-slate-50 transition-colors">
+                            <td className="py-3 px-3 font-semibold text-slate-900">
                               {a.nombre}
                             </td>
                             <td className="py-3 px-3">
@@ -1476,30 +1479,30 @@ export default function EventManagerTab({ onUseAsCampaign }: EventManagerTabProp
                                 href={whatsappUrl} 
                                 target="_blank" 
                                 rel="noreferrer"
-                                className="text-emerald-400 hover:underline inline-flex items-center gap-1 font-mono font-bold"
+                                className="text-emerald-700 hover:underline inline-flex items-center gap-1 font-mono font-bold bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200"
                               >
-                                <MessageCircle className="w-3.5 h-3.5" />
+                                <MessageCircle className="w-3.5 h-3.5 text-emerald-600" />
                                 {a.celular}
                               </a>
                             </td>
-                            <td className="py-3 px-3 text-slate-300">
-                              <a href={`mailto:${a.correo}`} className="text-sky-400 hover:underline">
+                            <td className="py-3 px-3 text-slate-700 font-mono">
+                              <a href={`mailto:${a.correo}`} className="text-blue-600 hover:underline">
                                 {a.correo}
                               </a>
                             </td>
-                            <td className="py-3 px-3 text-slate-300">
+                            <td className="py-3 px-3 text-slate-700">
                               {a.pais || 'Perú'}
                             </td>
                             <td className="py-3 px-3">
                               {a.interes_inversion ? (
-                                <span className="bg-slate-800 text-amber-300 px-2 py-0.5 rounded text-[11px] font-medium border border-slate-700">
+                                <span className="bg-slate-100 text-slate-800 px-2 py-0.5 rounded text-[11px] font-semibold border border-slate-200">
                                   {a.interes_inversion}
                                 </span>
                               ) : (
-                                <span className="text-slate-500">-</span>
+                                <span className="text-slate-400">-</span>
                               )}
                             </td>
-                            <td className="py-3 px-3 text-slate-400 font-mono text-[11px]">
+                            <td className="py-3 px-3 text-slate-500 font-mono text-[11px]">
                               {formattedCreatedAt}
                             </td>
                           </tr>
@@ -1514,35 +1517,35 @@ export default function EventManagerTab({ onUseAsCampaign }: EventManagerTabProp
         </div>
       )}
 
-      {/* ================= MODAL: CONFIRM DELETE EVENT ================= */}
+      {/* ================= MODAL: CONFIRM DELETE EVENT (Fondo Blanco) ================= */}
       {deleteModal && deleteModal.isOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-in fade-in duration-200">
-          <div className="bg-slate-900 border border-slate-700/80 rounded-2xl w-full max-w-md p-6 shadow-2xl relative overflow-hidden">
-            <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-red-500 via-rose-500 to-amber-500" />
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-xs animate-in fade-in duration-200">
+          <div className="bg-white border border-slate-200 rounded-2xl w-full max-w-md p-6 shadow-2xl relative overflow-hidden">
+            <div className="absolute top-0 left-0 right-0 h-1 bg-red-500" />
             
             <div className="flex items-start gap-4">
-              <div className="w-12 h-12 rounded-xl bg-red-500/10 border border-red-500/20 text-red-400 flex items-center justify-center flex-shrink-0">
-                <AlertTriangle className="w-6 h-6 text-red-400" />
+              <div className="w-12 h-12 rounded-xl bg-red-50 border border-red-200 text-red-600 flex items-center justify-center flex-shrink-0">
+                <AlertTriangle className="w-6 h-6 text-red-600" />
               </div>
               <div>
-                <h3 className="text-base font-bold text-white tracking-tight">
+                <h3 className="text-base font-bold text-slate-900 tracking-tight">
                   Confirmar Eliminación
                 </h3>
-                <p className="text-xs text-slate-400 mt-1 leading-relaxed">
+                <p className="text-xs text-slate-500 mt-1 leading-relaxed">
                   ¿Estás seguro de que deseas eliminar este enlace/evento del sistema?
                 </p>
               </div>
             </div>
 
-            <div className="my-5 p-3.5 bg-slate-950/80 rounded-xl border border-slate-800">
+            <div className="my-5 p-3.5 bg-slate-50 rounded-xl border border-slate-200">
               <div className="flex items-center gap-2.5">
-                <Building2 className="w-4 h-4 text-amber-400 flex-shrink-0" />
-                <span className="text-xs font-bold text-white line-clamp-1">
+                <Building2 className="w-4 h-4 text-slate-700 flex-shrink-0" />
+                <span className="text-xs font-bold text-slate-900 line-clamp-1">
                   {deleteModal.nombre}
                 </span>
               </div>
-              <p className="text-[11px] text-red-300/80 mt-2 flex items-center gap-1.5">
-                <span className="w-1.5 h-1.5 rounded-full bg-red-400 flex-shrink-0 animate-pulse" />
+              <p className="text-[11px] text-red-600 mt-2 flex items-center gap-1.5">
+                <span className="w-1.5 h-1.5 rounded-full bg-red-500 flex-shrink-0" />
                 Esta acción borrará también la lista de inscritos asociados.
               </p>
             </div>
@@ -1552,7 +1555,7 @@ export default function EventManagerTab({ onUseAsCampaign }: EventManagerTabProp
                 type="button"
                 disabled={isDeleting}
                 onClick={() => setDeleteModal(null)}
-                className="px-4 py-2.5 text-xs font-semibold text-slate-300 hover:text-white rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 transition-colors cursor-pointer disabled:opacity-50"
+                className="px-4 py-2.5 text-xs font-semibold text-slate-700 hover:text-slate-900 rounded-xl bg-slate-100 hover:bg-slate-200 border border-slate-200 transition-colors cursor-pointer disabled:opacity-50"
               >
                 Cancelar
               </button>
@@ -1560,7 +1563,7 @@ export default function EventManagerTab({ onUseAsCampaign }: EventManagerTabProp
                 type="button"
                 disabled={isDeleting}
                 onClick={handleConfirmDelete}
-                className="px-5 py-2.5 text-xs font-bold text-white rounded-xl bg-gradient-to-r from-red-600 to-rose-600 hover:from-red-500 hover:to-rose-500 shadow-lg shadow-red-900/40 transition-all cursor-pointer flex items-center gap-2 disabled:opacity-50"
+                className="px-5 py-2.5 text-xs font-bold text-white rounded-xl bg-red-600 hover:bg-red-700 shadow-xs transition-all cursor-pointer flex items-center gap-2 disabled:opacity-50"
               >
                 {isDeleting ? (
                   <>
@@ -1584,18 +1587,18 @@ export default function EventManagerTab({ onUseAsCampaign }: EventManagerTabProp
         <div className="fixed bottom-6 right-6 z-50 animate-in slide-in-from-bottom-5 duration-300">
           <div className={`px-4 py-3 rounded-xl shadow-2xl border flex items-center gap-3 text-xs font-medium backdrop-blur-md ${
             toast.type === 'error'
-              ? 'bg-red-950/95 border-red-500/50 text-red-200'
+              ? 'bg-red-50 border-red-200 text-red-800'
               : toast.type === 'info'
-              ? 'bg-sky-950/95 border-sky-500/50 text-sky-200'
-              : 'bg-slate-900/95 border-emerald-500/50 text-emerald-300'
+              ? 'bg-blue-50 border-blue-200 text-blue-800'
+              : 'bg-white border-emerald-300 text-emerald-900 shadow-md'
           }`}>
-            {toast.type === 'error' && <AlertCircle className="w-4 h-4 text-red-400 flex-shrink-0" />}
-            {toast.type === 'info' && <AlertTriangle className="w-4 h-4 text-sky-400 flex-shrink-0" />}
-            {toast.type === 'success' && <CheckCircle2 className="w-4 h-4 text-emerald-400 flex-shrink-0" />}
+            {toast.type === 'error' && <AlertCircle className="w-4 h-4 text-red-600 flex-shrink-0" />}
+            {toast.type === 'info' && <AlertTriangle className="w-4 h-4 text-blue-600 flex-shrink-0" />}
+            {toast.type === 'success' && <CheckCircle2 className="w-4 h-4 text-emerald-600 flex-shrink-0" />}
             <span>{toast.message}</span>
             <button 
               onClick={() => setToast(null)} 
-              className="ml-2 text-slate-400 hover:text-white p-0.5 rounded cursor-pointer"
+              className="ml-2 text-slate-400 hover:text-slate-700 p-0.5 rounded cursor-pointer"
             >
               <X className="w-3.5 h-3.5" />
             </button>
