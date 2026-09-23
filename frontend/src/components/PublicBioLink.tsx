@@ -81,9 +81,25 @@ const OPCIONES_INVERSION = [
   { id: 'Fondos', label: 'Fondos', icon: PieChart },
 ];
 
+import type { BioButtonItem } from '../utils/bioLinkConfig';
+import { 
+  getStoredBioButtonsSync, 
+  fetchBioButtons 
+} from '../utils/bioLinkConfig';
+
 export default function PublicBioLink({ onBackToDashboard }: PublicBioLinkProps) {
   const [copiedLink, setCopiedLink] = useState(false);
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [buttonsConfig, setButtonsConfig] = useState<BioButtonItem[]>(getStoredBioButtonsSync);
+
+  // Cargar botones desde Supabase / Backend al montar
+  React.useEffect(() => {
+    fetchBioButtons().then((btnList) => {
+      if (btnList && btnList.length > 0) {
+        setButtonsConfig(btnList);
+      }
+    });
+  }, []);
 
   // Form State
   const [formData, setFormData] = useState({
@@ -212,68 +228,38 @@ export default function PublicBioLink({ onBackToDashboard }: PublicBioLinkProps)
     }
   };
 
-  const bioLinks = [
-    {
-      id: 'registro',
-      title: 'Déjanos tus datos para contactarte',
-      subtitle: 'Recibe una propuesta de inversión a tu medida',
-      icon: FileText,
-      iconColor: 'text-amber-700 bg-amber-50 border-amber-200',
-      isPrimary: true,
-      onClick: () => {
-        setSubmitted(false);
-        setIsModalOpen(true);
-      },
-    },
-    {
-      id: 'web',
-      title: 'Nuestra web',
-      subtitle: 'Conoce nuestro modelo de Wealth Management',
-      icon: Globe,
-      iconColor: 'text-blue-700 bg-blue-50 border-blue-200',
-      url: 'https://afinitive.com.pe',
-    },
-    {
-      id: 'facebook',
-      title: 'Síguenos en Facebook para eventos',
-      subtitle: 'Conferencias, transmisiones y networking',
-      icon: FacebookIcon,
-      iconColor: 'text-[#1877F2] bg-blue-50 border-blue-200',
-      url: 'https://facebook.com/afinitivepe',
-    },
-    {
-      id: 'instagram',
-      title: 'Síguenos en Instagram y conoce nuestra comunidad',
-      subtitle: 'Consejos diarios de educación financiera y patrimonio',
-      icon: InstagramIcon,
-      iconColor: 'text-[#E1306C] bg-pink-50 border-pink-200',
-      url: 'https://instagram.com/afinitive.pe',
-    },
-    {
-      id: 'whatsapp',
-      title: 'Escríbenos al WhatsApp',
-      subtitle: 'Atención personalizada con un asesor patrimonial',
-      icon: MessageCircle,
-      iconColor: 'text-emerald-700 bg-emerald-50 border-emerald-200',
-      url: 'https://wa.me/51982100208?text=Hola%20Dr.%20Finanzas,%20vi%20tu%20perfil%20de%20TikTok%20y%20deseo%20asesor%C3%ADa%20personalizada.',
-    },
-    {
-      id: 'youtube',
-      title: 'Análisis de mercados en YouTube',
-      subtitle: 'Videos explicativos, análisis macroeconómico y retornos',
-      icon: YoutubeIcon,
-      iconColor: 'text-[#FF0000] bg-red-50 border-red-200',
-      url: 'https://youtube.com/@afinitivewealth',
-    },
-    {
-      id: 'linkedin',
-      title: 'Quién soy en LinkedIn',
-      subtitle: 'Ricardo Bertalmio Ruibal • Trayectoria y credenciales',
-      icon: LinkedinIcon,
-      iconColor: 'text-[#0A66C2] bg-blue-50 border-blue-200',
-      url: 'https://www.linkedin.com/in/ricardo-bertalmio-ruibal/',
-    },
-  ];
+  const getIconForButton = (id: string) => {
+    switch (id) {
+      case 'registro': return { icon: FileText, iconColor: 'text-amber-700 bg-amber-50 border-amber-200' };
+      case 'web': return { icon: Globe, iconColor: 'text-blue-700 bg-blue-50 border-blue-200' };
+      case 'facebook': return { icon: FacebookIcon, iconColor: 'text-[#1877F2] bg-blue-50 border-blue-200' };
+      case 'instagram': return { icon: InstagramIcon, iconColor: 'text-[#E1306C] bg-pink-50 border-pink-200' };
+      case 'whatsapp': return { icon: MessageCircle, iconColor: 'text-emerald-700 bg-emerald-50 border-emerald-200' };
+      case 'youtube': return { icon: YoutubeIcon, iconColor: 'text-[#FF0000] bg-red-50 border-red-200' };
+      case 'linkedin': return { icon: LinkedinIcon, iconColor: 'text-[#0A66C2] bg-blue-50 border-blue-200' };
+      default: return { icon: ExternalLink, iconColor: 'text-stone-700 bg-stone-50 border-stone-200' };
+    }
+  };
+
+  const bioLinks = buttonsConfig
+    .filter((b) => b.enabled !== false)
+    .map((btn) => {
+      const { icon, iconColor } = getIconForButton(btn.id);
+      const isPrimary = btn.id === 'registro' || btn.isPrimary;
+      return {
+        id: btn.id,
+        title: btn.title,
+        subtitle: btn.subtitle,
+        icon,
+        iconColor,
+        isPrimary,
+        url: btn.url,
+        onClick: isPrimary ? () => {
+          setSubmitted(false);
+          setIsModalOpen(true);
+        } : undefined,
+      };
+    });
 
   return (
     <div className="min-h-screen w-full bg-[#fdfbf7] text-[#1c1917] font-sans antialiased flex flex-col justify-between py-6 px-4 sm:py-10 selection:bg-amber-100 selection:text-amber-900 relative overflow-x-hidden">

@@ -24,8 +24,18 @@ import {
   Filter,
   Sparkles,
   Globe,
-  Briefcase
+  Briefcase,
+  RotateCcw,
+  Save,
+  ExternalLink
 } from 'lucide-react';
+import type { BioButtonItem } from '../utils/bioLinkConfig';
+import { 
+  getStoredBioButtonsSync, 
+  fetchBioButtons, 
+  saveBioButtons, 
+  DEFAULT_BIO_BUTTONS 
+} from '../utils/bioLinkConfig';
 
 export interface Evento {
   id: string;
@@ -92,12 +102,65 @@ export default function EventManagerTab({ onUseAsCampaign }: EventManagerTabProp
   const [deleteModal, setDeleteModal] = useState<{ isOpen: boolean; id: string; nombre: string } | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
 
+  // Bio Link Buttons Customization State
+  const [isBioConfigModalOpen, setIsBioConfigModalOpen] = useState(false);
+  const [bioButtonsConfig, setBioButtonsConfig] = useState<BioButtonItem[]>(getStoredBioButtonsSync);
+  const [savingBioButtons, setSavingBioButtons] = useState(false);
+
   // Toast Notification State
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' | 'info' } | null>(null);
 
   const showToast = (message: string, type: 'success' | 'error' | 'info' = 'success') => {
     setToast({ message, type });
     setTimeout(() => setToast(null), 4000);
+  };
+
+  // Cargar configuración de botones de Bio Link desde Supabase / Backend al iniciar
+  useEffect(() => {
+    fetchBioButtons().then((btns) => {
+      if (btns && btns.length > 0) {
+        setBioButtonsConfig(btns);
+      }
+    });
+  }, []);
+
+  const handleOpenBioConfig = () => {
+    fetchBioButtons().then((btns) => {
+      setBioButtonsConfig(btns);
+      setIsBioConfigModalOpen(true);
+    });
+  };
+
+  const handleUpdateBioButton = (id: string, field: keyof BioButtonItem, value: any) => {
+    setBioButtonsConfig((prev) =>
+      prev.map((b) => (b.id === id ? { ...b, [field]: value } : b))
+    );
+  };
+
+  const handleSaveBioConfig = async () => {
+    setSavingBioButtons(true);
+    try {
+      const ok = await saveBioButtons(bioButtonsConfig);
+      if (ok) {
+        showToast('¡Botones y enlaces del Bio Link actualizados con éxito!', 'success');
+        setIsBioConfigModalOpen(false);
+      } else {
+        showToast('Se guardó localmente. Verifica la conexión con Supabase.', 'info');
+        setIsBioConfigModalOpen(false);
+      }
+    } catch (err: any) {
+      console.error('Error al guardar configuración de Bio Link:', err);
+      showToast('Error al guardar la configuración de botones.', 'error');
+    } finally {
+      setSavingBioButtons(false);
+    }
+  };
+
+  const handleResetBioConfig = () => {
+    if (window.confirm('¿Deseas restablecer todos los botones a sus nombres y enlaces originales?')) {
+      setBioButtonsConfig(DEFAULT_BIO_BUTTONS);
+      showToast('Botones restablecidos a los valores predeterminados', 'info');
+    }
   };
 
   // Storage Image Upload State
@@ -588,10 +651,19 @@ export default function EventManagerTab({ onUseAsCampaign }: EventManagerTabProp
               </div>
             </div>
 
-            <div className="flex items-center gap-2 w-full md:w-auto shrink-0">
+            <div className="flex items-center gap-2 w-full md:w-auto shrink-0 flex-wrap sm:flex-nowrap">
+              <button
+                onClick={handleOpenBioConfig}
+                className="inline-flex items-center justify-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold bg-amber-100 hover:bg-amber-200 text-amber-950 border border-amber-300/80 transition-all cursor-pointer shadow-xs active:scale-95"
+                title="Personalizar nombres y enlaces de cada botón"
+              >
+                <Edit3 className="w-3.5 h-3.5 text-amber-800" />
+                Editar Botones & Links
+              </button>
+
               <button
                 onClick={handleCopyBioLink}
-                className={`flex-1 md:flex-none inline-flex items-center justify-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer shadow-xs ${
+                className={`flex-1 sm:flex-none inline-flex items-center justify-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer shadow-xs ${
                   copiedBio
                     ? 'bg-emerald-600 text-white shadow-emerald-600/20'
                     : 'bg-[#8B5A2B] hover:bg-[#724820] text-white shadow-amber-950/10 active:scale-95'
@@ -1667,6 +1739,201 @@ export default function EventManagerTab({ onUseAsCampaign }: EventManagerTabProp
                 )}
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* ================= MODAL: CONFIGURAR BOTONES BIO LINK DR. FINANZAS ================= */}
+      {isBioConfigModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-stone-950/60 backdrop-blur-xs animate-in fade-in duration-200">
+          <div className="bg-white border border-stone-200 rounded-2xl w-full max-w-3xl max-h-[90vh] flex flex-col shadow-2xl relative overflow-hidden">
+            
+            {/* Header del Modal */}
+            <div className="px-6 py-4 border-b border-stone-100 flex items-center justify-between bg-stone-50/70">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-full overflow-hidden p-0.5 bg-gradient-to-tr from-[#8B5A2B] via-[#C9A84C] to-[#5c3a1e] shrink-0">
+                  <img src="/ricardo_bertalmio.jpg" alt="Dr. Finanzas" className="w-full h-full object-cover rounded-full bg-white" />
+                </div>
+                <div>
+                  <h3 className="text-base font-bold text-stone-900 flex items-center gap-2">
+                    Personalizar Botones — Dr. Finanzas Bio Link
+                  </h3>
+                  <p className="text-xs text-stone-500">
+                    Modifica los nombres, subtítulos y enlaces de destino para cada botón de TikTok y redes.
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => setIsBioConfigModalOpen(false)}
+                className="w-8 h-8 rounded-full bg-stone-100 hover:bg-stone-200 text-stone-600 flex items-center justify-center transition-colors cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* Contenido / Lista de Botones */}
+            <div className="p-5 sm:p-6 overflow-y-auto space-y-4 flex-1">
+              <div className="bg-amber-50/60 border border-amber-200/80 rounded-xl p-3 text-xs text-amber-900 flex items-start gap-2">
+                <Sparkles className="w-4 h-4 text-amber-700 shrink-0 mt-0.5" />
+                <span>
+                  Los cambios se sincronizan en tiempo real para todos los usuarios que visiten <b>https://eventos.afinitive.com.pe/bio</b>.
+                </span>
+              </div>
+
+              <div className="space-y-3.5">
+                {bioButtonsConfig.map((btn, index) => {
+                  const isLeadBtn = btn.id === 'registro';
+
+                  return (
+                    <div 
+                      key={btn.id}
+                      className={`p-4 rounded-xl border transition-all ${
+                        btn.enabled !== false 
+                          ? 'bg-white border-stone-200 shadow-xs' 
+                          : 'bg-stone-50/70 border-stone-200/60 opacity-60'
+                      }`}
+                    >
+                      <div className="flex items-center justify-between mb-3 pb-2 border-b border-stone-100">
+                        <div className="flex items-center gap-2">
+                          <span className="w-6 h-6 rounded-full bg-amber-100 text-[#8B5A2B] text-xs font-bold flex items-center justify-center">
+                            {index + 1}
+                          </span>
+                          <span className="text-xs font-bold text-stone-800 uppercase tracking-wide">
+                            {btn.id === 'registro' ? 'Formulario de Captura (Modal)' : `Botón: ${btn.id}`}
+                          </span>
+                        </div>
+
+                        <label className="flex items-center gap-2 cursor-pointer text-xs font-medium text-stone-600 select-none">
+                          <input
+                            type="checkbox"
+                            checked={btn.enabled !== false}
+                            onChange={(e) => handleUpdateBioButton(btn.id, 'enabled', e.target.checked)}
+                            className="rounded border-stone-300 text-amber-600 focus:ring-amber-500 w-4 h-4 cursor-pointer"
+                          />
+                          <span>Mostrar botón</span>
+                        </label>
+                      </div>
+
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        {/* Nombre del Botón */}
+                        <div>
+                          <label className="block text-[11px] font-bold text-stone-700 mb-1">
+                            Nombre del Botón (Título Principal)
+                          </label>
+                          <input
+                            type="text"
+                            value={btn.title}
+                            onChange={(e) => handleUpdateBioButton(btn.id, 'title', e.target.value)}
+                            placeholder="Ej: Nuestra web"
+                            className="w-full bg-stone-50 border border-stone-200 rounded-lg px-3 py-1.5 text-xs text-stone-900 focus:outline-none focus:border-amber-600 focus:bg-white transition-all"
+                          />
+                        </div>
+
+                        {/* Subtítulo del Botón */}
+                        <div>
+                          <label className="block text-[11px] font-bold text-stone-700 mb-1">
+                            Subtítulo / Descripción Corta
+                          </label>
+                          <input
+                            type="text"
+                            value={btn.subtitle || ''}
+                            onChange={(e) => handleUpdateBioButton(btn.id, 'subtitle', e.target.value)}
+                            placeholder="Ej: Conoce nuestro modelo de inversión"
+                            className="w-full bg-stone-50 border border-stone-200 rounded-lg px-3 py-1.5 text-xs text-stone-900 focus:outline-none focus:border-amber-600 focus:bg-white transition-all"
+                          />
+                        </div>
+
+                        {/* URL o Acción */}
+                        <div className="sm:col-span-2">
+                          <label className="block text-[11px] font-bold text-stone-700 mb-1 flex items-center justify-between">
+                            <span>Enlace de Destino (URL)</span>
+                            {isLeadBtn && (
+                              <span className="text-[10px] text-amber-700 font-normal">
+                                Abre automáticamente el formulario de registro integrado
+                              </span>
+                            )}
+                          </label>
+                          {isLeadBtn ? (
+                            <div className="flex items-center gap-2">
+                              <input
+                                type="text"
+                                value={btn.url || ''}
+                                onChange={(e) => handleUpdateBioButton(btn.id, 'url', e.target.value)}
+                                placeholder="Por defecto: Abre modal de captura integrado (O ingresa URL externa si deseas redirigir)"
+                                className="w-full bg-stone-50 border border-stone-200 rounded-lg px-3 py-1.5 text-xs text-stone-900 focus:outline-none focus:border-amber-600 focus:bg-white transition-all font-mono"
+                              />
+                            </div>
+                          ) : (
+                            <div className="relative">
+                              <input
+                                type="url"
+                                value={btn.url || ''}
+                                onChange={(e) => handleUpdateBioButton(btn.id, 'url', e.target.value)}
+                                placeholder="https://..."
+                                className="w-full bg-stone-50 border border-stone-200 rounded-lg pl-3 pr-8 py-1.5 text-xs text-stone-900 focus:outline-none focus:border-amber-600 focus:bg-white transition-all font-mono"
+                              />
+                              {btn.url && (
+                                <a
+                                  href={btn.url}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="absolute right-2 top-1/2 -translate-y-1/2 text-stone-400 hover:text-amber-700"
+                                  title="Probar enlace"
+                                >
+                                  <ExternalLink className="w-3.5 h-3.5" />
+                                </a>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Footer con Acciones */}
+            <div className="px-6 py-3.5 border-t border-stone-100 flex items-center justify-between bg-stone-50/80">
+              <button
+                type="button"
+                onClick={handleResetBioConfig}
+                className="inline-flex items-center gap-1.5 px-3 py-2 text-xs font-semibold text-stone-600 hover:text-stone-900 rounded-lg hover:bg-stone-200/70 transition-colors cursor-pointer"
+                title="Volver a los 7 botones originales"
+              >
+                <RotateCcw className="w-3.5 h-3.5" />
+                Restablecer originales
+              </button>
+
+              <div className="flex items-center gap-2.5">
+                <button
+                  type="button"
+                  onClick={() => setIsBioConfigModalOpen(false)}
+                  className="px-4 py-2 text-xs font-semibold text-stone-700 hover:text-stone-900 rounded-xl bg-stone-200/80 hover:bg-stone-300/80 transition-colors cursor-pointer"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="button"
+                  disabled={savingBioButtons}
+                  onClick={handleSaveBioConfig}
+                  className="px-5 py-2 text-xs font-bold text-white rounded-xl bg-[#8B5A2B] hover:bg-[#724820] shadow-xs transition-all cursor-pointer flex items-center gap-2 disabled:opacity-50 active:scale-95"
+                >
+                  {savingBioButtons ? (
+                    <>
+                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                      <span>Guardando...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Save className="w-3.5 h-3.5" />
+                      <span>Guardar Cambios</span>
+                    </>
+                  )}
+                </button>
+              </div>
+            </div>
+
           </div>
         </div>
       )}
