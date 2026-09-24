@@ -316,6 +316,7 @@ export class EventosService implements OnModuleInit {
 
       return (asistentes || []).map((asistente: any) => ({
         ...asistente,
+        estado: asistente.estado || 'pendiente',
         evento_nombre: eventosMap[asistente.evento_id]?.nombre || asistente.evento_id,
         evento_tipo: eventosMap[asistente.evento_id]?.tipo || 'webinar',
         evento_fecha: eventosMap[asistente.evento_id]?.fecha_inicio || null,
@@ -324,6 +325,37 @@ export class EventosService implements OnModuleInit {
       this.logger.error(`Error al listar todos los asistentes: ${err.message}`);
       return [];
     }
+  }
+
+  // 6.c Actualizar estado de atención de un asistente/lead
+  async updateAsistenteEstado(asistenteId: string, estado: string, notas?: string): Promise<any> {
+    if (!this.supabase) throw new BadRequestException('Supabase no disponible');
+
+    const payload: any = {
+      estado: estado || 'pendiente',
+    };
+
+    if (notas !== undefined) {
+      payload.notas = notas;
+    }
+
+    if (estado === 'atendido' || estado === 'en_proceso' || estado === 'contactado') {
+      payload.fecha_atencion = new Date().toISOString();
+    }
+
+    const { data, error } = await this.supabase
+      .from('asistentes_evento')
+      .update(payload)
+      .eq('id', asistenteId)
+      .select()
+      .maybeSingle();
+
+    if (error) {
+      this.logger.warn(`Error al actualizar estado de asistente ${asistenteId}: ${error.message}`);
+      throw new BadRequestException(`No se pudo actualizar el estado: ${error.message}`);
+    }
+
+    return { success: true, data };
   }
 
   // 7. Registrar Asistente / Lead

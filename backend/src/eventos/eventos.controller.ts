@@ -101,6 +101,33 @@ export class EventosController {
     return { success: true, data: asistentes };
   }
 
+  // Actualizar estado de atención de un asistente / lead
+  @Put('asistentes/:asistenteId/estado')
+  async updateAsistenteEstadoPut(
+    @Param('asistenteId') asistenteId: string,
+    @Body() body: { estado: string; notas?: string },
+  ) {
+    const result = await this.eventosService.updateAsistenteEstado(
+      asistenteId,
+      body.estado,
+      body.notas,
+    );
+    return result;
+  }
+
+  @Post('asistentes/:asistenteId/estado')
+  async updateAsistenteEstadoPost(
+    @Param('asistenteId') asistenteId: string,
+    @Body() body: { estado: string; notas?: string },
+  ) {
+    const result = await this.eventosService.updateAsistenteEstado(
+      asistenteId,
+      body.estado,
+      body.notas,
+    );
+    return result;
+  }
+
   // Registrar asistente al evento (Público)
   @Post(':id/registro')
   async registrarAsistente(

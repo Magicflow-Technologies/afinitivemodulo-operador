@@ -64,6 +64,9 @@ export interface Asistente {
   evento_nombre?: string;
   evento_tipo?: 'webinar' | 'lead_form';
   evento_fecha?: string;
+  estado?: 'pendiente' | 'atendido' | 'en_proceso' | 'no_responde' | 'descartado' | string;
+  notas?: string;
+  fecha_atencion?: string;
 }
 
 interface EventManagerTabProps {
@@ -88,6 +91,8 @@ export default function EventManagerTab({ onUseAsCampaign }: EventManagerTabProp
   const [selectedEventFilter, setSelectedEventFilter] = useState<string>('todos');
   const [attendeeSearchGlobal, setAttendeeSearchGlobal] = useState('');
   const [interestFilter, setInterestFilter] = useState<string>('todos');
+  const [statusFilter, setStatusFilter] = useState<string>('todos');
+  const [updatingStatusId, setUpdatingStatusId] = useState<string | null>(null);
 
   // Modals state
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
@@ -474,10 +479,57 @@ export default function EventManagerTab({ onUseAsCampaign }: EventManagerTabProp
     setTimeout(() => setCopiedWspId(null), 2500);
   };
 
+  const handleUpdateAttendeeStatus = async (attendeeId: string, newStatus: string) => {
+    setUpdatingStatusId(attendeeId);
+
+    // Optimistic UI update
+    const nowIso = new Date().toISOString();
+    setAllAttendees(prev =>
+      prev.map(a => (a.id === attendeeId ? { ...a, estado: newStatus, fecha_atencion: nowIso } : a))
+    );
+    setAttendeesList(prev =>
+      prev.map(a => (a.id === attendeeId ? { ...a, estado: newStatus, fecha_atencion: nowIso } : a))
+    );
+
+    try {
+      if (backendUrl) {
+        await fetch(`${backendUrl}/api/eventos/asistentes/${attendeeId}/estado`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ estado: newStatus }),
+        });
+      }
+
+      const labels: { [k: string]: string } = {
+        pendiente: '🟡 Pendiente',
+        atendido: '🟢 Atendido',
+        en_proceso: '🔵 En Proceso',
+        no_responde: '⚪ No Responde / Descartado',
+      };
+      showToast(`Estado actualizado: ${labels[newStatus] || newStatus}`, 'success');
+    } catch (err) {
+      console.error('Error al actualizar estado:', err);
+      showToast('Se actualizó localmente', 'info');
+    } finally {
+      setUpdatingStatusId(null);
+    }
+  };
+
+  const handleContactWhatsapp = (a: Asistente) => {
+    const cleanPhone = (a.celular || '').replace(/[^0-9]/g, '');
+    const whatsappUrl = `https://wa.me/${cleanPhone}?text=Hola%20${encodeURIComponent(a.nombre)},%20te%20escribo%20de%20Afinitive%20Wealth%20Management%20en%20relaci%C3%B3n%20a%20tu%20registro.`;
+    window.open(whatsappUrl, '_blank');
+
+    // Si estaba pendiente, marcar automáticamente como atendido
+    if (!a.estado || a.estado === 'pendiente') {
+      handleUpdateAttendeeStatus(a.id, 'atendido');
+    }
+  };
+
   const handleExportCsv = (list: Asistente[], filenamePrefix = 'asistentes') => {
     if (!list.length) return;
 
-    const headers = ['ID', 'Nombre', 'Correo', 'Celular', 'País', 'Interés de Inversión', 'Evento/Link', 'Tipo', 'Fecha Registro'];
+    const headers = ['ID', 'Nombre', 'Correo', 'Celular', 'País', 'Interés de Inversión', 'Evento/Link', 'Tipo', 'Estado Atención', 'Fecha Registro', 'Fecha Atención'];
     const rows = list.map(a => [
       `"${a.id}"`,
       `"${(a.nombre || '').replace(/"/g, '""')}"`,
@@ -487,7 +539,9 @@ export default function EventManagerTab({ onUseAsCampaign }: EventManagerTabProp
       `"${(a.interes_inversion || '-').replace(/"/g, '""')}"`,
       `"${(a.evento_nombre || a.evento_id || '').replace(/"/g, '""')}"`,
       `"${a.evento_tipo === 'lead_form' ? 'Formulario TikTok' : 'Webinar'}"`,
+      `"${(a.estado || 'pendiente').toUpperCase()}"`,
       `"${a.created_at}"`,
+      `"${a.fecha_atencion || ''}"`,
     ]);
 
     const csvContent = 'data:text/csv;charset=utf-8,\uFEFF' + [headers.join(','), ...rows.map(r => r.join(','))].join('\n');
@@ -529,12 +583,17 @@ export default function EventManagerTab({ onUseAsCampaign }: EventManagerTabProp
     const matchesInterest = 
       interestFilter === 'todos' || a.interes_inversion === interestFilter;
 
-    return matchesSearch && matchesEvent && matchesInterest;
+    const currentStatus = a.estado || 'pendiente';
+    const matchesStatus = 
+      statusFilter === 'todos' || currentStatus === statusFilter;
+
+    return matchesSearch && matchesEvent && matchesInterest && matchesStatus;
   });
 
   const totalRegistradosCount = allAttendees.length;
-  const totalTikTokLeadsCount = allAttendees.filter(a => a.evento_tipo === 'lead_form').length;
-  const totalWebinarLeadsCount = allAttendees.filter(a => a.evento_tipo !== 'lead_form').length;
+  const totalPendientesCount = allAttendees.filter(a => (a.estado || 'pendiente') === 'pendiente').length;
+  const totalAtendidosCount = allAttendees.filter(a => a.estado === 'atendido' || a.estado === 'contactado').length;
+  const totalEnProcesoCount = allAttendees.filter(a => a.estado === 'en_proceso').length;
 
   return (
     <div className="space-y-6 animate-in fade-in duration-300">
@@ -971,15 +1030,23 @@ export default function EventManagerTab({ onUseAsCampaign }: EventManagerTabProp
       {activeSubTab === 'registrados' && (
         <div className="space-y-4 animate-in fade-in duration-200">
           
-          {/* Métricas Rápidas (Fondo Blanco Limpio) */}
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-            <div className="bg-white border border-slate-200 p-4 rounded-2xl flex items-center gap-3.5 shadow-xs">
-              <div className="w-11 h-11 rounded-xl bg-blue-50 border border-blue-200 text-blue-600 flex items-center justify-center">
+          {/* Métricas Rápidas de Atención (Fondo Blanco Limpio) */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5">
+            {/* 1. Total General */}
+            <div 
+              onClick={() => setStatusFilter('todos')}
+              className={`p-4 rounded-2xl border transition-all cursor-pointer flex items-center gap-3.5 shadow-xs ${
+                statusFilter === 'todos' 
+                  ? 'bg-blue-50/50 border-blue-300 ring-2 ring-blue-500/20' 
+                  : 'bg-white border-slate-200 hover:border-slate-300'
+              }`}
+            >
+              <div className="w-11 h-11 rounded-xl bg-blue-50 border border-blue-200 text-blue-600 flex items-center justify-center shrink-0">
                 <Users className="w-6 h-6" />
               </div>
               <div>
                 <span className="text-[11px] font-bold text-slate-500 block uppercase tracking-wider">
-                  Total Registrados
+                  Total Leads
                 </span>
                 <span className="text-2xl font-bold text-slate-900">
                   {totalRegistradosCount}
@@ -987,30 +1054,73 @@ export default function EventManagerTab({ onUseAsCampaign }: EventManagerTabProp
               </div>
             </div>
 
-            <div className="bg-white border border-slate-200 p-4 rounded-2xl flex items-center gap-3.5 shadow-xs">
-              <div className="w-11 h-11 rounded-xl bg-indigo-50 border border-indigo-200 text-indigo-600 flex items-center justify-center">
-                <FileText className="w-6 h-6" />
+            {/* 2. Pendientes por Atender */}
+            <div 
+              onClick={() => setStatusFilter('pendiente')}
+              className={`p-4 rounded-2xl border transition-all cursor-pointer flex items-center gap-3.5 shadow-xs ${
+                statusFilter === 'pendiente' 
+                  ? 'bg-amber-50 border-amber-400 ring-2 ring-amber-500/30' 
+                  : 'bg-amber-50/30 border-amber-200/80 hover:border-amber-300'
+              }`}
+            >
+              <div className="w-11 h-11 rounded-xl bg-amber-100/80 border border-amber-300 text-amber-800 flex items-center justify-center shrink-0">
+                <span className="text-lg">🟡</span>
               </div>
               <div>
-                <span className="text-[11px] font-bold text-slate-500 block uppercase tracking-wider">
-                  Leads TikTok / Bio
-                </span>
-                <span className="text-2xl font-bold text-indigo-900">
-                  {totalTikTokLeadsCount}
+                <div className="flex items-center gap-1.5">
+                  <span className="text-[11px] font-extrabold text-amber-800 uppercase tracking-wider">
+                    Por Contactar
+                  </span>
+                  {totalPendientesCount > 0 && (
+                    <span className="w-2 h-2 rounded-full bg-amber-500 animate-ping"></span>
+                  )}
+                </div>
+                <span className="text-2xl font-black text-amber-950">
+                  {totalPendientesCount}
                 </span>
               </div>
             </div>
 
-            <div className="bg-white border border-slate-200 p-4 rounded-2xl flex items-center gap-3.5 shadow-xs">
-              <div className="w-11 h-11 rounded-xl bg-amber-50 border border-amber-200 text-amber-600 flex items-center justify-center">
-                <Video className="w-6 h-6" />
+            {/* 3. Atendidos / Contactados */}
+            <div 
+              onClick={() => setStatusFilter('atendido')}
+              className={`p-4 rounded-2xl border transition-all cursor-pointer flex items-center gap-3.5 shadow-xs ${
+                statusFilter === 'atendido' 
+                  ? 'bg-emerald-50 border-emerald-400 ring-2 ring-emerald-500/30' 
+                  : 'bg-emerald-50/30 border-emerald-200/80 hover:border-emerald-300'
+              }`}
+            >
+              <div className="w-11 h-11 rounded-xl bg-emerald-100/80 border border-emerald-300 text-emerald-800 flex items-center justify-center shrink-0">
+                <span className="text-lg">🟢</span>
               </div>
               <div>
-                <span className="text-[11px] font-bold text-slate-500 block uppercase tracking-wider">
-                  Inscritos a Webinars
+                <span className="text-[11px] font-extrabold text-emerald-800 uppercase tracking-wider">
+                  Atendidos
                 </span>
-                <span className="text-2xl font-bold text-amber-900">
-                  {totalWebinarLeadsCount}
+                <span className="text-2xl font-black text-emerald-950">
+                  {totalAtendidosCount}
+                </span>
+              </div>
+            </div>
+
+            {/* 4. En Negociación / Proceso */}
+            <div 
+              onClick={() => setStatusFilter('en_proceso')}
+              className={`p-4 rounded-2xl border transition-all cursor-pointer flex items-center gap-3.5 shadow-xs ${
+                statusFilter === 'en_proceso' 
+                  ? 'bg-indigo-50 border-indigo-400 ring-2 ring-indigo-500/30' 
+                  : 'bg-indigo-50/30 border-indigo-200/80 hover:border-indigo-300'
+              }`}
+            >
+              <div className="w-11 h-11 rounded-xl bg-indigo-100/80 border border-indigo-300 text-indigo-800 flex items-center justify-center shrink-0">
+                <span className="text-lg">🔵</span>
+              </div>
+              <div>
+                <span className="text-[11px] font-extrabold text-indigo-800 uppercase tracking-wider">
+                  En Negociación
+                </span>
+                <span className="text-2xl font-black text-indigo-950">
+                  {totalEnProcesoCount}
                 </span>
               </div>
             </div>
@@ -1034,15 +1144,40 @@ export default function EventManagerTab({ onUseAsCampaign }: EventManagerTabProp
             {/* Selectores de Filtro */}
             <div className="flex items-center gap-2.5 flex-wrap w-full md:w-auto justify-end">
               
+              {/* Filtro por Estado de Atención */}
+              <div className="flex items-center gap-1.5">
+                <span className="text-xs text-slate-500 font-bold">Estado:</span>
+                <select
+                  value={statusFilter}
+                  onChange={(e) => setStatusFilter(e.target.value)}
+                  className={`border rounded-xl py-1.5 px-3 text-xs focus:outline-none cursor-pointer font-bold transition-all ${
+                    statusFilter === 'pendiente'
+                      ? 'bg-amber-100 text-amber-900 border-amber-300'
+                      : statusFilter === 'atendido'
+                      ? 'bg-emerald-100 text-emerald-900 border-emerald-300'
+                      : statusFilter === 'en_proceso'
+                      ? 'bg-blue-100 text-blue-900 border-blue-300'
+                      : 'bg-slate-50 border-slate-200 text-slate-800'
+                  }`}
+                >
+                  <option value="todos">Todos los Estados</option>
+                  <option value="pendiente">🟡 Solo Pendientes (Por contactar)</option>
+                  <option value="atendido">🟢 Atendidos / Contactados</option>
+                  <option value="en_proceso">🔵 En Proceso / Negociación</option>
+                  <option value="no_responde">⚪ No Responde / Descartado</option>
+                </select>
+              </div>
+
               {/* Filtro por Evento / Link */}
               <div className="flex items-center gap-1.5">
-                <span className="text-xs text-slate-500 font-bold">Link / Evento:</span>
+                <span className="text-xs text-slate-500 font-bold">Origen:</span>
                 <select
                   value={selectedEventFilter}
                   onChange={(e) => setSelectedEventFilter(e.target.value)}
-                  className="bg-slate-50 border border-slate-200 rounded-xl py-1.5 px-3 text-xs text-slate-800 focus:outline-none focus:border-blue-600 cursor-pointer max-w-[200px] truncate font-medium"
+                  className="bg-slate-50 border border-slate-200 rounded-xl py-1.5 px-3 text-xs text-slate-800 focus:outline-none focus:border-blue-600 cursor-pointer max-w-[180px] truncate font-medium"
                 >
                   <option value="todos">Todos los Links</option>
+                  <option value="dr-finanzas-bio">✨ Link in Bio TikTok (Dr. Finanzas)</option>
                   {eventos.map((ev) => (
                     <option key={ev.id} value={ev.id}>
                       {ev.tipo === 'lead_form' ? '📋 ' : '🎙️ '} {ev.nombre}
@@ -1085,12 +1220,13 @@ export default function EventManagerTab({ onUseAsCampaign }: EventManagerTabProp
                 <table className="w-full text-left text-xs border-collapse">
                   <thead>
                     <tr className="border-b border-slate-200 bg-slate-50 text-slate-600 font-bold uppercase tracking-wider">
+                      <th className="py-3 px-4">Estado de Atención</th>
                       <th className="py-3 px-4">Cliente</th>
                       <th className="py-3 px-4">WhatsApp / Celular</th>
                       <th className="py-3 px-4">Correo</th>
                       <th className="py-3 px-4">País</th>
-                      <th className="py-3 px-4">Interés de Inversión</th>
-                      <th className="py-3 px-4">Evento / Link Origen</th>
+                      <th className="py-3 px-4">Interés</th>
+                      <th className="py-3 px-4">Origen</th>
                       <th className="py-3 px-4">Fecha Registro</th>
                     </tr>
                   </thead>
@@ -1104,16 +1240,71 @@ export default function EventManagerTab({ onUseAsCampaign }: EventManagerTabProp
                         });
                       } catch {}
 
-                      const cleanPhone = (a.celular || '').replace(/[^0-9]/g, '');
-                      const whatsappUrl = `https://wa.me/${cleanPhone}?text=Hola%20${encodeURIComponent(a.nombre)},%20te%20escribo%20de%20Afinitive%20Wealth%20Management%20en%20relaci%C3%B3n%20a%20tu%20registro.`;
+                      const currentStatus = a.estado || 'pendiente';
+                      const isUpdating = updatingStatusId === a.id;
 
                       return (
-                        <tr key={a.id} className="hover:bg-slate-50 transition-colors">
+                        <tr 
+                          key={a.id} 
+                          className={`transition-colors ${
+                            currentStatus === 'pendiente' 
+                              ? 'bg-amber-50/20 hover:bg-amber-50/40' 
+                              : 'hover:bg-slate-50'
+                          }`}
+                        >
                           
+                          {/* Selector Interactivo de Estado */}
+                          <td className="py-3.5 px-4">
+                            <div className="relative inline-block">
+                              <select
+                                value={currentStatus}
+                                disabled={isUpdating}
+                                onChange={(e) => handleUpdateAttendeeStatus(a.id, e.target.value)}
+                                className={`appearance-none pl-7 pr-7 py-1.5 rounded-full text-xs font-bold border transition-all cursor-pointer focus:outline-none focus:ring-2 focus:ring-offset-1 ${
+                                  currentStatus === 'pendiente'
+                                    ? 'bg-amber-100/80 text-amber-900 border-amber-300 focus:ring-amber-400 hover:bg-amber-200/80'
+                                    : currentStatus === 'atendido' || currentStatus === 'contactado'
+                                    ? 'bg-emerald-100/80 text-emerald-900 border-emerald-300 focus:ring-emerald-400 hover:bg-emerald-200/80'
+                                    : currentStatus === 'en_proceso'
+                                    ? 'bg-blue-100/80 text-blue-900 border-blue-300 focus:ring-blue-400 hover:bg-blue-200/80'
+                                    : 'bg-slate-100 text-slate-700 border-slate-300 focus:ring-slate-400 hover:bg-slate-200'
+                                }`}
+                              >
+                                <option value="pendiente">🟡 Pendiente</option>
+                                <option value="atendido">🟢 Atendido</option>
+                                <option value="en_proceso">🔵 En Proceso</option>
+                                <option value="no_responde">⚪ Descartado</option>
+                              </select>
+                              
+                              {/* Indicador de Punto de Color */}
+                              <span className="absolute left-2.5 top-1/2 -translate-y-1/2 pointer-events-none">
+                                {currentStatus === 'pendiente' && <span className="block w-2 h-2 rounded-full bg-amber-500 animate-pulse"></span>}
+                                {(currentStatus === 'atendido' || currentStatus === 'contactado') && <span className="block w-2 h-2 rounded-full bg-emerald-500"></span>}
+                                {currentStatus === 'en_proceso' && <span className="block w-2 h-2 rounded-full bg-blue-500"></span>}
+                                {currentStatus === 'no_responde' && <span className="block w-2 h-2 rounded-full bg-slate-400"></span>}
+                              </span>
+
+                              {/* Flecha Dropdown */}
+                              <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-current opacity-60 pointer-events-none text-[10px]">
+                                ▼
+                              </span>
+                            </div>
+
+                            {a.fecha_atencion && (
+                              <span className="block text-[9px] text-slate-400 mt-0.5 font-mono">
+                                Atendido: {new Date(a.fecha_atencion).toLocaleDateString('es-PE', { day: '2-digit', month: 'short' })}
+                              </span>
+                            )}
+                          </td>
+
                           {/* Cliente */}
                           <td className="py-3.5 px-4 font-semibold text-slate-900">
                             <div className="flex items-center gap-2">
-                              <div className="w-7 h-7 rounded-full bg-slate-100 border border-slate-200 flex items-center justify-center text-slate-700 font-bold text-xs uppercase">
+                              <div className={`w-7 h-7 rounded-full flex items-center justify-center font-bold text-xs uppercase border ${
+                                currentStatus === 'pendiente'
+                                  ? 'bg-amber-100 text-amber-900 border-amber-200'
+                                  : 'bg-slate-100 text-slate-700 border-slate-200'
+                              }`}>
                                 {a.nombre ? a.nombre.charAt(0) : 'U'}
                               </div>
                               <div>
@@ -1125,18 +1316,17 @@ export default function EventManagerTab({ onUseAsCampaign }: EventManagerTabProp
                             </div>
                           </td>
 
-                          {/* WhatsApp / Celular */}
+                          {/* WhatsApp / Celular (Acción Inteligente) */}
                           <td className="py-3.5 px-4">
-                            <a
-                              href={whatsappUrl}
-                              target="_blank"
-                              rel="noreferrer"
-                              className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-300 text-xs font-mono font-bold transition-all shadow-2xs cursor-pointer"
-                              title="Abrir chat de WhatsApp con el cliente"
+                            <button
+                              type="button"
+                              onClick={() => handleContactWhatsapp(a)}
+                              className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-300 text-xs font-mono font-bold transition-all shadow-2xs cursor-pointer active:scale-95"
+                              title="Abrir WhatsApp y marcar como Atendido"
                             >
                               <MessageCircle className="w-3.5 h-3.5 text-emerald-600" />
                               <span>{a.celular}</span>
-                            </a>
+                            </button>
                           </td>
 
                           {/* Correo */}
@@ -1176,17 +1366,17 @@ export default function EventManagerTab({ onUseAsCampaign }: EventManagerTabProp
                           <td className="py-3.5 px-4 text-slate-700">
                             <div className="flex flex-col max-w-[180px]">
                               <span className="truncate font-semibold text-slate-900 text-xs" title={a.evento_nombre}>
-                                {a.evento_nombre || a.evento_id}
+                                {a.evento_id === 'dr-finanzas-bio' ? '✨ Link in Bio (Dr. Finanzas)' : (a.evento_nombre || a.evento_id)}
                               </span>
                               <span className={`text-[10px] uppercase tracking-wider font-bold ${
-                                a.evento_tipo === 'lead_form' ? 'text-blue-600' : 'text-amber-700'
+                                a.evento_tipo === 'lead_form' || a.evento_id === 'dr-finanzas-bio' ? 'text-blue-600' : 'text-amber-700'
                               }`}>
-                                {a.evento_tipo === 'lead_form' ? '📋 Formulario TikTok' : '🎙️ Webinar'}
+                                {a.evento_id === 'dr-finanzas-bio' ? '📱 Bio Link TikTok' : a.evento_tipo === 'lead_form' ? '📋 Formulario TikTok' : '🎙️ Webinar'}
                               </span>
                             </div>
                           </td>
 
-                          {/* Fecha */}
+                          {/* Fecha Registro */}
                           <td className="py-3.5 px-4 text-slate-500 font-mono text-[11px]">
                             {formattedCreatedAt}
                           </td>
@@ -1747,6 +1937,7 @@ export default function EventManagerTab({ onUseAsCampaign }: EventManagerTabProp
                 <table className="w-full text-left text-xs border-collapse">
                   <thead>
                     <tr className="border-b border-slate-200 text-slate-600 font-bold uppercase tracking-wider bg-slate-50">
+                      <th className="py-2.5 px-3">Estado</th>
                       <th className="py-2.5 px-3">Nombre</th>
                       <th className="py-2.5 px-3">WhatsApp / Celular</th>
                       <th className="py-2.5 px-3">Correo</th>
@@ -1772,24 +1963,47 @@ export default function EventManagerTab({ onUseAsCampaign }: EventManagerTabProp
                           });
                         } catch {}
 
-                        const cleanPhone = (a.celular || '').replace(/[^0-9]/g, '');
-                        const whatsappUrl = `https://wa.me/${cleanPhone}?text=Hola%20${encodeURIComponent(a.nombre)},%20te%20escribo%20de%20Afinitive%20en%20relaci%C3%B3n%20a%20tu%20registro.`;
+                        const currentStatus = a.estado || 'pendiente';
+                        const isUpdating = updatingStatusId === a.id;
 
                         return (
                           <tr key={a.id} className="hover:bg-slate-50 transition-colors">
+                            {/* Estado */}
+                            <td className="py-2.5 px-3">
+                              <select
+                                value={currentStatus}
+                                disabled={isUpdating}
+                                onChange={(e) => handleUpdateAttendeeStatus(a.id, e.target.value)}
+                                className={`px-2 py-1 rounded-full text-[11px] font-bold border transition-all cursor-pointer focus:outline-none ${
+                                  currentStatus === 'pendiente'
+                                    ? 'bg-amber-100/80 text-amber-900 border-amber-300'
+                                    : currentStatus === 'atendido' || currentStatus === 'contactado'
+                                    ? 'bg-emerald-100/80 text-emerald-900 border-emerald-300'
+                                    : currentStatus === 'en_proceso'
+                                    ? 'bg-blue-100/80 text-blue-900 border-blue-300'
+                                    : 'bg-slate-100 text-slate-700 border-slate-300'
+                                }`}
+                              >
+                                <option value="pendiente">🟡 Pendiente</option>
+                                <option value="atendido">🟢 Atendido</option>
+                                <option value="en_proceso">🔵 En Proceso</option>
+                                <option value="no_responde">⚪ Descartado</option>
+                              </select>
+                            </td>
+
                             <td className="py-3 px-3 font-semibold text-slate-900">
                               {a.nombre}
                             </td>
                             <td className="py-3 px-3">
-                              <a 
-                                href={whatsappUrl} 
-                                target="_blank" 
-                                rel="noreferrer"
-                                className="text-emerald-700 hover:underline inline-flex items-center gap-1 font-mono font-bold bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200"
+                              <button 
+                                type="button"
+                                onClick={() => handleContactWhatsapp(a)}
+                                className="text-emerald-700 hover:underline inline-flex items-center gap-1 font-mono font-bold bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200 cursor-pointer"
+                                title="Abrir WhatsApp y marcar como Atendido"
                               >
                                 <MessageCircle className="w-3.5 h-3.5 text-emerald-600" />
                                 {a.celular}
-                              </a>
+                              </button>
                             </td>
                             <td className="py-3 px-3 text-slate-700 font-mono">
                               <a href={`mailto:${a.correo}`} className="text-blue-600 hover:underline">
