@@ -14,6 +14,7 @@ import {
   EnviarCorreoPlantillaAgentDto,
   ConsultarClientesNuevosQueryDto,
   ActualizarEstadoClienteAgentDto,
+  RegistrarClientePotencialAgentDto,
 } from './agent.dto';
 
 @Injectable()
@@ -524,7 +525,118 @@ export class AgentService implements OnModuleInit {
   }
 
   // =========================================================================
-  // 7. ESQUEMAS DE HERRAMIENTAS (TOOLS / FUNCTION CALLING PARA AGENTES DE IA)
+  // 7. REGISTRAR CLIENTE POTENCIAL (Captación Inbound WhatsApp / Redes Sociales)
+  // =========================================================================
+  async registrarClientePotencial(dto: RegistrarClientePotencialAgentDto) {
+    if (!dto.nombre || !dto.celular) {
+      throw new BadRequestException('El nombre y número de celular del cliente son obligatorios');
+    }
+
+    if (!this.supabase) {
+      throw new BadRequestException('Supabase no disponible');
+    }
+
+    const cleanName = dto.nombre.trim();
+    const cleanPhone = dto.celular.trim();
+    const cleanEmail = (dto.correo || '').trim().toLowerCase();
+    const cleanOrigin = dto.origen || 'WhatsApp Inbound';
+    const cleanInteres = dto.interes_inversion || 'General';
+    const cleanEstado = dto.estado || 'en_proceso';
+
+    this.logger.log(`IA Agent: Registrando cliente potencial ${cleanName} (${cleanPhone}) desde ${cleanOrigin}`);
+
+    try {
+      // 1. Verificar si ya existe un cliente con este celular
+      const { data: existingLeads } = await this.supabase
+        .from('eventos_asistentes')
+        .select('*')
+        .or(`celular.eq.${cleanPhone},celular.eq.${cleanPhone.replace(/[^0-9]/g, '')}`)
+        .limit(1);
+
+      if (existingLeads && existingLeads.length > 0) {
+        const lead = existingLeads[0];
+        const updatePayload: any = {
+          nombre: cleanName,
+          estado: cleanEstado,
+          fecha_atencion: new Date().toISOString(),
+        };
+        if (cleanEmail && !lead.correo) updatePayload.correo = cleanEmail;
+        if (dto.interes_inversion) updatePayload.interes_inversion = cleanInteres;
+        if (dto.notas) {
+          updatePayload.notas = lead.notas ? `${lead.notas}\n[UPDATE IA]: ${dto.notas}` : dto.notas;
+        }
+
+        const { data: updated, error: updateErr } = await this.supabase
+          .from('eventos_asistentes')
+          .update(updatePayload)
+          .eq('id', lead.id)
+          .select()
+          .single();
+
+        if (updateErr) throw new BadRequestException(updateErr.message);
+
+        return {
+          success: true,
+          accion: 'actualizado',
+          cliente: {
+            id: updated.id,
+            nombre: updated.nombre,
+            celular: updated.celular,
+            correo: updated.correo,
+            estado: updated.estado,
+            interes: updated.interes_inversion,
+            origen: updated.persona_contacto || updated.evento_id,
+          },
+          mensaje_para_ia: `Cliente existente identificado y actualizado a estado "${cleanEstado}".`,
+        };
+      }
+
+      // 2. Insertar nuevo cliente en Supabase
+      const insertPayload: any = {
+        evento_id: dto.evento_id || 'whatsapp-inbound',
+        nombre: cleanName,
+        celular: cleanPhone,
+        correo: cleanEmail || '',
+        pais: dto.pais || 'Perú',
+        interes_inversion: cleanInteres,
+        persona_contacto: dto.persona_contacto || cleanOrigin,
+        estado: cleanEstado,
+        notas: dto.notas || 'Prospecto registrado automáticamente por Agente IA vía WhatsApp',
+        created_at: new Date().toISOString(),
+      };
+
+      const { data: created, error: createErr } = await this.supabase
+        .from('eventos_asistentes')
+        .insert(insertPayload)
+        .select()
+        .single();
+
+      if (createErr) {
+        throw new BadRequestException(`Error al insertar cliente potencial: ${createErr.message}`);
+      }
+
+      return {
+        success: true,
+        accion: 'creado',
+        cliente: {
+          id: created.id,
+          nombre: created.nombre,
+          celular: created.celular,
+          correo: created.correo,
+          estado: created.estado,
+          interes: created.interes_inversion,
+          origen: created.persona_contacto || created.evento_id,
+        },
+        mensaje_para_ia: `Nuevo cliente potencial registrado exitosamente en la base de datos con estado "${cleanEstado}".`,
+      };
+    } catch (err: any) {
+      this.logger.error(`Error en registrarClientePotencial: ${err.message}`);
+      throw new BadRequestException(`No se pudo registrar el cliente: ${err.message}`);
+    }
+  }
+
+  // =========================================================================
+  // 8. ESQUEMAS DE HERRAMIENTAS (TOOLS / FUNCTION CALLING PARA AGENTES DE IA)
   // =========================================================================
   obtenerToolsOpenAI() {
     return {
@@ -699,6 +811,53 @@ export class AgentService implements OnModuleInit {
                 },
               },
               required: ['id', 'estado'],
+            },
+          },
+        },
+        {
+          type: 'function',
+          function: {
+            name: 'registrar_cliente_potencial',
+            description:
+              'Registra un nuevo prospecto o cliente potencial que se contacta por WhatsApp o redes sociales en la base de datos de Afinitive y le asigna su estado comercial.',
+            parameters: {
+              type: 'object',
+              properties: {
+                nombre: {
+                  type: 'string',
+                  description: 'Nombre completo o nombre con el que se identificó el cliente.',
+                },
+                celular: {
+                  type: 'string',
+                  description: 'Número de celular o WhatsApp del cliente (ej: "+51987654321").',
+                },
+                correo: {
+                  type: 'string',
+                  description: 'Correo electrónico del cliente si lo ha proporcionado.',
+                },
+                pais: {
+                  type: 'string',
+                  description: 'País de residencia del cliente (por defecto "Perú").',
+                },
+                interes_inversion: {
+                  type: 'string',
+                  description: 'Interés principal del cliente (ej: "Inmobiliaria", "Bolsa", "Patrimonial", etc.).',
+                },
+                origen: {
+                  type: 'string',
+                  description: 'Canal de captación (ej: "WhatsApp Inbound", "TikTok DM", "Instagram").',
+                },
+                estado: {
+                  type: 'string',
+                  enum: ['pendiente', 'atendido', 'en_proceso'],
+                  description: 'Estado inicial del cliente (por defecto "en_proceso" o "pendiente").',
+                },
+                notas: {
+                  type: 'string',
+                  description: 'Notas adicionales sobre la conversación o necesidades del prospecto.',
+                },
+              },
+              required: ['nombre', 'celular'],
             },
           },
         },

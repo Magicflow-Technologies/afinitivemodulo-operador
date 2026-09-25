@@ -51,6 +51,12 @@ export class AgentController {
     return await this.agentService.actualizarEstadoCliente(id, dto);
   }
 
+  // 7. REGISTRAR CLIENTE POTENCIAL (WHATSAPP INBOUND / REDES SOCIALES)
+  @Post('clientes/registrar')
+  async registrarClientePotencial(@Body() dto: any) {
+    return await this.agentService.registrarClientePotencial(dto);
+  }
+
   // 7. ESQUEMA DE TOOLS PARA AGENTES DE IA (OpenAI / Claude / n8n / LangChain)
   @Get('tools')
   obtenerToolsOpenAI() {

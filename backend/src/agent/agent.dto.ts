@@ -37,3 +37,16 @@ export class ActualizarEstadoClienteAgentDto {
   estado: 'pendiente' | 'atendido' | 'en_proceso' | 'no_responde' | 'descartado' | string;
   notas?: string;
 }
+
+export class RegistrarClientePotencialAgentDto {
+  nombre: string;
+  celular: string;
+  correo?: string;
+  pais?: string;
+  interes_inversion?: string;
+  origen?: string;
+  estado?: 'pendiente' | 'atendido' | 'en_proceso' | 'no_responde' | 'descartado' | string;
+  notas?: string;
+  persona_contacto?: string;
+  evento_id?: string;
+}
