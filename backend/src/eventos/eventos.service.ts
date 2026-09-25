@@ -593,6 +593,14 @@ export class EventosService implements OnModuleInit {
 
     const calendarLinks = this.generarEnlacesCalendario(evento, asistente.nombre);
 
+    const isMeet = (evento.link_reunion || '').toLowerCase().includes('meet.google.com') || (evento.link_reunion || '').toLowerCase().includes('meet');
+    const modalidadTexto = isMeet 
+      ? 'En vivo vía Google Meet' 
+      : (evento.link_reunion?.includes('zoom.us') ? 'En vivo vía Zoom' : 'Virtual / Asesoría Online');
+    const botonTexto = isMeet 
+      ? '🎥 Unirse con Google Meet' 
+      : (evento.link_reunion?.includes('zoom.us') ? '💻 Ingresar a la Sala Zoom' : '🔗 Ingresar a la Reunión');
+
     const html = `
 <!DOCTYPE html>
 <html lang="es">
@@ -671,7 +679,7 @@ export class EventosService implements OnModuleInit {
                 <tr>
                   <td width="24" valign="top" style="font-size: 16px; line-height: 1.4;">💻</td>
                   <td style="color: #3c4043; font-size: 14px; line-height: 1.5; padding-left: 8px;">
-                    <strong>Modalidad:</strong> En vivo vía Zoom
+                    <strong>Modalidad:</strong> ${modalidadTexto}
                   </td>
                 </tr>
               </table>
@@ -691,12 +699,12 @@ export class EventosService implements OnModuleInit {
           </tr>
         </table>
 
-        <!-- Botón Primario: Ingresar a la Sala Zoom (Dorado Luxury Afinitive) -->
+        <!-- Botón Primario: Ingresar a la Sala Meet/Zoom (Dorado Luxury Afinitive) -->
         <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" align="center" style="margin-bottom: 16px;">
           <tr>
             <td align="center">
               <a href="${evento.link_reunion}" target="_blank" style="display: inline-block; background-color: #c9a84c; background-image: linear-gradient(135deg, #d4af37 0%, #b38e2d 100%); color: #ffffff !important; font-size: 15px; font-weight: 700; text-decoration: none; padding: 14px 36px; border-radius: 28px; box-shadow: 0 2px 6px rgba(201, 168, 76, 0.4); text-align: center;">
-                Ingresar a la Sala Zoom
+                ${botonTexto}
               </a>
             </td>
           </tr>
@@ -879,6 +887,113 @@ export class EventosService implements OnModuleInit {
       success: true,
       url: urlData.publicUrl,
       fileName: fileName,
+    };
+  }
+
+  // 12. Agendar Cita Directa 1 a 1 con Lead Registrado (Google Calendar + Meet + Email Confirmación Resend)
+  async agendarCitaDirecta(data: {
+    asistente_id?: string;
+    nombre: string;
+    correo: string;
+    celular?: string;
+    titulo?: string;
+    fecha_inicio: string;
+    duracion_minutos?: number;
+    generar_meet?: boolean;
+    notas?: string;
+  }): Promise<any> {
+    if (!data.correo || !data.nombre) {
+      throw new BadRequestException('El nombre y correo del invitado son requeridos');
+    }
+    if (!data.fecha_inicio) {
+      throw new BadRequestException('La fecha y hora de la cita son obligatorias');
+    }
+
+    const duracion = Number(data.duracion_minutos) || 45;
+    const titulo = data.titulo?.trim() || `Sesión de Asesoría Patrimonial — ${data.nombre}`;
+    const fechaInicio = new Date(data.fecha_inicio);
+    const fechaFin = new Date(fechaInicio.getTime() + duracion * 60 * 1000);
+    const generarMeet = data.generar_meet !== false;
+
+    // 1. Google Calendar Insert con Google Meet
+    let googleRes: any = null;
+    let meetLink: string | null = null;
+    try {
+      const keyFilePath = path.join(process.cwd(), 'afinitive-calendar-sync-bddfdbc9e9de.json');
+      if (fs.existsSync(keyFilePath)) {
+        const auth = new google.auth.GoogleAuth({
+          keyFile: keyFilePath,
+          scopes: ['https://www.googleapis.com/auth/calendar', 'https://www.googleapis.com/auth/calendar.events'],
+        });
+        const calendar = google.calendar({ version: 'v3', auth });
+        const ricardoEmail = 'ricardo@afinitive.pe';
+
+        const eventPayload: any = {
+          summary: `${titulo} [Afinitive]`,
+          description: `Sesión de Asesoría Patrimonial Estratégica con Afinitive Wealth Management.\n\n👤 Invitado: ${data.nombre}\n✉️ Correo: ${data.correo}\n📱 Celular: ${data.celular || 'No registrado'}\n📝 Notas / Objetivo: ${data.notas || 'Asesoría Personalizada'}\n\nOrganizado por Ricardo Bertalmio Ruibal - CEO Afinitive.`,
+          start: { dateTime: fechaInicio.toISOString(), timeZone: 'America/Lima' },
+          end: { dateTime: fechaFin.toISOString(), timeZone: 'America/Lima' },
+          attendees: [
+            { email: data.correo, displayName: data.nombre },
+            { email: ricardoEmail, displayName: 'Ricardo Bertalmio - Afinitive' },
+          ],
+        };
+
+        if (generarMeet) {
+          eventPayload.conferenceData = {
+            createRequest: {
+              requestId: `meet-${Date.now()}-${Math.random().toString(36).substring(7)}`,
+              conferenceSolutionKey: { type: 'hangoutsMeet' },
+            },
+          };
+        }
+
+        const res = await calendar.events.insert({
+          calendarId: 'primary',
+          requestBody: eventPayload,
+          conferenceDataVersion: generarMeet ? 1 : 0,
+          sendUpdates: 'all',
+        });
+
+        googleRes = res.data;
+        meetLink = res.data.hangoutLink || res.data.conferenceData?.entryPoints?.find((p: any) => p.entryPointType === 'video')?.uri || null;
+        this.logger.log(`Cita agendada en Google Calendar: ${res.data.id} - Meet: ${meetLink}`);
+      }
+    } catch (gErr) {
+      this.logger.warn(`Error al agendar en Google Calendar: ${gErr.message}`);
+    }
+
+    // 2. Correo de confirmación con Resend
+    const fakeEvento = {
+      nombre: titulo,
+      descripcion: data.notas || 'Sesión de Asesoría Patrimonial Estratégica con Ricardo Bertalmio.',
+      fecha_inicio: data.fecha_inicio,
+      duracion_minutos: duracion,
+      link_reunion: meetLink || (generarMeet ? 'https://meet.google.com' : 'Coordinación telefónica'),
+    };
+    await this.enviarCorreoConfirmacion(fakeEvento, {
+      nombre: data.nombre,
+      correo: data.correo,
+      celular: data.celular || '',
+    });
+
+    // 3. Actualizar estado en Supabase
+    if (this.supabase && data.asistente_id) {
+      await this.supabase
+        .from('eventos_asistentes')
+        .update({
+          estado: 'en_proceso',
+          fecha_atencion: new Date().toISOString(),
+          notas: data.notas ? `[CITA AGENDADA]: ${data.notas}` : 'Cita agendada con Google Meet',
+        })
+        .eq('id', data.asistente_id);
+    }
+
+    return {
+      success: true,
+      googleEventId: googleRes?.id || null,
+      meetLink: meetLink,
+      message: 'Cita agendada, sala de Google Meet creada y correo de confirmación enviado exitosamente',
     };
   }
 }

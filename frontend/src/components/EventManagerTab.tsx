@@ -190,6 +190,18 @@ export default function EventManagerTab({ onUseAsCampaign }: EventManagerTabProp
   const [uploadingImage, setUploadingImage] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
 
+  // Estado para Modal de Agendamiento Rápido de Cita 1 a 1 con Meet
+  const [isScheduleModalOpen, setIsScheduleModalOpen] = useState(false);
+  const [scheduleContact, setScheduleContact] = useState<Asistente | null>(null);
+  const [schedulingLoading, setSchedulingLoading] = useState(false);
+  const [scheduleForm, setScheduleForm] = useState({
+    titulo: '',
+    fecha_inicio: '',
+    duracion_minutos: 45,
+    generar_meet: true,
+    notas: '',
+  });
+
   const getBackendUrl = () => {
     if (import.meta.env.VITE_BACKEND_URL) return import.meta.env.VITE_BACKEND_URL;
     if (typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')) {
@@ -551,6 +563,74 @@ export default function EventManagerTab({ onUseAsCampaign }: EventManagerTabProp
     // Si estaba pendiente, marcar automáticamente como atendido
     if (!a.estado || a.estado === 'pendiente') {
       handleUpdateAttendeeStatus(a.id, 'atendido');
+    }
+  };
+
+  const handleOpenScheduleModal = (a: Asistente) => {
+    setScheduleContact(a);
+    // Calcular mañana a las 10:00 AM hora local
+    const tomorrow = new Date();
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    tomorrow.setHours(10, 0, 0, 0);
+    const localIso = new Date(tomorrow.getTime() - tomorrow.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
+
+    setScheduleForm({
+      titulo: `Sesión de Asesoría Patrimonial — ${a.nombre}`,
+      fecha_inicio: localIso,
+      duracion_minutos: 45,
+      generar_meet: true, // Por defecto siempre activo
+      notas: `Interés: ${a.interes_inversion || 'Patrimonial'} | Origen: ${a.evento_nombre || 'Web'}`,
+    });
+    setIsScheduleModalOpen(true);
+  };
+
+  const handleConfirmDirectSchedule = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!scheduleContact) return;
+    if (!scheduleForm.fecha_inicio) {
+      showToast('Por favor selecciona la fecha y hora de la reunión', 'error');
+      return;
+    }
+
+    setSchedulingLoading(true);
+    try {
+      const payload = {
+        asistente_id: scheduleContact.id,
+        nombre: scheduleContact.nombre,
+        correo: scheduleContact.correo,
+        celular: scheduleContact.celular,
+        titulo: scheduleForm.titulo,
+        fecha_inicio: scheduleForm.fecha_inicio,
+        duracion_minutos: scheduleForm.duracion_minutos,
+        generar_meet: scheduleForm.generar_meet !== false,
+        notas: scheduleForm.notas,
+      };
+
+      const res = await fetch(`${backendUrl}/api/eventos/agendar-cita-directa`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+
+      const result = await res.json();
+      if (res.ok && result.success) {
+        showToast(
+          result.meetLink 
+            ? '¡Cita agendada! Sala de Google Meet creada y correo de confirmación enviado.' 
+            : 'Cita agendada y correo de confirmación enviado exitosamente.',
+          'success'
+        );
+        setIsScheduleModalOpen(false);
+        setScheduleContact(null);
+        fetchAllAttendees();
+      } else {
+        throw new Error(result.message || 'Error al agendar la reunión');
+      }
+    } catch (err: any) {
+      console.error('Error al agendar cita directa:', err);
+      showToast(err.message || 'Error al agendar la reunión', 'error');
+    } finally {
+      setSchedulingLoading(false);
     }
   };
 
@@ -1718,6 +1798,7 @@ export default function EventManagerTab({ onUseAsCampaign }: EventManagerTabProp
                       <th className="py-3 px-4">Interés</th>
                       <th className="py-3 px-4">Origen</th>
                       <th className="py-3 px-4">Antigüedad & Registro</th>
+                      <th className="py-3 px-4 text-center">Agendar & Acciones</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100">
@@ -1891,6 +1972,19 @@ export default function EventManagerTab({ onUseAsCampaign }: EventManagerTabProp
                                 {formattedCreatedAt}
                               </span>
                             </div>
+                          </td>
+
+                          {/* Agendar & Acciones */}
+                          <td className="py-3.5 px-4 text-center">
+                            <button
+                              type="button"
+                              onClick={() => handleOpenScheduleModal(a)}
+                              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-blue-50 hover:bg-blue-600 text-blue-700 hover:text-white border border-blue-200 hover:border-blue-600 text-xs font-bold transition-all shadow-2xs cursor-pointer active:scale-95 group"
+                              title="Agendar reunión 1 a 1 con enlace de Google Meet y enviar confirmación"
+                            >
+                              <Video className="w-3.5 h-3.5 text-blue-600 group-hover:text-white transition-colors" />
+                              <span>Agendar Meet</span>
+                            </button>
                           </td>
 
                         </tr>
@@ -4097,6 +4191,182 @@ export default function EventManagerTab({ onUseAsCampaign }: EventManagerTabProp
                 </button>
               </div>
             </div>
+
+          </div>
+        </div>
+      )}
+
+      {/* ================= MODAL: AGENDAMIENTO DIRECTO DE CITA 1 A 1 CON GOOGLE MEET ================= */}
+      {isScheduleModalOpen && scheduleContact && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 z-50 animate-in fade-in duration-200">
+          <div className="bg-white rounded-3xl max-w-lg w-full p-6 shadow-2xl border border-slate-200 space-y-5 animate-in zoom-in-95 duration-200">
+            
+            {/* Header Modal */}
+            <div className="flex items-center justify-between border-b border-slate-100 pb-4">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-2xl bg-blue-50 border border-blue-200 text-blue-600 flex items-center justify-center font-bold">
+                  <Video className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-base font-black text-slate-900 tracking-tight">
+                    Agendar Cita Directa & Google Meet
+                  </h3>
+                  <p className="text-xs text-slate-500">
+                    Se creará en Google Calendar y se enviará la invitación por correo al cliente.
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => {
+                  setIsScheduleModalOpen(false);
+                  setScheduleContact(null);
+                }}
+                className="w-8 h-8 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-500 flex items-center justify-center cursor-pointer transition-colors"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* Formulario */}
+            <form onSubmit={handleConfirmDirectSchedule} className="space-y-4">
+              
+              {/* Tarjeta Resumen del Contacto */}
+              <div className="p-3.5 bg-slate-50 border border-slate-200 rounded-2xl space-y-1.5">
+                <div className="flex items-center justify-between">
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Invitado:</span>
+                  <span className="text-[10px] font-bold px-2 py-0.5 bg-emerald-100 text-emerald-800 rounded-full border border-emerald-300">
+                    Lead Registrado
+                  </span>
+                </div>
+                <div className="text-sm font-bold text-slate-900">{scheduleContact.nombre}</div>
+                <div className="flex flex-wrap items-center gap-3 text-xs text-slate-600 font-mono">
+                  <span className="flex items-center gap-1"><Mail className="w-3 h-3 text-blue-500" /> {scheduleContact.correo}</span>
+                  {scheduleContact.celular && (
+                    <span className="flex items-center gap-1"><MessageCircle className="w-3 h-3 text-emerald-500" /> {scheduleContact.celular}</span>
+                  )}
+                </div>
+              </div>
+
+              {/* Título de la Reunión */}
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1">
+                  Asunto / Título de la Reunión <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="text"
+                  required
+                  value={scheduleForm.titulo}
+                  onChange={(e) => setScheduleForm({ ...scheduleForm, titulo: e.target.value })}
+                  placeholder="Ej. Sesión de Asesoría Patrimonial"
+                  className="w-full bg-white border border-slate-300 rounded-xl py-2 px-3 text-xs text-slate-900 focus:outline-none focus:border-blue-600"
+                />
+              </div>
+
+              {/* Fecha, Hora y Duración */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">
+                    Fecha y Hora (Hora Perú) <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    type="datetime-local"
+                    required
+                    value={scheduleForm.fecha_inicio}
+                    onChange={(e) => setScheduleForm({ ...scheduleForm, fecha_inicio: e.target.value })}
+                    className="w-full bg-white border border-slate-300 rounded-xl py-2 px-3 text-xs text-slate-900 focus:outline-none focus:border-blue-600 font-mono"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">
+                    Duración Estimada
+                  </label>
+                  <select
+                    value={scheduleForm.duracion_minutos}
+                    onChange={(e) => setScheduleForm({ ...scheduleForm, duracion_minutos: Number(e.target.value) })}
+                    className="w-full bg-white border border-slate-300 rounded-xl py-2 px-3 text-xs text-slate-900 focus:outline-none focus:border-blue-600 font-bold"
+                  >
+                    <option value={30}>⏱️ 30 Minutos</option>
+                    <option value={45}>⏱️ 45 Minutos (Recomendado)</option>
+                    <option value={60}>⏱️ 60 Minutos</option>
+                  </select>
+                </div>
+              </div>
+
+              {/* Toggle de Google Meet (Activo por defecto) */}
+              <div className="bg-blue-50/70 border border-blue-200 rounded-2xl p-3.5 space-y-2">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Video className="w-4 h-4 text-blue-600" />
+                    <div>
+                      <span className="text-xs font-bold text-slate-900">Crear enlace de Google Meet</span>
+                      <span className="ml-1.5 text-[10px] font-bold px-1.5 py-0.2 bg-emerald-100 text-emerald-800 border border-emerald-300 rounded-full">Por defecto</span>
+                    </div>
+                  </div>
+                  <label className="relative inline-flex items-center cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={scheduleForm.generar_meet}
+                      onChange={(e) => setScheduleForm({ ...scheduleForm, generar_meet: e.target.checked })}
+                      className="sr-only peer"
+                    />
+                    <div className="w-9 h-5 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-blue-600"></div>
+                  </label>
+                </div>
+                <p className="text-[11px] text-blue-800">
+                  {scheduleForm.generar_meet 
+                    ? '✓ Se creará la sala de Google Meet automáticamente y se adjuntará el enlace y botón de Calendar en el correo al cliente.' 
+                    : 'ℹ️ No se generará sala de Google Meet (coordinación telefónica o presencial).'}
+                </p>
+              </div>
+
+              {/* Notas del Asesor / Objetivo */}
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1">
+                  Notas u Objetivo de la Cita (Opcional)
+                </label>
+                <textarea
+                  rows={2}
+                  value={scheduleForm.notas}
+                  onChange={(e) => setScheduleForm({ ...scheduleForm, notas: e.target.value })}
+                  placeholder="Detalles sobre el perfil del cliente, dudas previas o temas a tratar..."
+                  className="w-full bg-white border border-slate-300 rounded-xl p-2.5 text-xs text-slate-900 focus:outline-none focus:border-blue-600"
+                ></textarea>
+              </div>
+
+              {/* Botones de Acción */}
+              <div className="flex items-center justify-end gap-3 pt-3 border-t border-slate-100">
+                <button
+                  type="button"
+                  disabled={schedulingLoading}
+                  onClick={() => {
+                    setIsScheduleModalOpen(false);
+                    setScheduleContact(null);
+                  }}
+                  className="px-4 py-2 text-xs font-semibold text-slate-600 hover:text-slate-800 rounded-xl bg-slate-100 hover:bg-slate-200 transition-colors cursor-pointer"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  disabled={schedulingLoading}
+                  className="px-5 py-2.5 text-xs font-bold text-white rounded-xl bg-blue-600 hover:bg-blue-700 shadow-md transition-all cursor-pointer flex items-center gap-2 disabled:opacity-50 active:scale-95"
+                >
+                  {schedulingLoading ? (
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      <span>Agendando en Calendar y Enviando Correo...</span>
+                    </>
+                  ) : (
+                    <>
+                      <CheckCircle2 className="w-4 h-4" />
+                      <span>Agendar Cita & Enviar Confirmación</span>
+                    </>
+                  )}
+                </button>
+              </div>
+
+            </form>
 
           </div>
         </div>

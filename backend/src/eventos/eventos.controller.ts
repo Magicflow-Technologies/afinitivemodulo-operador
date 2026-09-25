@@ -38,9 +38,27 @@ export class RegistroAsistenteDto {
   persona_contacto?: string;
 }
 
+export class AgendarCitaDirectaDto {
+  asistente_id?: string;
+  nombre: string;
+  correo: string;
+  celular?: string;
+  titulo?: string;
+  fecha_inicio: string;
+  duracion_minutos?: number;
+  generar_meet?: boolean;
+  notas?: string;
+}
+
 @Controller('api/eventos')
 export class EventosController {
   constructor(private readonly eventosService: EventosService) {}
+
+  // Agendar cita directa 1 a 1 con lead (Google Calendar + Meet + Resend Email)
+  @Post('agendar-cita-directa')
+  async agendarCitaDirecta(@Body() body: AgendarCitaDirectaDto) {
+    return await this.eventosService.agendarCitaDirecta(body);
+  }
 
   // Listar todos los eventos
   @Get()
