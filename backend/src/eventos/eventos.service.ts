@@ -12,6 +12,7 @@ export interface EventoData {
   tipo?: 'webinar' | 'lead_form';
   fecha_inicio?: string;
   link_reunion?: string;
+  generar_meet?: boolean;
   descripcion?: string;
   duracion_minutos?: number;
   activo?: boolean;
@@ -159,8 +160,10 @@ export class EventosService implements OnModuleInit {
     }
 
     const esLeadForm = data.tipo === 'lead_form';
-    if (!esLeadForm && (!data.fecha_inicio || !data.link_reunion)) {
-      throw new BadRequestException('Para un webinar, la fecha de inicio y link de reunión son obligatorios');
+    const generarMeet = data.generar_meet !== false; // Activo por defecto siempre
+
+    if (!esLeadForm && !data.fecha_inicio) {
+      throw new BadRequestException('Para un webinar o evento con agenda, la fecha de inicio es obligatoria');
     }
 
     // Generar slug si no se envía ID
@@ -174,12 +177,15 @@ export class EventosService implements OnModuleInit {
           .replace(/-+/g, '-')
           .substring(0, 40) + '-' + Date.now().toString().slice(-4);
 
+    const initialLink = (data.link_reunion || '').trim();
+    const finalLink = initialLink || (generarMeet && !esLeadForm ? 'Google Meet (Generación Automática)' : '');
+
     const payload: any = {
       id: eventId,
       nombre: data.nombre.trim(),
       tipo: data.tipo || 'webinar',
       fecha_inicio: data.fecha_inicio || (esLeadForm ? null : new Date().toISOString()),
-      link_reunion: (data.link_reunion || '').trim(),
+      link_reunion: finalLink,
       descripcion: data.descripcion || '',
       duracion_minutos: Number(data.duracion_minutos) || 45,
       activo: data.activo !== false,
@@ -518,10 +524,17 @@ export class EventosService implements OnModuleInit {
     const duracion = Number(evento.duracion_minutos) || 45;
     const fechaFin = new Date(fechaInicio.getTime() + duracion * 60 * 1000);
 
+    const esMeetDeseado = evento.generar_meet !== false && (
+      !evento.link_reunion ||
+      evento.link_reunion.includes('Google Meet') ||
+      evento.link_reunion.includes('meet.google.com') ||
+      !evento.link_reunion.includes('zoom.us')
+    );
+
     const eventPayload: any = {
       summary: `${evento.nombre} - ${asistente.nombre}`,
       description: `${evento.descripcion || 'Presentación Exclusiva Afinitive'}\n\n💻 Enlace de Acceso: ${evento.link_reunion || 'Google Meet'}\n\n👤 Asistente: ${asistente.nombre}\n✉️ Correo: ${asistente.correo}\n📱 Celular: ${asistente.celular}\n\nOrganizado por Ricardo Bertalmio Ruibal - CEO Afinitive Wealth Management.`,
-      location: evento.link_reunion || 'Google Meet',
+      location: evento.link_reunion || (esMeetDeseado ? 'Google Meet' : 'Online'),
       start: {
         dateTime: fechaInicio.toISOString(),
         timeZone: 'America/Lima',
@@ -534,24 +547,27 @@ export class EventosService implements OnModuleInit {
         { email: asistente.correo, displayName: asistente.nombre },
         { email: ricardoEmail, displayName: 'Ricardo Bertalmio - Afinitive' },
       ],
-      conferenceData: {
+    };
+
+    if (esMeetDeseado) {
+      eventPayload.conferenceData = {
         createRequest: {
           requestId: `meet-${Date.now()}-${Math.random().toString(36).substring(7)}`,
           conferenceSolutionKey: { type: 'hangoutsMeet' },
         },
-      },
-    };
+      };
+    }
 
     try {
       const res = await calendar.events.insert({
         calendarId: 'primary',
         requestBody: eventPayload,
-        conferenceDataVersion: 1,
+        conferenceDataVersion: esMeetDeseado ? 1 : 0,
         sendUpdates: 'all', // Envía notificación y agrega al calendario del cliente y de Ricardo
       });
 
       const meetLink = res.data.hangoutLink || res.data.conferenceData?.entryPoints?.find((p: any) => p.entryPointType === 'video')?.uri || null;
-      this.logger.log(`Evento de Google Calendar creado: ${res.data.id} - Meet Link: ${meetLink}`);
+      this.logger.log(`Evento de Google Calendar creado: ${res.data.id} - Meet Link: ${meetLink || 'N/A'}`);
       return { id: res.data.id, htmlLink: res.data.htmlLink, meetLink };
     } catch (err) {
       this.logger.warn(`Error en Google Calendar insert: ${err.message}`);

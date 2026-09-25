@@ -22,6 +22,7 @@ export class CreateEventoDto {
   tipo?: 'webinar' | 'lead_form';
   fecha_inicio?: string;
   link_reunion?: string;
+  generar_meet?: boolean;
   descripcion?: string;
   duracion_minutos?: number;
   activo?: boolean;

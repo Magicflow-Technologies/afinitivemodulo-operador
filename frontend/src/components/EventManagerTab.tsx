@@ -55,6 +55,7 @@ export interface Evento {
   tipo?: 'webinar' | 'lead_form';
   fecha_inicio?: string;
   link_reunion?: string;
+  generar_meet?: boolean;
   descripcion?: string;
   duracion_minutos?: number;
   activo?: boolean;
@@ -287,7 +288,8 @@ export default function EventManagerTab({ onUseAsCampaign }: EventManagerTabProp
       tipo: tipoPredeterminado,
       fecha_inicio: tipoPredeterminado === 'webinar' ? new Date(Date.now() + 86400000 * 7).toISOString().slice(0, 16) : '',
       duracion_minutos: 60,
-      link_reunion: tipoPredeterminado === 'webinar' ? 'https://us06web.zoom.us/launch/jc/' : '',
+      generar_meet: true, // Por defecto siempre crea con Google Meet
+      link_reunion: '',
       descripcion: tipoPredeterminado === 'webinar' 
         ? `Una oportunidad de inversión inmobiliaria exclusiva con Afinitive Wealth Management.\n\n📈 Retorno proyectado: + 17%\n⏰ Hora Perú: 7:30 p.m.\n\nTe mostraremos el modelo financiero y sus números.`
         : `Completa tus datos para recibir asesoría personalizada y acceso exclusivo a nuestras oportunidades de inversión patrimonial.`,
@@ -312,6 +314,7 @@ export default function EventManagerTab({ onUseAsCampaign }: EventManagerTabProp
       ...evento,
       tipo: evento.tipo || 'webinar',
       fecha_inicio: formattedDate,
+      generar_meet: evento.generar_meet !== false, // Por defecto true
     });
     setIsEditModalOpen(true);
   };
@@ -324,8 +327,15 @@ export default function EventManagerTab({ onUseAsCampaign }: EventManagerTabProp
     }
 
     const esWebinar = (editingEvento.tipo || 'webinar') === 'webinar';
-    if (esWebinar && (!editingEvento.fecha_inicio || !editingEvento.link_reunion)) {
-      showToast('Para un Webinar, la fecha de inicio y el enlace de Zoom son obligatorios', 'error');
+    const generarMeet = editingEvento.generar_meet !== false;
+
+    if (esWebinar && !editingEvento.fecha_inicio) {
+      showToast('Para un Webinar / Cita en agenda, la fecha de inicio es obligatoria', 'error');
+      return;
+    }
+
+    if (esWebinar && !generarMeet && !editingEvento.link_reunion) {
+      showToast('Si no generas Google Meet automáticamente, debes ingresar un enlace de reunión (Zoom, Teams u otro)', 'error');
       return;
     }
 
@@ -338,7 +348,8 @@ export default function EventManagerTab({ onUseAsCampaign }: EventManagerTabProp
         ...editingEvento,
         tipo: editingEvento.tipo || 'webinar',
         fecha_inicio: esWebinar ? editingEvento.fecha_inicio : null,
-        link_reunion: esWebinar ? editingEvento.link_reunion : '',
+        generar_meet: esWebinar ? generarMeet : false,
+        link_reunion: esWebinar ? (editingEvento.link_reunion || (generarMeet ? 'Google Meet (Generación Automática)' : '')) : '',
       };
 
       const res = await fetch(url, {
@@ -3473,19 +3484,60 @@ export default function EventManagerTab({ onUseAsCampaign }: EventManagerTabProp
                     />
                   </div>
 
-                  {/* Zoom Link */}
-                  <div>
-                    <label className="block text-xs font-bold text-slate-700 mb-1">
-                      Enlace de Reunión / Zoom <span className="text-red-500">*</span>
-                    </label>
-                    <input
-                      type="url"
-                      required
-                      value={editingEvento.link_reunion || ''}
-                      onChange={(e) => setEditingEvento({ ...editingEvento, link_reunion: e.target.value })}
-                      placeholder="https://us06web.zoom.us/launch/jc/86782072926"
-                      className="w-full bg-white border border-slate-300 rounded-xl py-2 px-3 text-xs text-slate-900 focus:outline-none focus:border-blue-600"
-                    />
+                  {/* Configuración de Sala de Videollamada / Google Meet */}
+                  <div className="bg-slate-50 border border-slate-200 rounded-xl p-3.5 space-y-3">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2.5">
+                        <div className="w-8 h-8 rounded-lg bg-blue-100 flex items-center justify-center text-blue-600 font-bold shrink-0">
+                          <Video className="w-4 h-4" />
+                        </div>
+                        <div>
+                          <label className="text-xs font-bold text-slate-800 flex items-center gap-1.5 cursor-pointer">
+                            <span>Crear sala de Google Meet</span>
+                            <span className="text-[10px] font-bold px-2 py-0.5 bg-emerald-100 text-emerald-800 border border-emerald-300 rounded-full">Por defecto</span>
+                          </label>
+                          <p className="text-[11px] text-slate-500">Crea el link de Google Meet sincronizado automáticamente con Google Calendar</p>
+                        </div>
+                      </div>
+                      <label className="relative inline-flex items-center cursor-pointer shrink-0">
+                        <input
+                          type="checkbox"
+                          checked={editingEvento.generar_meet !== false}
+                          onChange={(e) => {
+                            const checked = e.target.checked;
+                            setEditingEvento({
+                              ...editingEvento,
+                              generar_meet: checked,
+                              link_reunion: checked ? '' : (editingEvento.link_reunion || '')
+                            });
+                          }}
+                          className="sr-only peer"
+                        />
+                        <div className="w-9 h-5 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-blue-600"></div>
+                      </label>
+                    </div>
+
+                    {editingEvento.generar_meet !== false ? (
+                      <div className="bg-blue-50/80 border border-blue-200/80 rounded-lg p-2.5 flex items-start gap-2 text-xs text-blue-900 font-medium">
+                        <CheckCircle2 className="w-4 h-4 text-blue-600 shrink-0 mt-0.5" />
+                        <span>Google Meet creará la sala de videollamada de forma automática al confirmar el agendamiento y la incluirá en la invitación oficial.</span>
+                      </div>
+                    ) : (
+                      <div className="space-y-1.5 pt-1 border-t border-slate-200">
+                        <label className="block text-xs font-bold text-slate-700">
+                          Enlace manual de Reunión (Zoom, Teams u otro) <span className="text-red-500">*</span>
+                        </label>
+                        <input
+                          type="url"
+                          required={editingEvento.generar_meet === false}
+                          value={editingEvento.link_reunion || ''}
+                          onChange={(e) => setEditingEvento({ ...editingEvento, link_reunion: e.target.value })}
+                          placeholder="https://us06web.zoom.us/j/1234567890 o https://teams.microsoft.com/..."
+                          className="w-full bg-white border border-slate-300 rounded-xl py-2 px-3 text-xs text-slate-900 focus:outline-none focus:border-blue-600"
+                        />
+                        <p className="text-[11px] text-slate-400">Pega aquí el enlace de la sala si prefieres utilizar otra plataforma distinta a Google Meet.</p>
+                      </div>
+                    )}
                   </div>
                 </>
               )}
