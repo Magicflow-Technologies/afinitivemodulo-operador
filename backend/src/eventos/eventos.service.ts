@@ -520,8 +520,8 @@ export class EventosService implements OnModuleInit {
 
     const eventPayload: any = {
       summary: `${evento.nombre} - ${asistente.nombre}`,
-      description: `${evento.descripcion || 'Presentación Exclusiva Afinitive'}\n\n💻 Enlace de Acceso Zoom: ${evento.link_reunion}\n\n👤 Asistente: ${asistente.nombre}\n✉️ Correo: ${asistente.correo}\n📱 Celular: ${asistente.celular}\n\nOrganizado por Ricardo Bertalmio Ruibal - CEO Afinitive Wealth Management.`,
-      location: evento.link_reunion,
+      description: `${evento.descripcion || 'Presentación Exclusiva Afinitive'}\n\n💻 Enlace de Acceso: ${evento.link_reunion || 'Google Meet'}\n\n👤 Asistente: ${asistente.nombre}\n✉️ Correo: ${asistente.correo}\n📱 Celular: ${asistente.celular}\n\nOrganizado por Ricardo Bertalmio Ruibal - CEO Afinitive Wealth Management.`,
+      location: evento.link_reunion || 'Google Meet',
       start: {
         dateTime: fechaInicio.toISOString(),
         timeZone: 'America/Lima',
@@ -534,17 +534,25 @@ export class EventosService implements OnModuleInit {
         { email: asistente.correo, displayName: asistente.nombre },
         { email: ricardoEmail, displayName: 'Ricardo Bertalmio - Afinitive' },
       ],
+      conferenceData: {
+        createRequest: {
+          requestId: `meet-${Date.now()}-${Math.random().toString(36).substring(7)}`,
+          conferenceSolutionKey: { type: 'hangoutsMeet' },
+        },
+      },
     };
 
     try {
       const res = await calendar.events.insert({
         calendarId: 'primary',
         requestBody: eventPayload,
+        conferenceDataVersion: 1,
         sendUpdates: 'all', // Envía notificación y agrega al calendario del cliente y de Ricardo
       });
 
-      this.logger.log(`Evento de Google Calendar creado: ${res.data.id}`);
-      return { id: res.data.id, htmlLink: res.data.htmlLink };
+      const meetLink = res.data.hangoutLink || res.data.conferenceData?.entryPoints?.find((p: any) => p.entryPointType === 'video')?.uri || null;
+      this.logger.log(`Evento de Google Calendar creado: ${res.data.id} - Meet Link: ${meetLink}`);
+      return { id: res.data.id, htmlLink: res.data.htmlLink, meetLink };
     } catch (err) {
       this.logger.warn(`Error en Google Calendar insert: ${err.message}`);
       return null;
