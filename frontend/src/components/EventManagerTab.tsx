@@ -27,7 +27,17 @@ import {
   Briefcase,
   RotateCcw,
   Save,
-  ExternalLink
+  ExternalLink,
+  BarChart3,
+  TrendingUp,
+  Clock,
+  Flame,
+  Zap,
+  PhoneOff,
+  Activity,
+  Smartphone,
+  Timer,
+  ChevronRight
 } from 'lucide-react';
 import type { BioButtonItem } from '../utils/bioLinkConfig';
 import { 
@@ -74,8 +84,8 @@ interface EventManagerTabProps {
 }
 
 export default function EventManagerTab({ onUseAsCampaign }: EventManagerTabProps = {}) {
-  // Navigation tabs: 'eventos' | 'registrados' | 'biolink'
-  const [activeSubTab, setActiveSubTab] = useState<'eventos' | 'registrados' | 'biolink'>('eventos');
+  // Navigation tabs: 'eventos' | 'registrados' | 'estadisticas' | 'biolink'
+  const [activeSubTab, setActiveSubTab] = useState<'eventos' | 'registrados' | 'estadisticas' | 'biolink'>('eventos');
 
   const [eventos, setEventos] = useState<Evento[]>([]);
   const [loading, setLoading] = useState(true);
@@ -92,6 +102,9 @@ export default function EventManagerTab({ onUseAsCampaign }: EventManagerTabProp
   const [attendeeSearchGlobal, setAttendeeSearchGlobal] = useState('');
   const [interestFilter, setInterestFilter] = useState<string>('todos');
   const [statusFilter, setStatusFilter] = useState<string>('todos');
+  const [channelFilter, setChannelFilter] = useState<'todos' | 'con_celular' | 'solo_correo'>('todos');
+  const [ageFilter, setAgeFilter] = useState<'todos' | 'hoy' | 'semana' | 'mes' | 'antiguo'>('todos');
+  const [analyticsTimeframe, setAnalyticsTimeframe] = useState<'all' | '30d' | '7d' | 'today'>('all');
   const [updatingStatusId, setUpdatingStatusId] = useState<string | null>(null);
 
   // Modals state
@@ -554,6 +567,72 @@ export default function EventManagerTab({ onUseAsCampaign }: EventManagerTabProp
     document.body.removeChild(link);
   };
 
+  // Helper para categorizar y formatear antigüedad de los contactos
+  const getLeadAgeInfo = (createdAtStr?: string) => {
+    if (!createdAtStr) {
+      return { 
+        group: 'antiguo' as const, 
+        label: 'Sin fecha', 
+        tag: 'Desconocido', 
+        shortTag: '-', 
+        hours: 9999, 
+        days: 999, 
+        badgeClass: 'bg-slate-100 text-slate-600 border-slate-200' 
+      };
+    }
+    const created = new Date(createdAtStr).getTime();
+    const now = Date.now();
+    const diffMs = Math.max(0, now - created);
+    const diffHours = diffMs / (1000 * 60 * 60);
+    const diffDays = diffHours / 24;
+
+    if (diffHours <= 24) {
+      const roundedH = Math.max(1, Math.round(diffHours));
+      return {
+        group: 'hoy' as const,
+        label: diffHours < 1 ? 'Hace unos minutos' : `Hace ${roundedH} hora${roundedH > 1 ? 's' : ''}`,
+        tag: '🔥 <24 Horas (Caliente)',
+        shortTag: diffHours < 1 ? '🔥 Hoy' : `🔥 ${roundedH}h`,
+        days: diffDays,
+        hours: diffHours,
+        badgeClass: 'bg-rose-50 text-rose-700 border-rose-200 font-bold'
+      };
+    } else if (diffDays <= 7) {
+      const roundedD = Math.max(2, Math.round(diffDays));
+      return {
+        group: 'semana' as const,
+        label: `Hace ${roundedD} días`,
+        tag: '⚡ 2 a 7 días (Óptimo)',
+        shortTag: `⚡ ${roundedD}d`,
+        days: diffDays,
+        hours: diffHours,
+        badgeClass: 'bg-amber-50 text-amber-800 border-amber-200 font-semibold'
+      };
+    } else if (diffDays <= 30) {
+      const roundedD = Math.round(diffDays);
+      return {
+        group: 'mes' as const,
+        label: `Hace ${roundedD} días`,
+        tag: '📆 8 a 30 días (Seguimiento)',
+        shortTag: `📆 ${roundedD}d`,
+        days: diffDays,
+        hours: diffHours,
+        badgeClass: 'bg-blue-50 text-blue-800 border-blue-200 font-medium'
+      };
+    } else {
+      const roundedM = Math.max(1, Math.round(diffDays / 30));
+      return {
+        group: 'antiguo' as const,
+        label: `Hace ${roundedM} mes${roundedM > 1 ? 'es' : ''}`,
+        tag: '❄️ +30 días (Histórico)',
+        shortTag: `❄️ ${roundedM}m`,
+        days: diffDays,
+        hours: diffHours,
+        badgeClass: 'bg-slate-100 text-slate-600 border-slate-200'
+      };
+    }
+  };
+
   // Filtros de eventos
   const filteredEventos = eventos.filter(ev => {
     const matchesSearch = 
@@ -569,12 +648,12 @@ export default function EventManagerTab({ onUseAsCampaign }: EventManagerTabProp
     return matchesSearch && matchesTipo;
   });
 
-  // Filtros de asistentes globales
+  // Filtros de asistentes globales (Buscador + Estado + Evento + Interés + Canal de Contacto + Antigüedad)
   const filteredGlobalAttendees = allAttendees.filter(a => {
     const matchesSearch = 
       a.nombre.toLowerCase().includes(attendeeSearchGlobal.toLowerCase()) ||
       a.correo.toLowerCase().includes(attendeeSearchGlobal.toLowerCase()) ||
-      a.celular.includes(attendeeSearchGlobal) ||
+      (a.celular && a.celular.includes(attendeeSearchGlobal)) ||
       (a.pais && a.pais.toLowerCase().includes(attendeeSearchGlobal.toLowerCase()));
 
     const matchesEvent = 
@@ -587,13 +666,112 @@ export default function EventManagerTab({ onUseAsCampaign }: EventManagerTabProp
     const matchesStatus = 
       statusFilter === 'todos' || currentStatus === statusFilter;
 
-    return matchesSearch && matchesEvent && matchesInterest && matchesStatus;
+    const cleanPhone = (a.celular || '').replace(/[^0-9]/g, '');
+    const hasPhone = cleanPhone.length >= 7;
+    const matchesChannel = 
+      channelFilter === 'todos' ||
+      (channelFilter === 'con_celular' && hasPhone) ||
+      (channelFilter === 'solo_correo' && !hasPhone);
+
+    const ageInfo = getLeadAgeInfo(a.created_at);
+    const matchesAge = 
+      ageFilter === 'todos' || ageInfo.group === ageFilter;
+
+    return matchesSearch && matchesEvent && matchesInterest && matchesStatus && matchesChannel && matchesAge;
   });
 
+  // Métricas generales rápidas
   const totalRegistradosCount = allAttendees.length;
   const totalPendientesCount = allAttendees.filter(a => (a.estado || 'pendiente') === 'pendiente').length;
   const totalAtendidosCount = allAttendees.filter(a => a.estado === 'atendido' || a.estado === 'contactado').length;
   const totalEnProcesoCount = allAttendees.filter(a => a.estado === 'en_proceso').length;
+
+  // ==========================================
+  // CÁLCULOS PARA DASHBOARD EJECUTIVO (STEVE JOBS STYLE)
+  // ==========================================
+  const analyticsAttendees = allAttendees.filter(a => {
+    if (analyticsTimeframe === 'all') return true;
+    const age = getLeadAgeInfo(a.created_at);
+    if (analyticsTimeframe === 'today') return age.hours <= 24;
+    if (analyticsTimeframe === '7d') return age.days <= 7;
+    if (analyticsTimeframe === '30d') return age.days <= 30;
+    return true;
+  });
+
+  const totalAnalytics = analyticsAttendees.length;
+
+  // 1. Canales de Contacto (Teléfono/WhatsApp vs Solo Correo)
+  const analyticsConCelular = analyticsAttendees.filter(a => (a.celular || '').replace(/[^0-9]/g, '').length >= 7);
+  const analyticsSoloCorreo = analyticsAttendees.filter(a => (a.celular || '').replace(/[^0-9]/g, '').length < 7);
+  const analyticsCompletos = analyticsAttendees.filter(a => {
+    const hasPhone = (a.celular || '').replace(/[^0-9]/g, '').length >= 7;
+    const hasEmail = (a.correo || '').includes('@');
+    const hasName = (a.nombre || '').trim().length > 1;
+    return hasPhone && hasEmail && hasName;
+  });
+
+  const pctAnalyticsCelular = totalAnalytics > 0 ? Math.round((analyticsConCelular.length / totalAnalytics) * 100) : 0;
+  const pctAnalyticsSoloCorreo = totalAnalytics > 0 ? Math.round((analyticsSoloCorreo.length / totalAnalytics) * 100) : 0;
+  const pctAnalyticsCompletos = totalAnalytics > 0 ? Math.round((analyticsCompletos.length / totalAnalytics) * 100) : 0;
+
+  // 2. Interacciones de WhatsApp & Efectividad
+  const analyticsContactadosWsp = analyticsConCelular.filter(a => a.estado === 'atendido' || a.estado === 'contactado' || a.estado === 'en_proceso');
+  const analyticsPendientesWsp = analyticsConCelular.filter(a => (a.estado || 'pendiente') === 'pendiente');
+  const tasaContactadosWsp = analyticsConCelular.length > 0 ? Math.round((analyticsContactadosWsp.length / analyticsConCelular.length) * 100) : 0;
+
+  // 3. Cohortes de Antigüedad (Freshness Index)
+  const cohortesAnalytics = {
+    hoy: analyticsAttendees.filter(a => getLeadAgeInfo(a.created_at).group === 'hoy'),
+    semana: analyticsAttendees.filter(a => getLeadAgeInfo(a.created_at).group === 'semana'),
+    mes: analyticsAttendees.filter(a => getLeadAgeInfo(a.created_at).group === 'mes'),
+    antiguo: analyticsAttendees.filter(a => getLeadAgeInfo(a.created_at).group === 'antiguo'),
+  };
+
+  // 4. Speed-to-Lead (Tiempo Promedio de Respuesta / Atención)
+  const leadsConTiempo = analyticsAttendees.filter(a => a.fecha_atencion && a.created_at);
+  let avgResponseHours = 0;
+  if (leadsConTiempo.length > 0) {
+    const sumHours = leadsConTiempo.reduce((acc, a) => {
+      const start = new Date(a.created_at).getTime();
+      const end = new Date(a.fecha_atencion!).getTime();
+      const diff = Math.max(0, end - start) / (1000 * 60 * 60);
+      return acc + diff;
+    }, 0);
+    avgResponseHours = Math.round((sumHours / leadsConTiempo.length) * 10) / 10;
+  }
+
+  // 5. Estados del Embudo
+  const analyticsPendientes = analyticsAttendees.filter(a => (a.estado || 'pendiente') === 'pendiente').length;
+  const analyticsAtendidos = analyticsAttendees.filter(a => a.estado === 'atendido' || a.estado === 'contactado').length;
+  const analyticsEnProceso = analyticsAttendees.filter(a => a.estado === 'en_proceso').length;
+  const analyticsDescartados = analyticsAttendees.filter(a => a.estado === 'no_responde' || a.estado === 'descartado').length;
+  const tasaAtencionGlobal = totalAnalytics > 0 ? Math.round(((analyticsAtendidos + analyticsEnProceso) / totalAnalytics) * 100) : 0;
+
+  // 6. Distribución por Origen
+  const porOrigen = analyticsAttendees.reduce((acc: { [k: string]: number }, a) => {
+    let key = a.evento_id === 'dr-finanzas-bio' 
+      ? '✨ Bio Link TikTok (Dr. Finanzas)' 
+      : (a.evento_nombre || 'Formulario Web');
+    acc[key] = (acc[key] || 0) + 1;
+    return acc;
+  }, {});
+  const origenesOrdenados = Object.entries(porOrigen).sort((a, b) => b[1] - a[1]);
+
+  // 7. Distribución por Interés
+  const porInteres = analyticsAttendees.reduce((acc: { [k: string]: number }, a) => {
+    let key = a.interes_inversion || 'Sin especificar';
+    acc[key] = (acc[key] || 0) + 1;
+    return acc;
+  }, {});
+  const interesesOrdenados = Object.entries(porInteres).sort((a, b) => b[1] - a[1]);
+
+  // 8. Distribución por País
+  const porPais = analyticsAttendees.reduce((acc: { [k: string]: number }, a) => {
+    let key = a.pais || 'Perú';
+    acc[key] = (acc[key] || 0) + 1;
+    return acc;
+  }, {});
+  const paisesOrdenados = Object.entries(porPais).sort((a, b) => b[1] - a[1]);
 
   return (
     <div className="space-y-6 animate-in fade-in duration-300">
@@ -644,7 +822,7 @@ export default function EventManagerTab({ onUseAsCampaign }: EventManagerTabProp
             }`}
           >
             <Building2 className="w-4 h-4 text-amber-600" />
-            <span>Eventos & Formularios Creados ({eventos.length})</span>
+            <span>Eventos & Formularios ({eventos.length})</span>
           </button>
 
           <button
@@ -659,7 +837,25 @@ export default function EventManagerTab({ onUseAsCampaign }: EventManagerTabProp
             }`}
           >
             <Users className="w-4 h-4 text-blue-600" />
-            <span>👥 Clientes Registrados / Leads ({totalRegistradosCount})</span>
+            <span>👥 Clientes Registrados ({totalRegistradosCount})</span>
+          </button>
+
+          <button
+            onClick={() => {
+              setActiveSubTab('estadisticas');
+              fetchAllAttendees();
+            }}
+            className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+              activeSubTab === 'estadisticas'
+                ? 'bg-gradient-to-r from-purple-50 to-indigo-50 text-indigo-950 border border-indigo-300 shadow-xs ring-1 ring-indigo-400/20'
+                : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100 border border-transparent'
+            }`}
+          >
+            <BarChart3 className="w-4 h-4 text-indigo-600" />
+            <span>📊 Estadísticas & Métricas</span>
+            <span className="px-1.5 py-0.2 rounded-md bg-indigo-600 text-white text-[9px] font-black uppercase tracking-wider">
+              PRO
+            </span>
           </button>
 
           <button
@@ -678,11 +874,11 @@ export default function EventManagerTab({ onUseAsCampaign }: EventManagerTabProp
           </button>
         </div>
 
-        {activeSubTab === 'registrados' && (
+        {(activeSubTab === 'registrados' || activeSubTab === 'estadisticas') && (
           <button
             onClick={() => handleExportCsv(filteredGlobalAttendees, 'todos_los_clientes_registrados')}
             disabled={!filteredGlobalAttendees.length}
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-50 hover:bg-emerald-100 text-emerald-800 text-xs font-bold border border-emerald-300 transition-all cursor-pointer disabled:opacity-40"
+            className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-emerald-50 hover:bg-emerald-100 text-emerald-800 text-xs font-bold border border-emerald-300 transition-all cursor-pointer disabled:opacity-40 shadow-xs"
           >
             <Download className="w-3.5 h-3.5 text-emerald-600" />
             Exportar CSV
@@ -1030,13 +1226,50 @@ export default function EventManagerTab({ onUseAsCampaign }: EventManagerTabProp
       {activeSubTab === 'registrados' && (
         <div className="space-y-4 animate-in fade-in duration-200">
           
+          {/* Banner de Inteligencia y Acceso Rápido al Dashboard Ejecutivo */}
+          <div className="bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 text-white p-4 sm:p-5 rounded-2xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 shadow-sm border border-indigo-800/40">
+            <div className="flex items-center gap-3.5">
+              <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-indigo-500 to-purple-600 flex items-center justify-center shrink-0 shadow-md">
+                <BarChart3 className="w-5 h-5 text-white" />
+              </div>
+              <div>
+                <div className="flex items-center gap-2 flex-wrap">
+                  <h4 className="text-sm font-black tracking-tight text-white">
+                    Centro de Inteligencia & Calidad de Contactos
+                  </h4>
+                  <span className="px-2 py-0.5 rounded-full bg-indigo-500/20 text-indigo-300 text-[10px] font-extrabold border border-indigo-400/30">
+                    {pctAnalyticsCelular}% Contactabilidad Móvil
+                  </span>
+                </div>
+                <p className="text-xs text-slate-300 mt-0.5 max-w-2xl">
+                  {cohortesAnalytics.hoy.length > 0 
+                    ? `Tienes ${cohortesAnalytics.hoy.length} contacto(s) caliente(s) recibidos en las últimas 24h. Escríbeles por WhatsApp para asegurar la tasa de conversión.` 
+                    : 'Explora las métricas de WhatsApp vs Email, cohortes por antigüedad y tiempos de respuesta.'}
+                </p>
+              </div>
+            </div>
+
+            <button
+              onClick={() => setActiveSubTab('estadisticas')}
+              className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-white hover:bg-slate-100 text-slate-950 font-black text-xs transition-all shrink-0 cursor-pointer shadow-sm active:scale-95"
+            >
+              <Activity className="w-4 h-4 text-indigo-600" />
+              <span>Ver Dashboard Completo</span>
+              <ChevronRight className="w-4 h-4 text-slate-400" />
+            </button>
+          </div>
+
           {/* Métricas Rápidas de Atención (Fondo Blanco Limpio) */}
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5">
             {/* 1. Total General */}
             <div 
-              onClick={() => setStatusFilter('todos')}
+              onClick={() => {
+                setStatusFilter('todos');
+                setChannelFilter('todos');
+                setAgeFilter('todos');
+              }}
               className={`p-4 rounded-2xl border transition-all cursor-pointer flex items-center gap-3.5 shadow-xs ${
-                statusFilter === 'todos' 
+                statusFilter === 'todos' && channelFilter === 'todos' && ageFilter === 'todos'
                   ? 'bg-blue-50/50 border-blue-300 ring-2 ring-blue-500/20' 
                   : 'bg-white border-slate-200 hover:border-slate-300'
               }`}
@@ -1127,30 +1360,50 @@ export default function EventManagerTab({ onUseAsCampaign }: EventManagerTabProp
           </div>
 
           {/* Filtros de la Tabla de Registrados */}
-          <div className="bg-white border border-slate-200 p-4 rounded-2xl flex flex-col md:flex-row items-center justify-between gap-3 shadow-xs">
+          <div className="bg-white border border-slate-200 p-4 rounded-2xl flex flex-col gap-3 shadow-xs">
             
-            {/* Buscador */}
-            <div className="relative flex-1 w-full max-w-md">
-              <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
-              <input
-                type="text"
-                placeholder="Buscar por nombre, correo, teléfono o país..."
-                value={attendeeSearchGlobal}
-                onChange={(e) => setAttendeeSearchGlobal(e.target.value)}
-                className="w-full bg-slate-50 border border-slate-200 rounded-xl py-2 pl-10 pr-4 text-xs text-slate-800 placeholder-slate-400 focus:outline-none focus:border-blue-600 focus:bg-white transition-all"
-              />
+            <div className="flex flex-col md:flex-row items-center justify-between gap-3">
+              {/* Buscador */}
+              <div className="relative flex-1 w-full max-w-md">
+                <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+                <input
+                  type="text"
+                  placeholder="Buscar por nombre, correo, teléfono o país..."
+                  value={attendeeSearchGlobal}
+                  onChange={(e) => setAttendeeSearchGlobal(e.target.value)}
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl py-2 pl-10 pr-4 text-xs text-slate-800 placeholder-slate-400 focus:outline-none focus:border-blue-600 focus:bg-white transition-all"
+                />
+              </div>
+
+              {/* Botón de Limpiar Filtros si hay alguno activo */}
+              {(statusFilter !== 'todos' || selectedEventFilter !== 'todos' || interestFilter !== 'todos' || channelFilter !== 'todos' || ageFilter !== 'todos' || attendeeSearchGlobal) && (
+                <button
+                  onClick={() => {
+                    setStatusFilter('todos');
+                    setSelectedEventFilter('todos');
+                    setInterestFilter('todos');
+                    setChannelFilter('todos');
+                    setAgeFilter('todos');
+                    setAttendeeSearchGlobal('');
+                  }}
+                  className="inline-flex items-center gap-1 text-xs text-rose-600 hover:text-rose-800 font-bold bg-rose-50 hover:bg-rose-100 px-3 py-1.5 rounded-lg border border-rose-200 transition-all cursor-pointer"
+                >
+                  <RotateCcw className="w-3.5 h-3.5" />
+                  Limpiar Filtros
+                </button>
+              )}
             </div>
 
-            {/* Selectores de Filtro */}
-            <div className="flex items-center gap-2.5 flex-wrap w-full md:w-auto justify-end">
+            {/* Selectores de Filtro Avanzados */}
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2.5 pt-2 border-t border-slate-100">
               
-              {/* Filtro por Estado de Atención */}
-              <div className="flex items-center gap-1.5">
-                <span className="text-xs text-slate-500 font-bold">Estado:</span>
+              {/* 1. Filtro por Estado */}
+              <div className="flex flex-col gap-1">
+                <span className="text-[10px] text-slate-500 font-bold uppercase tracking-wider">Estado:</span>
                 <select
                   value={statusFilter}
                   onChange={(e) => setStatusFilter(e.target.value)}
-                  className={`border rounded-xl py-1.5 px-3 text-xs focus:outline-none cursor-pointer font-bold transition-all ${
+                  className={`border rounded-xl py-1.5 px-2.5 text-xs focus:outline-none cursor-pointer font-bold transition-all ${
                     statusFilter === 'pendiente'
                       ? 'bg-amber-100 text-amber-900 border-amber-300'
                       : statusFilter === 'atendido'
@@ -1161,22 +1414,66 @@ export default function EventManagerTab({ onUseAsCampaign }: EventManagerTabProp
                   }`}
                 >
                   <option value="todos">Todos los Estados</option>
-                  <option value="pendiente">🟡 Solo Pendientes (Por contactar)</option>
-                  <option value="atendido">🟢 Atendidos / Contactados</option>
-                  <option value="en_proceso">🔵 En Proceso / Negociación</option>
-                  <option value="no_responde">⚪ No Responde / Descartado</option>
+                  <option value="pendiente">🟡 Pendientes ({totalPendientesCount})</option>
+                  <option value="atendido">🟢 Atendidos ({totalAtendidosCount})</option>
+                  <option value="en_proceso">🔵 En Negociación ({totalEnProcesoCount})</option>
+                  <option value="no_responde">⚪ Descartados</option>
                 </select>
               </div>
 
-              {/* Filtro por Evento / Link */}
-              <div className="flex items-center gap-1.5">
-                <span className="text-xs text-slate-500 font-bold">Origen:</span>
+              {/* 2. Filtro por Canal de Contacto (WhatsApp vs Solo Email) */}
+              <div className="flex flex-col gap-1">
+                <span className="text-[10px] text-slate-500 font-bold uppercase tracking-wider">Canal:</span>
+                <select
+                  value={channelFilter}
+                  onChange={(e) => setChannelFilter(e.target.value as any)}
+                  className={`border rounded-xl py-1.5 px-2.5 text-xs focus:outline-none cursor-pointer font-bold transition-all ${
+                    channelFilter === 'con_celular'
+                      ? 'bg-emerald-50 text-emerald-900 border-emerald-300'
+                      : channelFilter === 'solo_correo'
+                      ? 'bg-blue-50 text-blue-900 border-blue-300'
+                      : 'bg-slate-50 border-slate-200 text-slate-800'
+                  }`}
+                >
+                  <option value="todos">Todos los Canales</option>
+                  <option value="con_celular">📱 Con Celular/WhatsApp ({analyticsConCelular.length})</option>
+                  <option value="solo_correo">✉️ Solo Correo ({analyticsSoloCorreo.length})</option>
+                </select>
+              </div>
+
+              {/* 3. Filtro por Antigüedad (Cohortes de Tiempo) */}
+              <div className="flex flex-col gap-1">
+                <span className="text-[10px] text-slate-500 font-bold uppercase tracking-wider">Antigüedad:</span>
+                <select
+                  value={ageFilter}
+                  onChange={(e) => setAgeFilter(e.target.value as any)}
+                  className={`border rounded-xl py-1.5 px-2.5 text-xs focus:outline-none cursor-pointer font-bold transition-all ${
+                    ageFilter === 'hoy'
+                      ? 'bg-rose-100 text-rose-900 border-rose-300'
+                      : ageFilter === 'semana'
+                      ? 'bg-amber-100 text-amber-900 border-amber-300'
+                      : ageFilter === 'mes'
+                      ? 'bg-blue-100 text-blue-900 border-blue-300'
+                      : 'bg-slate-50 border-slate-200 text-slate-800'
+                  }`}
+                >
+                  <option value="todos">Todas las Fechas</option>
+                  <option value="hoy">🔥 Hoy / &lt;24h ({cohortesAnalytics.hoy.length})</option>
+                  <option value="semana">⚡ 2 a 7 Días ({cohortesAnalytics.semana.length})</option>
+                  <option value="mes">📆 8 a 30 Días ({cohortesAnalytics.mes.length})</option>
+                  <option value="antiguo">❄️ +30 Días ({cohortesAnalytics.antiguo.length})</option>
+                </select>
+              </div>
+
+              {/* 4. Filtro por Origen */}
+              <div className="flex flex-col gap-1">
+                <span className="text-[10px] text-slate-500 font-bold uppercase tracking-wider">Origen:</span>
                 <select
                   value={selectedEventFilter}
                   onChange={(e) => setSelectedEventFilter(e.target.value)}
-                  className="bg-slate-50 border border-slate-200 rounded-xl py-1.5 px-3 text-xs text-slate-800 focus:outline-none focus:border-blue-600 cursor-pointer max-w-[180px] truncate font-medium"
+                  className="bg-slate-50 border border-slate-200 rounded-xl py-1.5 px-2.5 text-xs text-slate-800 focus:outline-none focus:border-blue-600 cursor-pointer truncate font-medium"
                 >
-                  <option value="todos">Todos los Links</option>
+                  <option value="todos">Todos los Enlaces</option>
                   <option value="dr-finanzas-bio">✨ Link in Bio TikTok (Dr. Finanzas)</option>
                   {eventos.map((ev) => (
                     <option key={ev.id} value={ev.id}>
@@ -1186,13 +1483,13 @@ export default function EventManagerTab({ onUseAsCampaign }: EventManagerTabProp
                 </select>
               </div>
 
-              {/* Filtro por Interés de Inversión */}
-              <div className="flex items-center gap-1.5">
-                <span className="text-xs text-slate-500 font-bold">Interés:</span>
+              {/* 5. Filtro por Interés */}
+              <div className="flex flex-col gap-1">
+                <span className="text-[10px] text-slate-500 font-bold uppercase tracking-wider">Interés:</span>
                 <select
                   value={interestFilter}
                   onChange={(e) => setInterestFilter(e.target.value)}
-                  className="bg-slate-50 border border-slate-200 rounded-xl py-1.5 px-3 text-xs text-slate-800 focus:outline-none focus:border-blue-600 cursor-pointer font-medium"
+                  className="bg-slate-50 border border-slate-200 rounded-xl py-1.5 px-2.5 text-xs text-slate-800 focus:outline-none focus:border-blue-600 cursor-pointer font-medium"
                 >
                   <option value="todos">Todos los intereses</option>
                   <option value="Inmobiliaria">Inmobiliaria</option>
@@ -1213,7 +1510,8 @@ export default function EventManagerTab({ onUseAsCampaign }: EventManagerTabProp
               </div>
             ) : filteredGlobalAttendees.length === 0 ? (
               <div className="py-16 text-center text-slate-500 text-xs">
-                No hay clientes registrados que coincidan con los filtros seleccionados.
+                <p className="font-bold text-slate-700 mb-1">No hay prospectos que coincidan con los filtros seleccionados</p>
+                <p className="text-slate-400 text-[11px]">Prueba cambiando los filtros de canal, antigüedad o estado.</p>
               </div>
             ) : (
               <div className="overflow-x-auto">
@@ -1227,7 +1525,7 @@ export default function EventManagerTab({ onUseAsCampaign }: EventManagerTabProp
                       <th className="py-3 px-4">País</th>
                       <th className="py-3 px-4">Interés</th>
                       <th className="py-3 px-4">Origen</th>
-                      <th className="py-3 px-4">Fecha Registro</th>
+                      <th className="py-3 px-4">Antigüedad & Registro</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100">
@@ -1242,6 +1540,9 @@ export default function EventManagerTab({ onUseAsCampaign }: EventManagerTabProp
 
                       const currentStatus = a.estado || 'pendiente';
                       const isUpdating = updatingStatusId === a.id;
+                      const ageInfo = getLeadAgeInfo(a.created_at);
+                      const cleanPhone = (a.celular || '').replace(/[^0-9]/g, '');
+                      const hasPhone = cleanPhone.length >= 7;
 
                       return (
                         <tr 
@@ -1292,7 +1593,7 @@ export default function EventManagerTab({ onUseAsCampaign }: EventManagerTabProp
 
                             {a.fecha_atencion && (
                               <span className="block text-[9px] text-slate-400 mt-0.5 font-mono">
-                                Atendido: {new Date(a.fecha_atencion).toLocaleDateString('es-PE', { day: '2-digit', month: 'short' })}
+                                Atendido: {new Date(a.fecha_atencion).toLocaleDateString('es-PE', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}
                               </span>
                             )}
                           </td>
@@ -1318,22 +1619,34 @@ export default function EventManagerTab({ onUseAsCampaign }: EventManagerTabProp
 
                           {/* WhatsApp / Celular (Acción Inteligente) */}
                           <td className="py-3.5 px-4">
-                            <button
-                              type="button"
-                              onClick={() => handleContactWhatsapp(a)}
-                              className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-300 text-xs font-mono font-bold transition-all shadow-2xs cursor-pointer active:scale-95"
-                              title="Abrir WhatsApp y marcar como Atendido"
-                            >
-                              <MessageCircle className="w-3.5 h-3.5 text-emerald-600" />
-                              <span>{a.celular}</span>
-                            </button>
+                            {hasPhone ? (
+                              <button
+                                type="button"
+                                onClick={() => handleContactWhatsapp(a)}
+                                className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-300 text-xs font-mono font-bold transition-all shadow-2xs cursor-pointer active:scale-95"
+                                title="Abrir WhatsApp y marcar como Atendido"
+                              >
+                                <MessageCircle className="w-3.5 h-3.5 text-emerald-600" />
+                                <span>{a.celular}</span>
+                              </button>
+                            ) : (
+                              <span className="inline-flex items-center gap-1 text-[11px] text-slate-400 bg-slate-100 px-2 py-0.5 rounded-md border border-slate-200 font-medium">
+                                <PhoneOff className="w-3 h-3 text-slate-400" />
+                                Sin Celular
+                              </span>
+                            )}
                           </td>
 
                           {/* Correo */}
                           <td className="py-3.5 px-4 text-slate-700 font-mono text-[11px]">
-                            <a href={`mailto:${a.correo}`} className="text-blue-600 hover:underline">
-                              {a.correo}
-                            </a>
+                            {a.correo ? (
+                              <a href={`mailto:${a.correo}`} className="text-blue-600 hover:underline flex items-center gap-1">
+                                <Mail className="w-3 h-3 text-blue-500" />
+                                <span>{a.correo}</span>
+                              </a>
+                            ) : (
+                              <span className="text-slate-400 italic">Sin correo</span>
+                            )}
                           </td>
 
                           {/* País */}
@@ -1376,9 +1689,16 @@ export default function EventManagerTab({ onUseAsCampaign }: EventManagerTabProp
                             </div>
                           </td>
 
-                          {/* Fecha Registro */}
-                          <td className="py-3.5 px-4 text-slate-500 font-mono text-[11px]">
-                            {formattedCreatedAt}
+                          {/* Antigüedad & Fecha Registro */}
+                          <td className="py-3.5 px-4">
+                            <div className="flex flex-col gap-0.5">
+                              <span className={`inline-flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-md border w-fit ${ageInfo.badgeClass}`}>
+                                {ageInfo.shortTag} • {ageInfo.label}
+                              </span>
+                              <span className="text-slate-400 font-mono text-[10px]">
+                                {formattedCreatedAt}
+                              </span>
+                            </div>
                           </td>
 
                         </tr>
@@ -1388,6 +1708,706 @@ export default function EventManagerTab({ onUseAsCampaign }: EventManagerTabProp
                 </table>
               </div>
             )}
+          </div>
+
+        </div>
+      )}
+
+      {/* ================= SUBTAB 3: ESTADÍSTICAS & ANALÍTICA EJECUTIVA (STEVE JOBS STYLE) ================= */}
+      {activeSubTab === 'estadisticas' && (
+        <div className="space-y-6 animate-in fade-in duration-300">
+          
+          {/* Keynote Executive Header */}
+          <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-slate-950 via-slate-900 to-indigo-950 text-white p-6 sm:p-8 border border-slate-800 shadow-xl">
+            {/* Background ambient lighting */}
+            <div className="absolute top-0 right-0 w-96 h-96 bg-indigo-500/10 rounded-full blur-3xl pointer-events-none -mr-20 -mt-20"></div>
+            <div className="absolute bottom-0 left-1/3 w-64 h-64 bg-amber-500/5 rounded-full blur-2xl pointer-events-none"></div>
+
+            <div className="relative z-10 flex flex-col lg:flex-row items-start lg:items-center justify-between gap-6">
+              <div>
+                <div className="flex items-center gap-2 mb-2">
+                  <span className="px-2.5 py-0.5 rounded-full bg-gradient-to-r from-amber-400 to-amber-600 text-slate-950 text-[10px] font-black uppercase tracking-widest shadow-xs">
+                    Executive Analytics
+                  </span>
+                  <span className="text-slate-400 text-xs font-mono">
+                    Supabase Live Sync
+                  </span>
+                </div>
+                <h3 className="text-2xl sm:text-3xl font-black text-white tracking-tight">
+                  Inteligencia de Contactos & Conversión
+                </h3>
+                <p className="text-xs sm:text-sm text-slate-300 max-w-2xl mt-1 leading-relaxed">
+                  Visión profunda de canales de captación (WhatsApp vs Email), cohortes de antigüedad y velocidad de respuesta para maximizar cierres.
+                </p>
+              </div>
+
+              {/* Timeframe Selector Pill */}
+              <div className="flex items-center gap-1.5 bg-slate-900/90 border border-slate-700/80 p-1 rounded-2xl backdrop-blur-md self-stretch sm:self-auto justify-center flex-wrap">
+                <button
+                  onClick={() => setAnalyticsTimeframe('all')}
+                  className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                    analyticsTimeframe === 'all'
+                      ? 'bg-white text-slate-950 shadow-md font-black'
+                      : 'text-slate-300 hover:text-white hover:bg-slate-800/60'
+                  }`}
+                >
+                  Histórico ({allAttendees.length})
+                </button>
+                <button
+                  onClick={() => setAnalyticsTimeframe('30d')}
+                  className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                    analyticsTimeframe === '30d'
+                      ? 'bg-white text-slate-950 shadow-md font-black'
+                      : 'text-slate-300 hover:text-white hover:bg-slate-800/60'
+                  }`}
+                >
+                  30 Días
+                </button>
+                <button
+                  onClick={() => setAnalyticsTimeframe('7d')}
+                  className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                    analyticsTimeframe === '7d'
+                      ? 'bg-white text-slate-950 shadow-md font-black'
+                      : 'text-slate-300 hover:text-white hover:bg-slate-800/60'
+                  }`}
+                >
+                  7 Días
+                </button>
+                <button
+                  onClick={() => setAnalyticsTimeframe('today')}
+                  className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1 ${
+                    analyticsTimeframe === 'today'
+                      ? 'bg-rose-500 text-white shadow-md font-black'
+                      : 'text-rose-300 hover:text-white hover:bg-rose-950/40'
+                  }`}
+                >
+                  <Flame className="w-3.5 h-3.5" />
+                  <span>Hoy ({cohortesAnalytics.hoy.length})</span>
+                </button>
+              </div>
+            </div>
+          </div>
+
+          {/* 4 North Star Metric Cards (Impacto Steve Jobs) */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            
+            {/* KPI 1: Total Leads Captados */}
+            <div className="bg-white border border-slate-200/90 rounded-3xl p-5 shadow-xs flex flex-col justify-between hover:shadow-md transition-all">
+              <div className="flex items-center justify-between mb-3">
+                <span className="text-[11px] font-black uppercase tracking-wider text-slate-500">
+                  Volumen Captado
+                </span>
+                <div className="w-9 h-9 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center font-bold">
+                  <Users className="w-4 h-4" />
+                </div>
+              </div>
+              <div>
+                <span className="text-3xl sm:text-4xl font-black text-slate-900 tracking-tight block">
+                  {totalAnalytics}
+                </span>
+                <span className="text-[11px] text-slate-500 mt-1 block">
+                  Prospectos registrados en {analyticsTimeframe === 'all' ? 'todo el histórico' : analyticsTimeframe === '30d' ? 'los últimos 30 días' : analyticsTimeframe === '7d' ? 'la última semana' : 'las últimas 24 horas'}
+                </span>
+              </div>
+            </div>
+
+            {/* KPI 2: Contactabilidad Móvil / WhatsApp */}
+            <div className="bg-white border border-slate-200/90 rounded-3xl p-5 shadow-xs flex flex-col justify-between hover:shadow-md transition-all">
+              <div className="flex items-center justify-between mb-3">
+                <span className="text-[11px] font-black uppercase tracking-wider text-emerald-700">
+                  Contactabilidad Móvil
+                </span>
+                <div className="w-9 h-9 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center font-bold">
+                  <Smartphone className="w-4 h-4" />
+                </div>
+              </div>
+              <div>
+                <div className="flex items-baseline gap-2">
+                  <span className="text-3xl sm:text-4xl font-black text-emerald-950 tracking-tight">
+                    {pctAnalyticsCelular}%
+                  </span>
+                  <span className="text-xs font-bold text-emerald-700">
+                    ({analyticsConCelular.length} leads)
+                  </span>
+                </div>
+                <span className="text-[11px] text-slate-500 mt-1 block">
+                  Tienen número telefónico listo para contacto directo por WhatsApp
+                </span>
+              </div>
+            </div>
+
+            {/* KPI 3: Speed-to-Lead / Tiempo de Atención */}
+            <div className="bg-white border border-slate-200/90 rounded-3xl p-5 shadow-xs flex flex-col justify-between hover:shadow-md transition-all">
+              <div className="flex items-center justify-between mb-3">
+                <span className="text-[11px] font-black uppercase tracking-wider text-amber-700">
+                  Speed-to-Lead Promedio
+                </span>
+                <div className="w-9 h-9 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center font-bold">
+                  <Timer className="w-4 h-4" />
+                </div>
+              </div>
+              <div>
+                <span className="text-3xl sm:text-4xl font-black text-amber-950 tracking-tight block">
+                  {avgResponseHours > 0 ? `${avgResponseHours}h` : '< 24h'}
+                </span>
+                <span className="text-[11px] text-slate-500 mt-1 block">
+                  Tiempo medio transcurrido entre registro y primer contacto
+                </span>
+              </div>
+            </div>
+
+            {/* KPI 4: Eficiencia de Conversión Activa */}
+            <div className="bg-white border border-slate-200/90 rounded-3xl p-5 shadow-xs flex flex-col justify-between hover:shadow-md transition-all">
+              <div className="flex items-center justify-between mb-3">
+                <span className="text-[11px] font-black uppercase tracking-wider text-indigo-700">
+                  Pipeline Comercial
+                </span>
+                <div className="w-9 h-9 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center font-bold">
+                  <TrendingUp className="w-4 h-4" />
+                </div>
+              </div>
+              <div>
+                <div className="flex items-baseline gap-2">
+                  <span className="text-3xl sm:text-4xl font-black text-indigo-950 tracking-tight">
+                    {tasaAtencionGlobal}%
+                  </span>
+                  <span className="text-xs font-bold text-indigo-700">
+                    ({analyticsAtendidos + analyticsEnProceso} leads)
+                  </span>
+                </div>
+                <span className="text-[11px] text-slate-500 mt-1 block">
+                  Prospectos ya atendidos o en fase activa de negociación
+                </span>
+              </div>
+            </div>
+
+          </div>
+
+          {/* SECCIÓN 1: DUELO DE CANALES (CELULAR/WHATSAPP VS SOLO CORREO) */}
+          <div className="bg-white border border-slate-200 rounded-3xl p-6 shadow-xs space-y-5">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-100 pb-4">
+              <div>
+                <h4 className="text-base font-black text-slate-900 tracking-tight flex items-center gap-2">
+                  <span>📱 Desglose por Canales de Contacto</span>
+                  <span className="text-xs font-normal text-slate-400">| WhatsApp vs Solo Email</span>
+                </h4>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  Identifica qué prospectos tienen canal de cierre telefónico inmediato frente a los que requieren secuencias de correo.
+                </p>
+              </div>
+
+              <span className="text-xs font-mono font-bold text-slate-600 bg-slate-100 px-3 py-1 rounded-xl">
+                Calidad de Datos: {pctAnalyticsCompletos}%
+              </span>
+            </div>
+
+            {/* Barra Visual Proporcional de Canales */}
+            <div className="space-y-1.5">
+              <div className="flex items-center justify-between text-xs font-bold">
+                <span className="text-emerald-700 flex items-center gap-1.5">
+                  <MessageCircle className="w-3.5 h-3.5" />
+                  Con Celular / WhatsApp: {analyticsConCelular.length} ({pctAnalyticsCelular}%)
+                </span>
+                <span className="text-blue-700 flex items-center gap-1.5">
+                  <Mail className="w-3.5 h-3.5" />
+                  Solo Correo Electrónico: {analyticsSoloCorreo.length} ({pctAnalyticsSoloCorreo}%)
+                </span>
+              </div>
+
+              <div className="w-full h-3.5 bg-slate-100 rounded-full overflow-hidden flex p-0.5 gap-0.5">
+                <div 
+                  className="bg-emerald-500 rounded-full h-full transition-all duration-700" 
+                  style={{ width: `${pctAnalyticsCelular}%` }}
+                  title={`Con WhatsApp: ${pctAnalyticsCelular}%`}
+                ></div>
+                <div 
+                  className="bg-blue-500 rounded-full h-full transition-all duration-700" 
+                  style={{ width: `${pctAnalyticsSoloCorreo}%` }}
+                  title={`Solo Correo: ${pctAnalyticsSoloCorreo}%`}
+                ></div>
+              </div>
+            </div>
+
+            {/* Tarjetas Comparativas de los 2 Canales */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2">
+              
+              {/* Tarjeta Canal 1: Con Celular / WhatsApp */}
+              <div className="bg-emerald-50/40 border border-emerald-200/80 rounded-2xl p-5 flex flex-col justify-between gap-4">
+                <div>
+                  <div className="flex items-center justify-between">
+                    <span className="px-2.5 py-0.5 rounded-full bg-emerald-100 text-emerald-800 text-[10px] font-black uppercase tracking-wider">
+                      Canal Primario de Cierre
+                    </span>
+                    <span className="text-2xl font-black text-emerald-950">
+                      {analyticsConCelular.length}
+                    </span>
+                  </div>
+                  <h5 className="text-sm font-bold text-emerald-950 mt-2">
+                    Prospectos con Número Telefónico / WhatsApp
+                  </h5>
+                  <p className="text-xs text-emerald-800/80 mt-1">
+                    Prospectos con alta intención de compra listos para llamada o mensaje directo por WhatsApp.
+                  </p>
+
+                  <div className="grid grid-cols-2 gap-2 mt-4 pt-3 border-t border-emerald-200/60 text-xs">
+                    <div>
+                      <span className="text-[10px] text-emerald-700 uppercase font-bold block">Ya Contactados:</span>
+                      <span className="text-base font-black text-emerald-900">{analyticsContactadosWsp.length} leads</span>
+                      <span className="text-[10px] text-emerald-600 block">({tasaContactadosWsp}% de cobertura)</span>
+                    </div>
+                    <div>
+                      <span className="text-[10px] text-amber-800 uppercase font-bold block">Pendientes de WhatsApp:</span>
+                      <span className="text-base font-black text-amber-900">{analyticsPendientesWsp.length} leads</span>
+                      <span className="text-[10px] text-amber-700 block">Prioridad de contacto</span>
+                    </div>
+                  </div>
+                </div>
+
+                <button
+                  onClick={() => {
+                    setChannelFilter('con_celular');
+                    setActiveSubTab('registrados');
+                  }}
+                  className="w-full py-2 px-3 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer shadow-xs active:scale-98"
+                >
+                  <MessageCircle className="w-3.5 h-3.5" />
+                  <span>Ver Leads con WhatsApp en la Tabla ({analyticsConCelular.length})</span>
+                </button>
+              </div>
+
+              {/* Tarjeta Canal 2: Solo Correo Electrónico */}
+              <div className="bg-blue-50/40 border border-blue-200/80 rounded-2xl p-5 flex flex-col justify-between gap-4">
+                <div>
+                  <div className="flex items-center justify-between">
+                    <span className="px-2.5 py-0.5 rounded-full bg-blue-100 text-blue-800 text-[10px] font-black uppercase tracking-wider">
+                      Canal de Nutrición Digital
+                    </span>
+                    <span className="text-2xl font-black text-blue-950">
+                      {analyticsSoloCorreo.length}
+                    </span>
+                  </div>
+                  <h5 className="text-sm font-bold text-blue-950 mt-2">
+                    Prospectos con Solo Correo Electrónico
+                  </h5>
+                  <p className="text-xs text-blue-800/80 mt-1">
+                    No dejaron celular en el formulario inicial. Requieren campañas masivas de correo o invitaciones a webinars para capturar su teléfono.
+                  </p>
+
+                  <div className="grid grid-cols-2 gap-2 mt-4 pt-3 border-t border-blue-200/60 text-xs">
+                    <div>
+                      <span className="text-[10px] text-blue-700 uppercase font-bold block">Porcentaje de Base:</span>
+                      <span className="text-base font-black text-blue-900">{pctAnalyticsSoloCorreo}%</span>
+                      <span className="text-[10px] text-blue-600 block">Email Nurturing</span>
+                    </div>
+                    <div>
+                      <span className="text-[10px] text-indigo-700 uppercase font-bold block">Estrategia Recomendada:</span>
+                      <span className="text-xs font-bold text-indigo-900 block mt-0.5">Envío de Plantilla de Email</span>
+                    </div>
+                  </div>
+                </div>
+
+                <button
+                  onClick={() => {
+                    setChannelFilter('solo_correo');
+                    setActiveSubTab('registrados');
+                  }}
+                  className="w-full py-2 px-3 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer shadow-xs active:scale-98"
+                >
+                  <Mail className="w-3.5 h-3.5" />
+                  <span>Ver Leads Solo Email en la Tabla ({analyticsSoloCorreo.length})</span>
+                </button>
+              </div>
+
+            </div>
+          </div>
+
+          {/* SECCIÓN 2: DESGLOSE POR ANTIGÜEDAD (¿HACE CUÁNTO TIEMPO SE ENVIARON?) */}
+          <div className="bg-white border border-slate-200 rounded-3xl p-6 shadow-xs space-y-5">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-100 pb-4">
+              <div>
+                <h4 className="text-base font-black text-slate-900 tracking-tight flex items-center gap-2">
+                  <span>⏱️ Desglose por Antigüedad & Freshness Index</span>
+                  <span className="text-xs font-normal text-slate-400">| ¿Hace cuánto tiempo se registraron?</span>
+                </h4>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  Los prospectos de menos de 24 horas tienen hasta un 391% más probabilidades de conversión según estándares comerciales.
+                </p>
+              </div>
+
+              <span className="text-xs font-mono font-bold text-rose-700 bg-rose-50 border border-rose-200 px-3 py-1 rounded-xl">
+                🔥 {cohortesAnalytics.hoy.length} Calientes Hoy
+              </span>
+            </div>
+
+            {/* Grid de 4 Cohortes de Antigüedad */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5">
+              
+              {/* Cohorte 1: Hoy (<24 Horas) */}
+              <div 
+                onClick={() => {
+                  setAgeFilter('hoy');
+                  setActiveSubTab('registrados');
+                }}
+                className="p-4 rounded-2xl bg-gradient-to-br from-rose-50/80 to-rose-100/40 border-2 border-rose-300 hover:border-rose-400 transition-all cursor-pointer shadow-xs group"
+              >
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-[10px] font-black px-2 py-0.5 rounded-full bg-rose-500 text-white uppercase tracking-wider flex items-center gap-1">
+                    <Flame className="w-3 h-3" />
+                    Calientes
+                  </span>
+                  <span className="text-xs font-bold text-rose-800">
+                    {totalAnalytics > 0 ? Math.round((cohortesAnalytics.hoy.length / totalAnalytics) * 100) : 0}%
+                  </span>
+                </div>
+                <span className="text-3xl font-black text-rose-950 block my-1">
+                  {cohortesAnalytics.hoy.length}
+                </span>
+                <span className="text-xs font-bold text-rose-900 block">
+                  Últimas 24 Horas (Hoy)
+                </span>
+                <p className="text-[11px] text-rose-700 mt-1">
+                  Ventana crítica de atención inmediata.
+                </p>
+                <span className="text-[10px] font-bold text-rose-800 mt-3 pt-2 border-t border-rose-200/60 block group-hover:underline">
+                  Ver en tabla ➔
+                </span>
+              </div>
+
+              {/* Cohorte 2: 2 a 7 Días */}
+              <div 
+                onClick={() => {
+                  setAgeFilter('semana');
+                  setActiveSubTab('registrados');
+                }}
+                className="p-4 rounded-2xl bg-amber-50/60 border border-amber-300/80 hover:border-amber-400 transition-all cursor-pointer shadow-xs group"
+              >
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-[10px] font-black px-2 py-0.5 rounded-full bg-amber-500 text-white uppercase tracking-wider flex items-center gap-1">
+                    <Zap className="w-3 h-3" />
+                    Ventana Óptima
+                  </span>
+                  <span className="text-xs font-bold text-amber-800">
+                    {totalAnalytics > 0 ? Math.round((cohortesAnalytics.semana.length / totalAnalytics) * 100) : 0}%
+                  </span>
+                </div>
+                <span className="text-3xl font-black text-amber-950 block my-1">
+                  {cohortesAnalytics.semana.length}
+                </span>
+                <span className="text-xs font-bold text-amber-900 block">
+                  De 2 a 7 Días (Esta Semana)
+                </span>
+                <p className="text-[11px] text-amber-700 mt-1">
+                  Prospectos en seguimiento activo.
+                </p>
+                <span className="text-[10px] font-bold text-amber-800 mt-3 pt-2 border-t border-amber-200/60 block group-hover:underline">
+                  Ver en tabla ➔
+                </span>
+              </div>
+
+              {/* Cohorte 3: 8 a 30 Días */}
+              <div 
+                onClick={() => {
+                  setAgeFilter('mes');
+                  setActiveSubTab('registrados');
+                }}
+                className="p-4 rounded-2xl bg-blue-50/60 border border-blue-300/80 hover:border-blue-400 transition-all cursor-pointer shadow-xs group"
+              >
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-[10px] font-black px-2 py-0.5 rounded-full bg-blue-500 text-white uppercase tracking-wider flex items-center gap-1">
+                    <Clock className="w-3 h-3" />
+                    En Maduración
+                  </span>
+                  <span className="text-xs font-bold text-blue-800">
+                    {totalAnalytics > 0 ? Math.round((cohortesAnalytics.mes.length / totalAnalytics) * 100) : 0}%
+                  </span>
+                </div>
+                <span className="text-3xl font-black text-blue-950 block my-1">
+                  {cohortesAnalytics.mes.length}
+                </span>
+                <span className="text-xs font-bold text-blue-900 block">
+                  De 8 a 30 Días (Este Mes)
+                </span>
+                <p className="text-[11px] text-blue-700 mt-1">
+                  Requieren re-contacto o nueva propuesta.
+                </p>
+                <span className="text-[10px] font-bold text-blue-800 mt-3 pt-2 border-t border-blue-200/60 block group-hover:underline">
+                  Ver en tabla ➔
+                </span>
+              </div>
+
+              {/* Cohorte 4: +30 Días */}
+              <div 
+                onClick={() => {
+                  setAgeFilter('antiguo');
+                  setActiveSubTab('registrados');
+                }}
+                className="p-4 rounded-2xl bg-slate-50 border border-slate-300/80 hover:border-slate-400 transition-all cursor-pointer shadow-xs group"
+              >
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-[10px] font-black px-2 py-0.5 rounded-full bg-slate-500 text-white uppercase tracking-wider">
+                    Históricos
+                  </span>
+                  <span className="text-xs font-bold text-slate-700">
+                    {totalAnalytics > 0 ? Math.round((cohortesAnalytics.antiguo.length / totalAnalytics) * 100) : 0}%
+                  </span>
+                </div>
+                <span className="text-3xl font-black text-slate-900 block my-1">
+                  {cohortesAnalytics.antiguo.length}
+                </span>
+                <span className="text-xs font-bold text-slate-800 block">
+                  Más de 30 Días (+1 Mes)
+                </span>
+                <p className="text-[11px] text-slate-500 mt-1">
+                  Base acumulada para campañas masivas.
+                </p>
+                <span className="text-[10px] font-bold text-slate-700 mt-3 pt-2 border-t border-slate-200 block group-hover:underline">
+                  Ver en tabla ➔
+                </span>
+              </div>
+
+            </div>
+          </div>
+
+          {/* SECCIÓN 3: EMBUDO DE CONVERSIÓN COMERCIAL (PIPELINE FUNNEL) */}
+          <div className="bg-white border border-slate-200 rounded-3xl p-6 shadow-xs space-y-5">
+            <div className="border-b border-slate-100 pb-4">
+              <h4 className="text-base font-black text-slate-900 tracking-tight flex items-center gap-2">
+                <span>📊 Embudo de Conversión Comercial (Pipeline)</span>
+              </h4>
+              <p className="text-xs text-slate-500 mt-0.5">
+                Seguimiento de la progresión del lead desde su registro hasta la negociación.
+              </p>
+            </div>
+
+            <div className="space-y-3">
+              {/* Paso 1: Registrados Totales */}
+              <div>
+                <div className="flex items-center justify-between text-xs font-bold mb-1">
+                  <span className="text-slate-800">1. Registrados en Formulario / Webinar</span>
+                  <span className="text-slate-900 font-mono">{totalAnalytics} (100%)</span>
+                </div>
+                <div className="w-full h-3 bg-slate-100 rounded-full overflow-hidden">
+                  <div className="bg-slate-800 h-full rounded-full w-full"></div>
+                </div>
+              </div>
+
+              {/* Paso 2: Por Contactar (Pendientes) */}
+              <div>
+                <div className="flex items-center justify-between text-xs font-bold mb-1">
+                  <span className="text-amber-800">2. Por Contactar / Pendientes 🟡</span>
+                  <span className="text-amber-900 font-mono">
+                    {analyticsPendientes} ({totalAnalytics > 0 ? Math.round((analyticsPendientes / totalAnalytics) * 100) : 0}%)
+                  </span>
+                </div>
+                <div className="w-full h-3 bg-slate-100 rounded-full overflow-hidden">
+                  <div 
+                    className="bg-amber-500 h-full rounded-full transition-all duration-700"
+                    style={{ width: `${totalAnalytics > 0 ? (analyticsPendientes / totalAnalytics) * 100 : 0}%` }}
+                  ></div>
+                </div>
+              </div>
+
+              {/* Paso 3: Atendidos / Contactados */}
+              <div>
+                <div className="flex items-center justify-between text-xs font-bold mb-1">
+                  <span className="text-emerald-800">3. Contactados / Atendidos 🟢</span>
+                  <span className="text-emerald-900 font-mono">
+                    {analyticsAtendidos} ({totalAnalytics > 0 ? Math.round((analyticsAtendidos / totalAnalytics) * 100) : 0}%)
+                  </span>
+                </div>
+                <div className="w-full h-3 bg-slate-100 rounded-full overflow-hidden">
+                  <div 
+                    className="bg-emerald-500 h-full rounded-full transition-all duration-700"
+                    style={{ width: `${totalAnalytics > 0 ? (analyticsAtendidos / totalAnalytics) * 100 : 0}%` }}
+                  ></div>
+                </div>
+              </div>
+
+              {/* Paso 4: En Negociación Comercial */}
+              <div>
+                <div className="flex items-center justify-between text-xs font-bold mb-1">
+                  <span className="text-indigo-800">4. En Negociación Comercial 🔵</span>
+                  <span className="text-indigo-900 font-mono">
+                    {analyticsEnProceso} ({totalAnalytics > 0 ? Math.round((analyticsEnProceso / totalAnalytics) * 100) : 0}%)
+                  </span>
+                </div>
+                <div className="w-full h-3 bg-slate-100 rounded-full overflow-hidden">
+                  <div 
+                    className="bg-indigo-600 h-full rounded-full transition-all duration-700"
+                    style={{ width: `${totalAnalytics > 0 ? (analyticsEnProceso / totalAnalytics) * 100 : 0}%` }}
+                  ></div>
+                </div>
+              </div>
+
+              {/* Paso 5: Descartados / No Responde */}
+              {analyticsDescartados > 0 && (
+                <div>
+                  <div className="flex items-center justify-between text-xs font-bold mb-1">
+                    <span className="text-slate-500">5. No Responde / Descartados ⚪</span>
+                    <span className="text-slate-600 font-mono">
+                      {analyticsDescartados} ({totalAnalytics > 0 ? Math.round((analyticsDescartados / totalAnalytics) * 100) : 0}%)
+                    </span>
+                  </div>
+                  <div className="w-full h-2.5 bg-slate-100 rounded-full overflow-hidden">
+                    <div 
+                      className="bg-slate-400 h-full rounded-full transition-all duration-700"
+                      style={{ width: `${totalAnalytics > 0 ? (analyticsDescartados / totalAnalytics) * 100 : 0}%` }}
+                    ></div>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* SECCIÓN 4: FUENTES DE CAPTURA, PREFERENCIAS & PAÍSES */}
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+            
+            {/* 1. Fuentes de Captura */}
+            <div className="bg-white border border-slate-200 rounded-3xl p-5 shadow-xs space-y-4">
+              <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+                <h5 className="text-sm font-black text-slate-900 tracking-tight flex items-center gap-1.5">
+                  <Globe className="w-4 h-4 text-blue-600" />
+                  <span>Top Fuentes & Links</span>
+                </h5>
+                <span className="text-[11px] font-bold text-slate-400 font-mono">
+                  {origenesOrdenados.length} canales
+                </span>
+              </div>
+
+              <div className="space-y-3">
+                {origenesOrdenados.slice(0, 5).map(([nombre, count]) => {
+                  const pct = totalAnalytics > 0 ? Math.round((count / totalAnalytics) * 100) : 0;
+                  return (
+                    <div key={nombre} className="space-y-1">
+                      <div className="flex items-center justify-between text-xs font-semibold">
+                        <span className="truncate max-w-[180px] text-slate-800" title={nombre}>
+                          {nombre}
+                        </span>
+                        <span className="font-mono text-slate-900 font-bold">{count} ({pct}%)</span>
+                      </div>
+                      <div className="w-full h-2 bg-slate-100 rounded-full overflow-hidden">
+                        <div 
+                          className="bg-blue-600 h-full rounded-full" 
+                          style={{ width: `${pct}%` }}
+                        ></div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* 2. Interés de Inversión */}
+            <div className="bg-white border border-slate-200 rounded-3xl p-5 shadow-xs space-y-4">
+              <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+                <h5 className="text-sm font-black text-slate-900 tracking-tight flex items-center gap-1.5">
+                  <Briefcase className="w-4 h-4 text-purple-600" />
+                  <span>Preferencia de Inversión</span>
+                </h5>
+                <span className="text-[11px] font-bold text-slate-400 font-mono">
+                  {interesesOrdenados.length} tipos
+                </span>
+              </div>
+
+              <div className="space-y-3">
+                {interesesOrdenados.slice(0, 5).map(([interes, count]) => {
+                  const pct = totalAnalytics > 0 ? Math.round((count / totalAnalytics) * 100) : 0;
+                  return (
+                    <div key={interes} className="space-y-1">
+                      <div className="flex items-center justify-between text-xs font-semibold">
+                        <span className="truncate max-w-[180px] text-slate-800">
+                          {interes}
+                        </span>
+                        <span className="font-mono text-slate-900 font-bold">{count} ({pct}%)</span>
+                      </div>
+                      <div className="w-full h-2 bg-slate-100 rounded-full overflow-hidden">
+                        <div 
+                          className="bg-purple-600 h-full rounded-full" 
+                          style={{ width: `${pct}%` }}
+                        ></div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* 3. Distribución por Países */}
+            <div className="bg-white border border-slate-200 rounded-3xl p-5 shadow-xs space-y-4">
+              <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+                <h5 className="text-sm font-black text-slate-900 tracking-tight flex items-center gap-1.5">
+                  <Globe className="w-4 h-4 text-emerald-600" />
+                  <span>Alcance Internacional</span>
+                </h5>
+                <span className="text-[11px] font-bold text-slate-400 font-mono">
+                  {paisesOrdenados.length} países
+                </span>
+              </div>
+
+              <div className="space-y-3">
+                {paisesOrdenados.slice(0, 5).map(([pais, count]) => {
+                  const pct = totalAnalytics > 0 ? Math.round((count / totalAnalytics) * 100) : 0;
+                  return (
+                    <div key={pais} className="space-y-1">
+                      <div className="flex items-center justify-between text-xs font-semibold">
+                        <span className="truncate max-w-[180px] text-slate-800">
+                          {pais}
+                        </span>
+                        <span className="font-mono text-slate-900 font-bold">{count} ({pct}%)</span>
+                      </div>
+                      <div className="w-full h-2 bg-slate-100 rounded-full overflow-hidden">
+                        <div 
+                          className="bg-emerald-600 h-full rounded-full" 
+                          style={{ width: `${pct}%` }}
+                        ></div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+
+          </div>
+
+          {/* SECCIÓN 5: RECOMENDACIONES EJECUTIVAS AUTOMATIZADAS (AI INSIGHTS) */}
+          <div className="bg-gradient-to-br from-amber-50/70 via-white to-orange-50/40 border border-amber-200/80 rounded-3xl p-6 shadow-xs space-y-3">
+            <div className="flex items-center gap-2 text-amber-900 font-black text-sm">
+              <Sparkles className="w-4 h-4 text-amber-600" />
+              <span>Diagnóstico Inteligente & Recomendaciones de Acción</span>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-1">
+              <div className="p-3.5 rounded-2xl bg-white border border-amber-200/60 shadow-xs">
+                <span className="text-[10px] font-extrabold uppercase text-rose-700 block mb-1">
+                  🔥 Oportunidad Inmediata
+                </span>
+                <p className="text-xs text-slate-700 leading-relaxed font-medium">
+                  {cohortesAnalytics.hoy.length > 0 
+                    ? `Tienes ${cohortesAnalytics.hoy.length} contacto(s) caliente(s) registrados hoy. Escríbeles por WhatsApp antes de que pasen 24h para maximizar la tasa de respuesta.` 
+                    : 'Excelente: tu bandeja de prospectos del día se encuentra al día.'}
+                </p>
+              </div>
+
+              <div className="p-3.5 rounded-2xl bg-white border border-amber-200/60 shadow-xs">
+                <span className="text-[10px] font-extrabold uppercase text-emerald-700 block mb-1">
+                  📱 Cobertura WhatsApp
+                </span>
+                <p className="text-xs text-slate-700 leading-relaxed font-medium">
+                  El <strong>{pctAnalyticsCelular}%</strong> de tus leads dejaron su número celular. Hay {analyticsPendientesWsp.length} contactos telefónicos listos para apertura comercial.
+                </p>
+              </div>
+
+              <div className="p-3.5 rounded-2xl bg-white border border-amber-200/60 shadow-xs">
+                <span className="text-[10px] font-extrabold uppercase text-indigo-700 block mb-1">
+                  📈 Producto Líder
+                </span>
+                <p className="text-xs text-slate-700 leading-relaxed font-medium">
+                  {interesesOrdenados.length > 0 && interesesOrdenados[0][0] !== 'Sin especificar'
+                    ? `El interés más demandado es "${interesesOrdenados[0][0]}" con ${interesesOrdenados[0][1]} interesados (${totalAnalytics > 0 ? Math.round((interesesOrdenados[0][1]/totalAnalytics)*100) : 0}%).`
+                    : 'Promueve campos de interés patrimonial en tus formularios para segmentar mejor tus ofertas.'}
+                </p>
+              </div>
+            </div>
           </div>
 
         </div>
