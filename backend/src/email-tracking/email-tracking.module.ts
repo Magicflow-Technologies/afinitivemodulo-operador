@@ -9,5 +9,6 @@ import { TemplatesModule } from '../templates/templates.module';
   imports: [ConfigModule, TemplatesModule],
   controllers: [EmailTrackingController],
   providers: [EmailTrackingService],
+  exports: [EmailTrackingService],
 })
 export class EmailTrackingModule {}

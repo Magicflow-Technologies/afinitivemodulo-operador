@@ -5,6 +5,7 @@ import { AppService } from './app.service';
 import { EmailTrackingModule } from './email-tracking/email-tracking.module';
 import { TemplatesModule } from './templates/templates.module';
 import { EventosModule } from './eventos/eventos.module';
+import { AgentModule } from './agent/agent.module';
 
 @Module({
   imports: [
@@ -14,6 +15,7 @@ import { EventosModule } from './eventos/eventos.module';
     TemplatesModule,
     EmailTrackingModule,
     EventosModule,
+    AgentModule,
   ],
   controllers: [AppController],
   providers: [AppService],
