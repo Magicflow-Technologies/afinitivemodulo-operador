@@ -33,7 +33,10 @@ import {
   ChevronRight,
   ChevronsLeft,
   ChevronsRight,
-  Inbox
+  Inbox,
+  FileSpreadsheet,
+  CheckSquare,
+  Square
 } from 'lucide-react';
 import { LiveEmailPreview } from './LiveEmailPreview';
 import { TemplateManagerModal } from './TemplateManagerModal';
@@ -226,6 +229,17 @@ export default function EmailMonitoringDashboard({ onNavigateToBooking }: EmailM
 
   // Obtener el backend URL de las variables de entorno o usar el puerto de monitoreo del backend
   const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || 'http://localhost:3080';
+
+  // --- Estados para Selección de Clientes Registrados desde Base de Datos (Campañas Masivas) ---
+  const [recipientSourceMode, setRecipientSourceMode] = useState<'database' | 'csv'>('database');
+  const [dbAttendees, setDbAttendees] = useState<any[]>([]);
+  const [loadingDbAttendees, setLoadingDbAttendees] = useState(false);
+  const [dbSearch, setDbSearch] = useState('');
+  const [dbEventFilter, setDbEventFilter] = useState('todos');
+  const [dbStatusFilter, setDbStatusFilter] = useState('todos');
+  const [dbAgeFilter, setDbAgeFilter] = useState('todos');
+  const [dbInterestFilter, setDbInterestFilter] = useState('todos');
+  const [selectedDbContactIds, setSelectedDbContactIds] = useState<string[]>([]);
 
   // Lógica de filtrado de correos enriquecida
   const filteredEmails = emails.filter((email) => {
@@ -689,6 +703,178 @@ export default function EmailMonitoringDashboard({ onNavigateToBooking }: EmailM
     };
     reader.readAsText(file);
     e.target.value = '';
+  };
+
+  // Cargar clientes registrados de la base de datos
+  const fetchDbAttendees = useCallback(async () => {
+    setLoadingDbAttendees(true);
+    try {
+      const res = await fetch(`${BACKEND_URL}/api/eventos/asistentes/todos`);
+      if (res.ok) {
+        const data = await res.json();
+        if (data.success && Array.isArray(data.data)) {
+          setDbAttendees(data.data);
+        }
+      }
+    } catch (err) {
+      console.error('Error al cargar clientes registrados:', err);
+    } finally {
+      setLoadingDbAttendees(false);
+    }
+  }, [BACKEND_URL]);
+
+  useEffect(() => {
+    fetchDbAttendees();
+  }, [fetchDbAttendees]);
+
+  // Filtrado de clientes registrados en tiempo real
+  const filteredDbAttendees = dbAttendees.filter((a) => {
+    if (!a.correo || !a.correo.includes('@')) return false;
+
+    // 1. Buscador de texto
+    if (dbSearch.trim()) {
+      const q = dbSearch.toLowerCase().trim();
+      const matchName = a.nombre?.toLowerCase().includes(q);
+      const matchEmail = a.correo?.toLowerCase().includes(q);
+      const matchPhone = a.celular?.toLowerCase().includes(q);
+      if (!matchName && !matchEmail && !matchPhone) return false;
+    }
+
+    // 2. Origen / Evento
+    if (dbEventFilter !== 'todos') {
+      if (dbEventFilter === 'dr-finanzas-bio' && a.evento_id !== 'dr-finanzas-bio') return false;
+      if (dbEventFilter !== 'dr-finanzas-bio' && a.evento_id !== dbEventFilter) return false;
+    }
+
+    // 3. Estado Comercial
+    if (dbStatusFilter !== 'todos') {
+      const st = a.estado || 'pendiente';
+      if (st !== dbStatusFilter) return false;
+    }
+
+    // 4. Interés de Inversión
+    if (dbInterestFilter !== 'todos') {
+      if (a.interes_inversion !== dbInterestFilter) return false;
+    }
+
+    // 5. Antigüedad
+    if (dbAgeFilter !== 'todos') {
+      const now = new Date().getTime();
+      const created = new Date(a.created_at).getTime();
+      const diffDays = Math.floor((now - created) / (1000 * 60 * 60 * 24));
+      if (dbAgeFilter === 'hoy' && diffDays > 0) return false;
+      if (dbAgeFilter === '7d' && diffDays > 7) return false;
+      if (dbAgeFilter === '30d' && diffDays > 30) return false;
+      if (dbAgeFilter === 'antiguos' && diffDays <= 30) return false;
+    }
+
+    return true;
+  });
+
+  // Toggle seleccionar/deseleccionar un cliente individual
+  const handleToggleDbContact = (id: string) => {
+    setSelectedDbContactIds((prev) =>
+      prev.includes(id) ? prev.filter((item) => item !== id) : [...prev, id]
+    );
+  };
+
+  // Seleccionar todos los clientes que coincidan con los filtros actuales
+  const handleSelectAllFilteredDb = () => {
+    const validFilteredIds = filteredDbAttendees.map((a) => a.id);
+    const allSelected = validFilteredIds.every((id) => selectedDbContactIds.includes(id));
+
+    if (allSelected) {
+      // Deseleccionar los filtrados
+      setSelectedDbContactIds((prev) => prev.filter((id) => !validFilteredIds.includes(id)));
+    } else {
+      // Unir los filtrados a la selección
+      const merged = Array.from(new Set([...selectedDbContactIds, ...validFilteredIds]));
+      setSelectedDbContactIds(merged);
+    }
+  };
+
+  // Cargar clientes seleccionados de la Base de Datos a la Cola de Envío
+  const handleLoadDbContactsToQueue = async () => {
+    if (selectedDbContactIds.length === 0) {
+      setErrorMsg('Por favor selecciona al menos un cliente de la lista para cargarlo a la campaña.');
+      return;
+    }
+
+    if (!campaignTag.trim()) {
+      setErrorMsg('⚠️ El campo ETIQUETA es obligatorio. Por favor asigna un nombre a la campaña antes de cargar los contactos.');
+      return;
+    }
+
+    setQueueLoading(true);
+    setErrorMsg(null);
+    setSuccessMsg(null);
+
+    try {
+      const selectedContacts = dbAttendees
+        .filter((a) => selectedDbContactIds.includes(a.id) && a.correo && a.correo.includes('@'))
+        .map((a) => ({
+          name: a.nombre || 'Cliente',
+          email: a.correo.trim(),
+          phone: a.celular || '',
+        }));
+
+      if (selectedContacts.length === 0) {
+        throw new Error('Los clientes seleccionados no tienen un correo electrónico válido.');
+      }
+
+      const isLeadGen =
+        selectedTemplate?.actionType === 'whatsapp_lead' ||
+        selectedTemplate?.action_type === 'whatsapp_lead' ||
+        selectedTemplate?.name?.toLowerCase().includes('whatsapp');
+      const uploadMode = isLeadGen ? 'lead_generation' : 'calendar_booking';
+
+      const response = await fetch(`${BACKEND_URL}/api/test-email/queue/load`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          contacts: selectedContacts,
+          tag: campaignTag.trim() || undefined,
+          mode: uploadMode,
+        }),
+      });
+
+      if (!response.ok) {
+        const errData = await response.json();
+        throw new Error(errData.message || 'Error al procesar los contactos seleccionados');
+      }
+
+      const result = await response.json();
+
+      if (result.skippedCount > 0) {
+        setUploadSummary({
+          totalUploaded: result.totalUploaded,
+          validCount: result.validCount,
+          skippedCount: result.skippedCount,
+          skippedContacts: result.skippedContacts || [],
+        });
+        const modeDetail = isLeadGen
+          ? 'listos para envío directo con botón a WhatsApp'
+          : 'agendados en Google Calendar';
+        setSuccessMsg(
+          `¡Campaña procesada! ${result.validCount} clientes válidos ${modeDetail}. Se omitieron ${result.skippedCount} contactos duplicados o ya enviados recientemente.`
+        );
+      } else {
+        setUploadSummary(null);
+        const modeDetail = isLeadGen
+          ? 'listos para envío directo con enlace a WhatsApp.'
+          : 'y se asignaron horarios en Google Calendar.';
+        setSuccessMsg(
+          `¡${result.validCount || selectedContacts.length} clientes de la base de datos cargados con éxito a la cola! (${modeDetail})`
+        );
+      }
+
+      setSelectedDbContactIds([]);
+      await fetchPendingQueue();
+    } catch (err: any) {
+      setErrorMsg(err.message || 'Error al cargar los clientes a la cola');
+    } finally {
+      setQueueLoading(false);
+    }
   };
 
   // Modificar slot sugerido o excluir contacto
@@ -2312,31 +2498,279 @@ export default function EmailMonitoringDashboard({ onNavigateToBooking }: EmailM
                   )}
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-stretch">
-                  {/* Zona de Arrastrar CSV */}
-                  <div className={`border-2 border-dashed rounded-2xl p-8 text-center transition-all relative group flex flex-col items-center justify-center ${
-                    campaignTag.trim()
-                      ? 'border-slate-300 hover:border-slate-500 bg-slate-50/50 cursor-pointer'
-                      : 'border-amber-300/80 bg-amber-50/30'
-                  }`}>
-                    <input
-                      type="file"
-                      accept=".csv"
-                      onChange={handleCsvUpload}
-                      disabled={queueLoading || queueStatus.isProcessing}
-                      className="absolute inset-0 w-full h-full opacity-0 cursor-pointer disabled:cursor-not-allowed"
-                    />
-                    <Upload className={`w-10 h-10 mx-auto mb-3 transition-colors ${
-                      campaignTag.trim() ? 'text-slate-400 group-hover:text-slate-700' : 'text-amber-500'
-                    }`} />
-                    <p className="text-sm font-bold text-slate-800">Arrastra tu archivo CSV o haz clic aquí</p>
-                    <p className="text-xs text-slate-500 mt-1">
-                      {campaignTag.trim() ? (
-                        <>Columnas requeridas: Nombre, Correo, Celular • <span className="font-semibold text-slate-700">Etiqueta: "{campaignTag.trim()}"</span></>
-                      ) : (
-                        <span className="text-amber-700 font-semibold">⚠️ Primero ingresa la etiqueta en el paso de arriba</span>
-                      )}
-                    </p>
+                {/* Selector de Origen: Base de Datos vs CSV */}
+                <div className="flex items-center justify-between gap-4 flex-wrap border-b border-slate-200 pb-3">
+                  <div className="flex items-center gap-1.5 p-1 bg-slate-100 rounded-xl">
+                    <button
+                      type="button"
+                      onClick={() => setRecipientSourceMode('database')}
+                      className={`flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all ${
+                        recipientSourceMode === 'database'
+                          ? 'bg-white text-indigo-700 shadow-sm'
+                          : 'text-slate-600 hover:text-slate-900'
+                      }`}
+                    >
+                      <Users className="w-4 h-4 text-indigo-600" />
+                      <span>Clientes Registrados ({dbAttendees.length})</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setRecipientSourceMode('csv')}
+                      className={`flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all ${
+                        recipientSourceMode === 'csv'
+                          ? 'bg-white text-emerald-700 shadow-sm'
+                          : 'text-slate-600 hover:text-slate-900'
+                      }`}
+                    >
+                      <FileSpreadsheet className="w-4 h-4 text-emerald-600" />
+                      <span>Subir Archivo CSV</span>
+                    </button>
+                  </div>
+
+                  {recipientSourceMode === 'database' && (
+                    <button
+                      type="button"
+                      onClick={fetchDbAttendees}
+                      disabled={loadingDbAttendees}
+                      className="inline-flex items-center gap-1.5 text-xs text-slate-600 hover:text-slate-900 font-medium transition-colors"
+                      title="Actualizar lista de clientes registrados"
+                    >
+                      <RefreshCw className={`w-3.5 h-3.5 ${loadingDbAttendees ? 'animate-spin text-indigo-600' : ''}`} />
+                      <span>Refrescar</span>
+                    </button>
+                  )}
+                </div>
+
+                <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+                  {/* Contenedor Principal Izquierdo: BD o CSV */}
+                  <div className="lg:col-span-7 xl:col-span-8 space-y-4">
+                    {recipientSourceMode === 'csv' ? (
+                      /* Zona de Arrastrar CSV */
+                      <div className={`border-2 border-dashed rounded-2xl p-8 text-center transition-all relative group flex flex-col items-center justify-center min-h-[280px] ${
+                        campaignTag.trim()
+                          ? 'border-slate-300 hover:border-slate-500 bg-slate-50/50 cursor-pointer'
+                          : 'border-amber-300/80 bg-amber-50/30'
+                      }`}>
+                        <input
+                          type="file"
+                          accept=".csv"
+                          onChange={handleCsvUpload}
+                          disabled={queueLoading || queueStatus.isProcessing}
+                          className="absolute inset-0 w-full h-full opacity-0 cursor-pointer disabled:cursor-not-allowed"
+                        />
+                        <Upload className={`w-10 h-10 mx-auto mb-3 transition-colors ${
+                          campaignTag.trim() ? 'text-slate-400 group-hover:text-slate-700' : 'text-amber-500'
+                        }`} />
+                        <p className="text-sm font-bold text-slate-800">Arrastra tu archivo CSV o haz clic aquí</p>
+                        <p className="text-xs text-slate-500 mt-1">
+                          {campaignTag.trim() ? (
+                            <>Columnas requeridas: Nombre, Correo, Celular • <span className="font-semibold text-slate-700">Etiqueta: "{campaignTag.trim()}"</span></>
+                          ) : (
+                            <span className="text-amber-700 font-semibold">⚠️ Primero ingresa la etiqueta en el paso de arriba</span>
+                          )}
+                        </p>
+                      </div>
+                    ) : (
+                      /* Selector Avanzado de Contactos desde Base de Datos */
+                      <div className="border border-slate-200 rounded-2xl bg-white p-4 space-y-3.5 shadow-sm">
+                        {/* Barra de Filtros */}
+                        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2.5">
+                          {/* Buscador de texto */}
+                          <div className="relative sm:col-span-2 md:col-span-1">
+                            <input
+                              type="text"
+                              value={dbSearch}
+                              onChange={(e) => setDbSearch(e.target.value)}
+                              placeholder="Buscar nombre, correo..."
+                              className="w-full pl-8 pr-3 py-1.5 text-xs bg-slate-50 border border-slate-200 rounded-lg text-slate-800 focus:bg-white focus:border-indigo-500 outline-none"
+                            />
+                            <Search className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-1/2 -translate-y-1/2" />
+                          </div>
+
+                          {/* Filtro por Evento / Origen */}
+                          <div>
+                            <select
+                              value={dbEventFilter}
+                              onChange={(e) => setDbEventFilter(e.target.value)}
+                              className="w-full px-2.5 py-1.5 text-xs bg-slate-50 border border-slate-200 rounded-lg text-slate-700 focus:bg-white focus:border-indigo-500 outline-none"
+                            >
+                              <option value="todos">Todos los Orígenes / Eventos</option>
+                              <option value="dr-finanzas-bio">🔗 Link en Bio / Redes</option>
+                              {Array.from(new Set(dbAttendees.map((a) => a.evento_nombre || a.evento_id).filter(Boolean)))
+                                .filter((ev) => ev !== 'dr-finanzas-bio')
+                                .map((ev, i) => (
+                                  <option key={i} value={ev}>
+                                    📅 {ev}
+                                  </option>
+                                ))}
+                            </select>
+                          </div>
+
+                          {/* Filtro por Estado */}
+                          <div>
+                            <select
+                              value={dbStatusFilter}
+                              onChange={(e) => setDbStatusFilter(e.target.value)}
+                              className="w-full px-2.5 py-1.5 text-xs bg-slate-50 border border-slate-200 rounded-lg text-slate-700 focus:bg-white focus:border-indigo-500 outline-none"
+                            >
+                              <option value="todos">Todos los Estados</option>
+                              <option value="pendiente">⏳ Pendiente</option>
+                              <option value="contactado">📞 Contactado</option>
+                              <option value="calificado">⭐ Calificado</option>
+                              <option value="ganado">✅ Ganado</option>
+                            </select>
+                          </div>
+
+                          {/* Filtro por Antigüedad / Fecha */}
+                          <div>
+                            <select
+                              value={dbAgeFilter}
+                              onChange={(e) => setDbAgeFilter(e.target.value)}
+                              className="w-full px-2.5 py-1.5 text-xs bg-slate-50 border border-slate-200 rounded-lg text-slate-700 focus:bg-white focus:border-indigo-500 outline-none"
+                            >
+                              <option value="todos">Todas las Fechas</option>
+                              <option value="hoy">Registrados Hoy</option>
+                              <option value="7d">Últimos 7 Días</option>
+                              <option value="30d">Últimos 30 Días</option>
+                              <option value="antiguos">Más de 30 Días</option>
+                            </select>
+                          </div>
+
+                          {/* Filtro por Interés de Inversión */}
+                          <div>
+                            <select
+                              value={dbInterestFilter}
+                              onChange={(e) => setDbInterestFilter(e.target.value)}
+                              className="w-full px-2.5 py-1.5 text-xs bg-slate-50 border border-slate-200 rounded-lg text-slate-700 focus:bg-white focus:border-indigo-500 outline-none"
+                            >
+                              <option value="todos">Cualquier Interés</option>
+                              <option value="alta">🔥 Alto Interés</option>
+                              <option value="media">⚡ Interés Medio</option>
+                              <option value="baja">🌱 Interés Inicial</option>
+                            </select>
+                          </div>
+                        </div>
+
+                        {/* Barra de Acciones de Bloque y Conteo */}
+                        <div className="flex items-center justify-between flex-wrap gap-2 pt-1 border-t border-slate-100">
+                          <div className="flex items-center gap-2">
+                            <button
+                              type="button"
+                              onClick={handleSelectAllFilteredDb}
+                              className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-md text-[11px] font-bold transition-colors"
+                            >
+                              {filteredDbAttendees.every((a) => selectedDbContactIds.includes(a.id)) && filteredDbAttendees.length > 0 ? (
+                                <>
+                                  <CheckSquare className="w-3.5 h-3.5 text-indigo-600" />
+                                  <span>Deseleccionar Filtrados</span>
+                                </>
+                              ) : (
+                                <>
+                                  <Square className="w-3.5 h-3.5 text-slate-500" />
+                                  <span>Seleccionar Filtrados ({filteredDbAttendees.length})</span>
+                                </>
+                              )}
+                            </button>
+                            {selectedDbContactIds.length > 0 && (
+                              <button
+                                type="button"
+                                onClick={() => setSelectedDbContactIds([])}
+                                className="text-[11px] text-slate-500 hover:text-red-600 transition-colors"
+                              >
+                                Limpiar selección
+                              </button>
+                            )}
+                          </div>
+
+                          <div className="flex items-center gap-3">
+                            <span className="text-xs text-slate-600 font-semibold">
+                              <span className="text-indigo-600 font-bold">{selectedDbContactIds.length}</span> seleccionados de {filteredDbAttendees.length} mostrados
+                            </span>
+
+                            <button
+                              type="button"
+                              onClick={handleLoadDbContactsToQueue}
+                              disabled={queueLoading || queueStatus.isProcessing || selectedDbContactIds.length === 0 || !campaignTag.trim()}
+                              className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 disabled:bg-slate-200 disabled:text-slate-400 text-white rounded-lg text-xs font-bold shadow-sm transition-all disabled:cursor-not-allowed"
+                            >
+                              <Send className="w-3.5 h-3.5" />
+                              <span>Cargar {selectedDbContactIds.length > 0 ? `(${selectedDbContactIds.length})` : ''} a la Campaña</span>
+                            </button>
+                          </div>
+                        </div>
+
+                        {/* Lista Desplazable de Clientes */}
+                        <div className="max-h-64 overflow-y-auto border border-slate-200 rounded-xl divide-y divide-slate-100">
+                          {loadingDbAttendees ? (
+                            <div className="p-8 text-center text-xs text-slate-500">
+                              <RefreshCw className="w-5 h-5 mx-auto mb-2 animate-spin text-indigo-500" />
+                              Cargando clientes registrados...
+                            </div>
+                          ) : filteredDbAttendees.length === 0 ? (
+                            <div className="p-8 text-center text-xs text-slate-500">
+                              No se encontraron clientes con los filtros seleccionados.
+                            </div>
+                          ) : (
+                            filteredDbAttendees.map((attendee) => {
+                              const isSelected = selectedDbContactIds.includes(attendee.id);
+                              return (
+                                <div
+                                  key={attendee.id}
+                                  onClick={() => handleToggleDbContact(attendee.id)}
+                                  className={`flex items-center gap-3 px-3 py-2 text-xs cursor-pointer transition-colors ${
+                                    isSelected ? 'bg-indigo-50/70 hover:bg-indigo-50' : 'hover:bg-slate-50'
+                                  }`}
+                                >
+                                  <input
+                                    type="checkbox"
+                                    checked={isSelected}
+                                    onChange={() => {}} // Manejado por onClick del contenedor
+                                    className="w-4 h-4 rounded text-indigo-600 border-slate-300 focus:ring-indigo-500 cursor-pointer"
+                                  />
+                                  <div className="min-w-0 flex-1">
+                                    <div className="flex items-center gap-2">
+                                      <p className="font-semibold text-slate-800 truncate">
+                                        {attendee.nombre || 'Cliente sin nombre'}
+                                      </p>
+                                      {attendee.evento_nombre && (
+                                        <span className="text-[10px] px-1.5 py-0.5 bg-slate-100 text-slate-600 rounded font-medium truncate max-w-[140px]">
+                                          {attendee.evento_nombre}
+                                        </span>
+                                      )}
+                                      {attendee.evento_id === 'dr-finanzas-bio' && !attendee.evento_nombre && (
+                                        <span className="text-[10px] px-1.5 py-0.5 bg-blue-50 text-blue-700 rounded font-medium">
+                                          Link Bio
+                                        </span>
+                                      )}
+                                    </div>
+                                    <div className="flex items-center gap-3 text-slate-500 text-[11px] mt-0.5">
+                                      <span className="truncate">{attendee.correo}</span>
+                                      {attendee.celular && <span>• 📱 {attendee.celular}</span>}
+                                    </div>
+                                  </div>
+                                  <div className="text-right flex flex-col items-end gap-1 shrink-0">
+                                    <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold uppercase tracking-wider ${
+                                      attendee.estado === 'ganado'
+                                        ? 'bg-emerald-100 text-emerald-800'
+                                        : attendee.estado === 'contactado'
+                                        ? 'bg-blue-100 text-blue-800'
+                                        : 'bg-amber-100 text-amber-800'
+                                    }`}>
+                                      {attendee.estado || 'Pendiente'}
+                                    </span>
+                                    {attendee.created_at && (
+                                      <span className="text-[10px] text-slate-400">
+                                        {new Date(attendee.created_at).toLocaleDateString('es-PE', { day: '2-digit', month: 'short' })}
+                                      </span>
+                                    )}
+                                  </div>
+                                </div>
+                              );
+                            })
+                          )}
+                        </div>
+                      </div>
+                    )}
                   </div>
 
                   {/* Panel de Estado / Progreso de Envíos */}
