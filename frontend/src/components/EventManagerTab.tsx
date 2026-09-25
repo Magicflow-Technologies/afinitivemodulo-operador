@@ -37,7 +37,9 @@ import {
   Activity,
   Smartphone,
   Timer,
-  ChevronRight
+  ChevronRight,
+  Repeat,
+  Target
 } from 'lucide-react';
 import type { BioButtonItem } from '../utils/bioLinkConfig';
 import { 
@@ -84,8 +86,8 @@ interface EventManagerTabProps {
 }
 
 export default function EventManagerTab({ onUseAsCampaign }: EventManagerTabProps = {}) {
-  // Navigation tabs: 'eventos' | 'registrados' | 'estadisticas' | 'biolink'
-  const [activeSubTab, setActiveSubTab] = useState<'eventos' | 'registrados' | 'estadisticas' | 'biolink'>('eventos');
+  // Navigation tabs: 'eventos' | 'registrados' | 'estadisticas' | 'tendencias' | 'biolink'
+  const [activeSubTab, setActiveSubTab] = useState<'eventos' | 'registrados' | 'estadisticas' | 'tendencias' | 'biolink'>('eventos');
 
   const [eventos, setEventos] = useState<Evento[]>([]);
   const [loading, setLoading] = useState(true);
@@ -105,6 +107,8 @@ export default function EventManagerTab({ onUseAsCampaign }: EventManagerTabProp
   const [channelFilter, setChannelFilter] = useState<'todos' | 'con_celular' | 'solo_correo'>('todos');
   const [ageFilter, setAgeFilter] = useState<'todos' | 'hoy' | 'semana' | 'mes' | 'antiguo'>('todos');
   const [analyticsTimeframe, setAnalyticsTimeframe] = useState<'all' | '30d' | '7d' | 'today'>('all');
+  const [cadenceFilter, setCadenceFilter] = useState<'todos' | 'urgente_dia2' | 'negociacion_dia5' | 'reactivacion_dia15'>('todos');
+  const [trendDaysRange, setTrendDaysRange] = useState<7 | 14 | 30>(14);
   const [updatingStatusId, setUpdatingStatusId] = useState<string | null>(null);
 
   // Modals state
@@ -539,6 +543,35 @@ export default function EventManagerTab({ onUseAsCampaign }: EventManagerTabProp
     }
   };
 
+  const handleRecontactWhatsapp = (a: Asistente, customMessage?: string) => {
+    const cleanPhone = (a.celular || '').replace(/[^0-9]/g, '');
+    const nombreCorto = (a.nombre || '').split(' ')[0] || 'estimado(a)';
+    const defaultMsg = `Hola ${nombreCorto}, te escribo de Afinitive Wealth Management para dar seguimiento a tu consulta sobre alternativas de inversión.`;
+    const messageToSend = customMessage ? encodeURIComponent(customMessage) : encodeURIComponent(defaultMsg);
+    const whatsappUrl = `https://wa.me/${cleanPhone}?text=${messageToSend}`;
+    window.open(whatsappUrl, '_blank');
+
+    // Actualizar fecha de atención / nuevo seguimiento en UI optimista
+    const nowIso = new Date().toISOString();
+    const nuevoEstado = a.estado === 'pendiente' ? 'atendido' : (a.estado || 'atendido');
+    setAllAttendees(prev =>
+      prev.map(item => (item.id === a.id ? { ...item, fecha_atencion: nowIso, estado: nuevoEstado } : item))
+    );
+
+    if (backendUrl) {
+      fetch(`${backendUrl}/api/eventos/asistentes/${a.id}/estado`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          estado: nuevoEstado,
+          notas: `Re-contactado vía WhatsApp el ${new Date().toLocaleDateString('es-PE')}`
+        }),
+      }).catch(err => console.error('Error al registrar recontacto:', err));
+    }
+
+    showToast(`Mensaje de seguimiento enviado a ${a.nombre}`, 'success');
+  };
+
   const handleExportCsv = (list: Asistente[], filenamePrefix = 'asistentes') => {
     if (!list.length) return;
 
@@ -773,6 +806,134 @@ export default function EventManagerTab({ onUseAsCampaign }: EventManagerTabProp
   }, {});
   const paisesOrdenados = Object.entries(porPais).sort((a, b) => b[1] - a[1]);
 
+  // ==========================================
+  // MARKETING & RE-ENGAGEMENT INTELLIGENCE (DUEÑO DE NEGOCIO)
+  // ==========================================
+
+  // 1. Cadencias de Re-contacto Inteligente
+  const getLeadRecontactInfo = (a: Asistente) => {
+    const lastActionDateStr = a.fecha_atencion || a.created_at;
+    const lastActionTime = new Date(lastActionDateStr).getTime();
+    const now = Date.now();
+    const diffDays = Math.max(0, (now - lastActionTime) / (1000 * 60 * 60 * 24));
+    const daysPassed = Math.floor(diffDays);
+
+    let cadenceStage: 'urgente_dia2' | 'negociacion_dia5' | 'reactivacion_dia15' | 'al_dia' = 'al_dia';
+    let stageTitle = 'Al día / Reciente';
+    let recommendedAction = 'Sin acción urgente';
+    let badgeClass = 'bg-slate-100 text-slate-600 border-slate-200';
+    let suggestedMessage = '';
+
+    const nombreCorto = (a.nombre || 'estimado(a)').split(' ')[0];
+    const interes = a.interes_inversion && a.interes_inversion !== '-' ? a.interes_inversion : 'inversiones patrimoniales';
+
+    if (daysPassed >= 2 && daysPassed <= 4 && (a.estado === 'pendiente' || a.estado === 'atendido')) {
+      cadenceStage = 'urgente_dia2';
+      stageTitle = '🔥 Re-contacto 1 (Día 2-4)';
+      recommendedAction = 'Primer seguimiento comercial post-registro';
+      badgeClass = 'bg-rose-50 text-rose-800 border-rose-300 font-bold';
+      suggestedMessage = `Hola ${nombreCorto}, ¿cómo estás? Te escribo de Afinitive Wealth Management para consultar si pudiste revisar la información sobre ${interes} que te compartimos. ¿Te gustaría agendar una breve llamada de 10 minutos esta semana?`;
+    } else if (daysPassed >= 5 && daysPassed <= 9 && (a.estado === 'en_proceso' || a.estado === 'atendido')) {
+      cadenceStage = 'negociacion_dia5';
+      stageTitle = '⚡ Re-contacto 2 (Día 5-9)';
+      recommendedAction = 'Seguimiento de propuesta o caso de éxito';
+      badgeClass = 'bg-amber-50 text-amber-900 border-amber-300 font-bold';
+      suggestedMessage = `Hola ${nombreCorto}, espero que todo vaya excelente. Quería comentarte que tenemos nuevas proyecciones de rentabilidad y opciones destacadas para ${interes}. ¿Cuándo te vendría bien revisar los detalles?`;
+    } else if (daysPassed >= 15 && a.estado !== 'descartado' && a.estado !== 'no_responde') {
+      cadenceStage = 'reactivacion_dia15';
+      stageTitle = '🔄 Reactivación (+15 Días)';
+      recommendedAction = 'Invitación a nuevo webinar o masterclass';
+      badgeClass = 'bg-blue-50 text-blue-900 border-blue-300 font-bold';
+      suggestedMessage = `Hola ${nombreCorto}, un gusto saludarte nuevamente. En Afinitive estamos organizando una sesión privada exclusiva sobre ${interes} y análisis de mercado. ¿Te gustaría que te reservemos un cupo prioritario?`;
+    }
+
+    return {
+      daysPassed,
+      cadenceStage,
+      stageTitle,
+      recommendedAction,
+      badgeClass,
+      suggestedMessage,
+      lastActionDateStr
+    };
+  };
+
+  const recontactQueue = allAttendees
+    .map(a => ({ asistente: a, recontact: getLeadRecontactInfo(a) }))
+    .filter(item => item.recontact.cadenceStage !== 'al_dia')
+    .sort((a, b) => {
+      const priority = { urgente_dia2: 1, negociacion_dia5: 2, reactivacion_dia15: 3, al_dia: 4 };
+      return priority[a.recontact.cadenceStage] - priority[b.recontact.cadenceStage];
+    });
+
+  const recontactCadencia1 = recontactQueue.filter(item => item.recontact.cadenceStage === 'urgente_dia2');
+  const recontactCadencia2 = recontactQueue.filter(item => item.recontact.cadenceStage === 'negociacion_dia5');
+  const recontactCadencia3 = recontactQueue.filter(item => item.recontact.cadenceStage === 'reactivacion_dia15');
+
+  const filteredRecontactQueue = recontactQueue.filter(item => {
+    if (cadenceFilter === 'todos') return true;
+    return item.recontact.cadenceStage === cadenceFilter;
+  });
+
+  // 2. Línea de Tiempo de Captación Diaria (Tendencia de los últimos N días)
+  const timelineTrendData = Array.from({ length: trendDaysRange }).map((_, i) => {
+    const d = new Date();
+    d.setDate(d.getDate() - ((trendDaysRange - 1) - i));
+    const dateIso = d.toISOString().slice(0, 10);
+    const dayLabel = d.toLocaleDateString('es-PE', { weekday: 'short', day: 'numeric', month: 'short' });
+    
+    const leadsDay = allAttendees.filter(a => (a.created_at || '').slice(0, 10) === dateIso);
+    const conWsp = leadsDay.filter(a => (a.celular || '').replace(/[^0-9]/g, '').length >= 7).length;
+    const soloEmail = leadsDay.length - conWsp;
+
+    return {
+      dateIso,
+      dayLabel,
+      total: leadsDay.length,
+      conWsp,
+      soloEmail
+    };
+  });
+
+  const maxTimelineTotal = Math.max(1, ...timelineTrendData.map(d => d.total));
+  const totalLeadsInTrend = timelineTrendData.reduce((acc, d) => acc + d.total, 0);
+  const avgLeadsPerDay = Math.round((totalLeadsInTrend / trendDaysRange) * 10) / 10;
+
+  // 3. Heatmap de Días de la Semana y Horarios de Mayor Conversión
+  const dayNamesArr = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'];
+  const leadsByDayOfWeek = dayNamesArr.map((name, idx) => {
+    const count = allAttendees.filter(a => {
+      if (!a.created_at) return false;
+      return new Date(a.created_at).getDay() === idx;
+    }).length;
+    const pct = totalRegistradosCount > 0 ? Math.round((count / totalRegistradosCount) * 100) : 0;
+    return { name, count, pct };
+  });
+  const topDayOfWeek = [...leadsByDayOfWeek].sort((a, b) => b.count - a.count)[0];
+
+  const franjasHorarias = [
+    { id: 'madrugada', name: '🌌 Madrugada', time: '00h - 06h', count: 0 },
+    { id: 'manana', name: '🌅 Mañana', time: '06h - 12h', count: 0 },
+    { id: 'tarde', name: '☀️ Tarde', time: '12h - 18h', count: 0 },
+    { id: 'noche', name: '🌙 Noche', time: '18h - 24h', count: 0 },
+  ];
+
+  allAttendees.forEach(a => {
+    if (!a.created_at) return;
+    const hour = new Date(a.created_at).getHours();
+    if (hour >= 0 && hour < 6) franjasHorarias[0].count++;
+    else if (hour >= 6 && hour < 12) franjasHorarias[1].count++;
+    else if (hour >= 12 && hour < 18) franjasHorarias[2].count++;
+    else franjasHorarias[3].count++;
+  });
+  const topFranja = [...franjasHorarias].sort((a, b) => b.count - a.count)[0];
+
+  // 4. Segmentos de Audiencias para Campañas de Marketing
+  const segmentoVip = allAttendees.filter(a => (a.celular || '').replace(/[^0-9]/g, '').length >= 7 && a.interes_inversion && a.interes_inversion !== '-');
+  const segmentoEmail = allAttendees.filter(a => (a.celular || '').replace(/[^0-9]/g, '').length < 7 && a.correo && a.correo.includes('@'));
+  const segmentoReactivacion = allAttendees.filter(a => getLeadAgeInfo(a.created_at).days >= 15 && a.estado !== 'descartado' && a.estado !== 'no_responde');
+  const segmentoNegociacion = allAttendees.filter(a => a.estado === 'en_proceso');
+
   return (
     <div className="space-y-6 animate-in fade-in duration-300">
       
@@ -859,6 +1020,26 @@ export default function EventManagerTab({ onUseAsCampaign }: EventManagerTabProp
           </button>
 
           <button
+            onClick={() => {
+              setActiveSubTab('tendencias');
+              fetchAllAttendees();
+            }}
+            className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+              activeSubTab === 'tendencias'
+                ? 'bg-gradient-to-r from-amber-50 to-orange-50 text-orange-950 border border-orange-300 shadow-xs ring-1 ring-orange-400/20'
+                : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100 border border-transparent'
+            }`}
+          >
+            <Repeat className="w-4 h-4 text-orange-600" />
+            <span>🔥 Tendencias & Re-contacto</span>
+            {recontactQueue.length > 0 && (
+              <span className="px-1.5 py-0.2 rounded-md bg-rose-600 text-white text-[9px] font-black tracking-wider animate-pulse">
+                {recontactQueue.length}
+              </span>
+            )}
+          </button>
+
+          <button
             onClick={() => setActiveSubTab('biolink')}
             className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
               activeSubTab === 'biolink'
@@ -874,7 +1055,7 @@ export default function EventManagerTab({ onUseAsCampaign }: EventManagerTabProp
           </button>
         </div>
 
-        {(activeSubTab === 'registrados' || activeSubTab === 'estadisticas') && (
+        {(activeSubTab === 'registrados' || activeSubTab === 'estadisticas' || activeSubTab === 'tendencias') && (
           <button
             onClick={() => handleExportCsv(filteredGlobalAttendees, 'todos_los_clientes_registrados')}
             disabled={!filteredGlobalAttendees.length}
@@ -2407,6 +2588,558 @@ export default function EventManagerTab({ onUseAsCampaign }: EventManagerTabProp
                     : 'Promueve campos de interés patrimonial en tus formularios para segmentar mejor tus ofertas.'}
                 </p>
               </div>
+            </div>
+          </div>
+
+        </div>
+      )}
+
+      {/* ================= SUBTAB 4: TENDENCIAS, RE-CONTACTO & MARKETING INTELLIGENCE ================= */}
+      {activeSubTab === 'tendencias' && (
+        <div className="space-y-6 animate-in fade-in duration-300">
+          
+          {/* Hero Header Ejecutivo de Marketing */}
+          <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-slate-950 via-stone-900 to-amber-950 text-white p-6 sm:p-8 border border-amber-900/40 shadow-xl">
+            <div className="absolute top-0 right-0 w-96 h-96 bg-amber-500/10 rounded-full blur-3xl pointer-events-none -mr-20 -mt-20"></div>
+            <div className="absolute bottom-0 left-1/4 w-72 h-72 bg-orange-500/10 rounded-full blur-2xl pointer-events-none"></div>
+
+            <div className="relative z-10 flex flex-col lg:flex-row items-start lg:items-center justify-between gap-6">
+              <div>
+                <div className="flex items-center gap-2 mb-2">
+                  <span className="px-2.5 py-0.5 rounded-full bg-gradient-to-r from-amber-400 to-orange-500 text-slate-950 text-[10px] font-black uppercase tracking-widest shadow-xs">
+                    Marketing & Growth Hub
+                  </span>
+                  <span className="text-amber-200/70 text-xs font-mono">
+                    Cadencias Automatizadas
+                  </span>
+                </div>
+                <h3 className="text-2xl sm:text-3xl font-black text-white tracking-tight">
+                  Tendencias, Horarios & Estrategia de Re-contacto
+                </h3>
+                <p className="text-xs sm:text-sm text-amber-100/80 max-w-2xl mt-1 leading-relaxed">
+                  Identifica a qué clientes toca re-escribirles hoy, detecta los mejores horarios para pautar en redes y activa audiencias segmentadas.
+                </p>
+              </div>
+
+              {/* Indicadores Clave de Re-contacto */}
+              <div className="flex items-center gap-2 flex-wrap">
+                <div className="bg-slate-900/80 border border-amber-500/30 px-3.5 py-2 rounded-2xl text-center backdrop-blur-md">
+                  <span className="text-[10px] uppercase font-black text-amber-300 block">Cola de Re-contacto</span>
+                  <span className="text-2xl font-black text-white">{recontactQueue.length}</span>
+                </div>
+                <div className="bg-slate-900/80 border border-rose-500/30 px-3.5 py-2 rounded-2xl text-center backdrop-blur-md">
+                  <span className="text-[10px] uppercase font-black text-rose-300 block">Re-contacto 1 (Día 2-4)</span>
+                  <span className="text-2xl font-black text-rose-400">{recontactCadencia1.length}</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* ================= MÓDULO 1: COLA DE RE-CONTACTO INTELIGENTE ================= */}
+          <div className="bg-white border border-slate-200 rounded-3xl p-6 shadow-xs space-y-5">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 pb-4">
+              <div>
+                <div className="flex items-center gap-2">
+                  <span className="w-2.5 h-2.5 rounded-full bg-rose-500 animate-ping"></span>
+                  <h4 className="text-base font-black text-slate-900 tracking-tight">
+                    🔥 Próximos a Re-contactar (Cadencia de Seguimiento Activo)
+                  </h4>
+                </div>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  Prospectos organizados por tiempo transcurrido desde su registro o última interacción con mensajes personalizados listos para WhatsApp.
+                </p>
+              </div>
+
+              {/* Selector de Filtro de Cadencia */}
+              <div className="flex items-center gap-1.5 bg-slate-100 p-1 rounded-2xl self-start sm:self-auto flex-wrap">
+                <button
+                  onClick={() => setCadenceFilter('todos')}
+                  className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                    cadenceFilter === 'todos'
+                      ? 'bg-white text-slate-900 shadow-xs font-black'
+                      : 'text-slate-600 hover:text-slate-900'
+                  }`}
+                >
+                  Todos ({recontactQueue.length})
+                </button>
+                <button
+                  onClick={() => setCadenceFilter('urgente_dia2')}
+                  className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                    cadenceFilter === 'urgente_dia2'
+                      ? 'bg-rose-500 text-white shadow-xs font-black'
+                      : 'text-rose-700 hover:text-rose-900'
+                  }`}
+                >
+                  🔥 Día 2-4 ({recontactCadencia1.length})
+                </button>
+                <button
+                  onClick={() => setCadenceFilter('negociacion_dia5')}
+                  className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                    cadenceFilter === 'negociacion_dia5'
+                      ? 'bg-amber-500 text-white shadow-xs font-black'
+                      : 'text-amber-700 hover:text-amber-900'
+                  }`}
+                >
+                  ⚡ Día 5-9 ({recontactCadencia2.length})
+                </button>
+                <button
+                  onClick={() => setCadenceFilter('reactivacion_dia15')}
+                  className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                    cadenceFilter === 'reactivacion_dia15'
+                      ? 'bg-blue-600 text-white shadow-xs font-black'
+                      : 'text-blue-700 hover:text-blue-900'
+                  }`}
+                >
+                  🔄 +15 Días ({recontactCadencia3.length})
+                </button>
+              </div>
+            </div>
+
+            {/* Lista de Prospectos en Cola de Re-contacto */}
+            {filteredRecontactQueue.length === 0 ? (
+              <div className="py-12 text-center text-slate-500 bg-slate-50 rounded-2xl border border-slate-100">
+                <CheckCircle2 className="w-10 h-10 text-emerald-500 mx-auto mb-2" />
+                <h5 className="text-sm font-bold text-slate-800">¡Bandeja de Re-contacto al día!</h5>
+                <p className="text-xs text-slate-400 mt-0.5">
+                  No hay prospectos pendientes que cumplan con la cadencia de seguimiento seleccionada.
+                </p>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                {filteredRecontactQueue.map(({ asistente: a, recontact }) => {
+                  const cleanPhone = (a.celular || '').replace(/[^0-9]/g, '');
+                  const hasPhone = cleanPhone.length >= 7;
+
+                  return (
+                    <div 
+                      key={a.id}
+                      className="p-5 rounded-2xl bg-white border border-slate-200/90 hover:border-amber-300 shadow-2xs hover:shadow-md transition-all flex flex-col justify-between gap-3 group"
+                    >
+                      <div>
+                        {/* Header de la Tarjeta */}
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="flex items-center gap-2.5">
+                            <div className="w-9 h-9 rounded-full bg-slate-100 border border-slate-200 text-slate-800 flex items-center justify-center font-bold text-xs uppercase shrink-0">
+                              {a.nombre ? a.nombre.charAt(0) : 'U'}
+                            </div>
+                            <div>
+                              <h5 className="text-xs font-black text-slate-900 group-hover:text-amber-950 transition-colors">
+                                {a.nombre}
+                              </h5>
+                              <span className="text-[10px] text-slate-500 block">
+                                {a.evento_nombre || a.evento_id === 'dr-finanzas-bio' ? '✨ Bio Link TikTok' : 'Formulario Web'}
+                              </span>
+                            </div>
+                          </div>
+
+                          <div className="flex flex-col items-end gap-1">
+                            <span className={`text-[10px] px-2.5 py-0.5 rounded-full border ${recontact.badgeClass}`}>
+                              {recontact.stageTitle}
+                            </span>
+                            <span className="text-[10px] text-slate-400 font-mono">
+                              Hace {recontact.daysPassed} días
+                            </span>
+                          </div>
+                        </div>
+
+                        {/* Datos de Contacto e Interés */}
+                        <div className="flex items-center gap-2 mt-3 pt-2.5 border-t border-slate-100 text-xs flex-wrap">
+                          {a.interes_inversion && (
+                            <span className="inline-flex items-center gap-1 bg-amber-50 text-amber-900 border border-amber-200 px-2 py-0.5 rounded text-[10px] font-bold">
+                              <Briefcase className="w-3 h-3" />
+                              {a.interes_inversion}
+                            </span>
+                          )}
+                          <span className="inline-flex items-center gap-1 bg-slate-100 text-slate-700 px-2 py-0.5 rounded text-[10px] font-medium">
+                            <Globe className="w-3 h-3 text-slate-400" />
+                            {a.pais || 'Perú'}
+                          </span>
+                          <span className="text-[10px] text-slate-500 font-mono">
+                            {a.correo}
+                          </span>
+                        </div>
+
+                        {/* Caja con Mensaje Sugerido para WhatsApp */}
+                        <div className="mt-3 p-3 rounded-xl bg-slate-50 border border-slate-200/80 text-[11px] text-slate-700 leading-relaxed relative">
+                          <span className="text-[9px] uppercase font-black text-slate-400 tracking-wider block mb-1">
+                            💬 Mensaje de Re-contacto Sugerido:
+                          </span>
+                          <p className="italic">
+                            "{recontact.suggestedMessage}"
+                          </p>
+                        </div>
+                      </div>
+
+                      {/* Botones de Acción */}
+                      <div className="flex items-center gap-2 pt-2 border-t border-slate-100 flex-wrap">
+                        {hasPhone ? (
+                          <button
+                            onClick={() => handleRecontactWhatsapp(a, recontact.suggestedMessage)}
+                            className="flex-1 py-2 px-3 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs inline-flex items-center justify-center gap-1.5 transition-all cursor-pointer shadow-xs active:scale-98"
+                            title="Abrir WhatsApp con el mensaje personalizado y registrar fecha de atención"
+                          >
+                            <MessageCircle className="w-4 h-4" />
+                            <span>Enviar WhatsApp de Seguimiento ({a.celular})</span>
+                          </button>
+                        ) : (
+                          <a
+                            href={`mailto:${a.correo}?subject=Seguimiento%20Afinitive%20Wealth%20Management&body=${encodeURIComponent(recontact.suggestedMessage)}`}
+                            className="flex-1 py-2 px-3 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs inline-flex items-center justify-center gap-1.5 transition-all text-center"
+                          >
+                            <Mail className="w-4 h-4" />
+                            <span>Enviar Correo de Seguimiento</span>
+                          </a>
+                        )}
+
+                        <select
+                          value={a.estado || 'pendiente'}
+                          onChange={(e) => handleUpdateAttendeeStatus(a.id, e.target.value)}
+                          className="bg-slate-100 hover:bg-slate-200 border border-slate-300 rounded-xl py-1.5 px-2.5 text-xs text-slate-800 font-bold focus:outline-none cursor-pointer"
+                        >
+                          <option value="pendiente">🟡 Pendiente</option>
+                          <option value="atendido">🟢 Atendido</option>
+                          <option value="en_proceso">🔵 En Proceso</option>
+                          <option value="no_responde">⚪ Descartado</option>
+                        </select>
+                      </div>
+
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+
+          {/* ================= MÓDULO 2: TENDENCIA TEMPORAL DE CAPTACIÓN (TIMELINE DIARIO) ================= */}
+          <div className="bg-white border border-slate-200 rounded-3xl p-6 shadow-xs space-y-5">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 pb-4">
+              <div>
+                <h4 className="text-base font-black text-slate-900 tracking-tight flex items-center gap-2">
+                  <TrendingUp className="w-5 h-5 text-indigo-600" />
+                  <span>Línea de Tiempo de Captación & Ritmo de Crecimiento</span>
+                </h4>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  Evolución diaria de prospectos captados en los formularios y webinars.
+                </p>
+              </div>
+
+              {/* Selector de Rango de Días */}
+              <div className="flex items-center gap-2">
+                <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-xl text-xs font-bold">
+                  <button
+                    onClick={() => setTrendDaysRange(7)}
+                    className={`px-2.5 py-1 rounded-lg transition-all cursor-pointer ${
+                      trendDaysRange === 7 ? 'bg-white text-slate-900 shadow-2xs font-black' : 'text-slate-600'
+                    }`}
+                  >
+                    7 Días
+                  </button>
+                  <button
+                    onClick={() => setTrendDaysRange(14)}
+                    className={`px-2.5 py-1 rounded-lg transition-all cursor-pointer ${
+                      trendDaysRange === 14 ? 'bg-white text-slate-900 shadow-2xs font-black' : 'text-slate-600'
+                    }`}
+                  >
+                    14 Días
+                  </button>
+                  <button
+                    onClick={() => setTrendDaysRange(30)}
+                    className={`px-2.5 py-1 rounded-lg transition-all cursor-pointer ${
+                      trendDaysRange === 30 ? 'bg-white text-slate-900 shadow-2xs font-black' : 'text-slate-600'
+                    }`}
+                  >
+                    30 Días
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            {/* Resumen de Ritmo */}
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              <div className="p-3.5 rounded-2xl bg-slate-50 border border-slate-200/80">
+                <span className="text-[10px] font-black uppercase text-slate-500 block">Total en Rango:</span>
+                <span className="text-2xl font-black text-slate-900">{totalLeadsInTrend} leads</span>
+              </div>
+              <div className="p-3.5 rounded-2xl bg-indigo-50/50 border border-indigo-200/80">
+                <span className="text-[10px] font-black uppercase text-indigo-700 block">Ritmo Promedio:</span>
+                <span className="text-2xl font-black text-indigo-950">{avgLeadsPerDay} leads / día</span>
+              </div>
+              <div className="p-3.5 rounded-2xl bg-emerald-50/50 border border-emerald-200/80">
+                <span className="text-[10px] font-black uppercase text-emerald-700 block">Mayor Pico Diario:</span>
+                <span className="text-2xl font-black text-emerald-950">{maxTimelineTotal} registros</span>
+              </div>
+            </div>
+
+            {/* Gráfico de Barras por Día */}
+            <div className="space-y-2 pt-2">
+              <div className="grid grid-cols-7 sm:grid-cols-14 gap-1.5 items-end h-40 pt-6 pb-2 border-b border-slate-200">
+                {timelineTrendData.map((d) => {
+                  const heightPct = maxTimelineTotal > 0 ? Math.max(8, Math.round((d.total / maxTimelineTotal) * 100)) : 8;
+                  const isToday = d.dateIso === new Date().toISOString().slice(0, 10);
+
+                  return (
+                    <div key={d.dateIso} className="flex flex-col items-center h-full justify-end group relative">
+                      {/* Tooltip con conteo */}
+                      <div className="absolute -top-7 opacity-0 group-hover:opacity-100 transition-opacity bg-slate-900 text-white text-[10px] font-bold px-2 py-0.5 rounded-md pointer-events-none whitespace-nowrap z-10 shadow-md">
+                        {d.total} leads ({d.conWsp} wsp)
+                      </div>
+
+                      {/* Barra de progreso */}
+                      <div 
+                        className={`w-full max-w-[28px] rounded-t-lg transition-all duration-500 relative overflow-hidden flex flex-col justify-end ${
+                          isToday 
+                            ? 'bg-rose-500 group-hover:bg-rose-600' 
+                            : d.total > 0 
+                            ? 'bg-indigo-600 group-hover:bg-indigo-700' 
+                            : 'bg-slate-200'
+                        }`}
+                        style={{ height: `${heightPct}%` }}
+                      >
+                        {d.conWsp > 0 && d.total > 0 && (
+                          <div 
+                            className="w-full bg-emerald-400/80" 
+                            style={{ height: `${(d.conWsp / d.total) * 100}%` }}
+                            title={`Con WhatsApp: ${d.conWsp}`}
+                          ></div>
+                        )}
+                      </div>
+
+                      {/* Etiqueta del día */}
+                      <span className={`text-[9px] mt-1 font-mono truncate max-w-full ${isToday ? 'text-rose-600 font-bold' : 'text-slate-500'}`}>
+                        {d.dayLabel.split(' ')[0]}
+                      </span>
+                    </div>
+                  );
+                })}
+              </div>
+
+              <div className="flex items-center justify-between text-[11px] text-slate-400 pt-1 flex-wrap gap-2 font-medium">
+                <div className="flex items-center gap-3">
+                  <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full bg-indigo-600"></span> Total Registros</span>
+                  <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full bg-emerald-400"></span> Con WhatsApp</span>
+                  <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full bg-rose-500"></span> Hoy</span>
+                </div>
+                <span>Mostrando últimos {trendDaysRange} días</span>
+              </div>
+            </div>
+
+          </div>
+
+          {/* ================= MÓDULO 3: HEATMAP & MARKETING TIMING (CUÁNDO PAUTAR/PUBLICAR) ================= */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+            
+            {/* Días de la Semana con Mayor Conversión */}
+            <div className="bg-white border border-slate-200 rounded-3xl p-6 shadow-xs space-y-4">
+              <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+                <div>
+                  <h5 className="text-sm font-black text-slate-900 tracking-tight flex items-center gap-1.5">
+                    <Calendar className="w-4 h-4 text-amber-600" />
+                    <span>Días de Mayor Conversión (Semanal)</span>
+                  </h5>
+                  <p className="text-[11px] text-slate-400">
+                    Día con más registros: <strong>{topDayOfWeek ? topDayOfWeek.name : 'N/A'}</strong>
+                  </p>
+                </div>
+                <span className="text-[10px] font-black uppercase tracking-wider px-2 py-0.5 bg-amber-50 text-amber-800 rounded-full border border-amber-200">
+                  Día de Oro
+                </span>
+              </div>
+
+              <div className="space-y-2.5">
+                {leadsByDayOfWeek.map((day) => {
+                  const isTop = topDayOfWeek && day.name === topDayOfWeek.name && day.count > 0;
+                  return (
+                    <div key={day.name} className="space-y-1">
+                      <div className="flex items-center justify-between text-xs font-semibold">
+                        <span className={`flex items-center gap-1.5 ${isTop ? 'text-amber-950 font-black' : 'text-slate-700'}`}>
+                          {isTop && <span>👑</span>}
+                          {day.name}
+                        </span>
+                        <span className="font-mono text-slate-900 font-bold">{day.count} leads ({day.pct}%)</span>
+                      </div>
+                      <div className="w-full h-2 bg-slate-100 rounded-full overflow-hidden">
+                        <div 
+                          className={`h-full rounded-full transition-all ${isTop ? 'bg-amber-500' : 'bg-slate-400'}`}
+                          style={{ width: `${totalRegistradosCount > 0 ? (day.count / totalRegistradosCount) * 100 : 0}%` }}
+                        ></div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Franjas Horarias de Mayor Conversión */}
+            <div className="bg-white border border-slate-200 rounded-3xl p-6 shadow-xs space-y-4 flex flex-col justify-between">
+              <div>
+                <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+                  <div>
+                    <h5 className="text-sm font-black text-slate-900 tracking-tight flex items-center gap-1.5">
+                      <Clock className="w-4 h-4 text-indigo-600" />
+                      <span>Franjas Horarias de Captación</span>
+                    </h5>
+                    <p className="text-[11px] text-slate-400">
+                      Horario más activo: <strong>{topFranja ? topFranja.name : 'N/A'}</strong>
+                    </p>
+                  </div>
+                  <span className="text-[10px] font-black uppercase tracking-wider px-2 py-0.5 bg-indigo-50 text-indigo-800 rounded-full border border-indigo-200">
+                    Hora Pico
+                  </span>
+                </div>
+
+                <div className="space-y-3 mt-3">
+                  {franjasHorarias.map((franja) => {
+                    const pct = totalRegistradosCount > 0 ? Math.round((franja.count / totalRegistradosCount) * 100) : 0;
+                    const isTop = topFranja && franja.id === topFranja.id && franja.count > 0;
+
+                    return (
+                      <div key={franja.id} className="space-y-1">
+                        <div className="flex items-center justify-between text-xs font-semibold">
+                          <span className={isTop ? 'text-indigo-950 font-black' : 'text-slate-700'}>
+                            {franja.name}
+                          </span>
+                          <span className="font-mono text-slate-900 font-bold">{franja.count} leads ({pct}%)</span>
+                        </div>
+                        <div className="w-full h-2 bg-slate-100 rounded-full overflow-hidden">
+                          <div 
+                            className={`h-full rounded-full transition-all ${isTop ? 'bg-indigo-600' : 'bg-slate-300'}`}
+                            style={{ width: `${pct}%` }}
+                          ></div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Recomendación de Pauta de Marketing */}
+              <div className="p-3.5 rounded-2xl bg-gradient-to-r from-indigo-50 to-purple-50 border border-indigo-200/80 text-xs text-indigo-950 leading-relaxed font-medium">
+                💡 <strong>Consejo para el Equipo de Marketing:</strong> El mayor volumen de registros ingresa los días <strong>{topDayOfWeek?.name}</strong> en la franja <strong>{topFranja?.name}</strong>. Recomendamos programar tus videos de TikTok y pauta publicitaria en Meta Ads 1 hora antes de este pico.
+              </div>
+            </div>
+
+          </div>
+
+          {/* ================= MÓDULO 4: AUDIENCE BUILDER & SEGMENTACIÓN PARA MARKETING ================= */}
+          <div className="bg-white border border-slate-200 rounded-3xl p-6 shadow-xs space-y-4">
+            <div className="border-b border-slate-100 pb-3">
+              <h4 className="text-base font-black text-slate-900 tracking-tight flex items-center gap-2">
+                <Target className="w-5 h-5 text-indigo-600" />
+                <span>Segmentos Estratégicos de Audiencia para Campañas</span>
+              </h4>
+              <p className="text-xs text-slate-500 mt-0.5">
+                Bases de datos segmentadas listas para descargar y cargar en campañas de WhatsApp masivo, email marketing o re-marketing.
+              </p>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+              
+              {/* Segmento 1: VIP WhatsApp */}
+              <div className="p-4 rounded-2xl bg-emerald-50/50 border border-emerald-200 flex flex-col justify-between gap-3">
+                <div>
+                  <span className="text-[10px] font-black uppercase text-emerald-800 bg-emerald-100 px-2 py-0.5 rounded-full">
+                    High-Ticket Cierre
+                  </span>
+                  <span className="text-2xl font-black text-emerald-950 block mt-2">
+                    {segmentoVip.length}
+                  </span>
+                  <h6 className="text-xs font-bold text-emerald-900 mt-0.5">
+                    Audiencia VIP con WhatsApp
+                  </h6>
+                  <p className="text-[11px] text-emerald-700/80 mt-1">
+                    Prospectos con celular válido e interés de inversión definido.
+                  </p>
+                </div>
+                <button
+                  onClick={() => handleExportCsv(segmentoVip, 'audiencia_vip_whatsapp')}
+                  disabled={!segmentoVip.length}
+                  className="w-full py-1.5 px-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs transition-all flex items-center justify-center gap-1 cursor-pointer disabled:opacity-40"
+                >
+                  <Download className="w-3.5 h-3.5" />
+                  <span>Exportar CSV VIP</span>
+                </button>
+              </div>
+
+              {/* Segmento 2: Email Nurturing */}
+              <div className="p-4 rounded-2xl bg-blue-50/50 border border-blue-200 flex flex-col justify-between gap-3">
+                <div>
+                  <span className="text-[10px] font-black uppercase text-blue-800 bg-blue-100 px-2 py-0.5 rounded-full">
+                    Email Marketing
+                  </span>
+                  <span className="text-2xl font-black text-blue-950 block mt-2">
+                    {segmentoEmail.length}
+                  </span>
+                  <h6 className="text-xs font-bold text-blue-900 mt-0.5">
+                    Audiencia Solo Correo
+                  </h6>
+                  <p className="text-[11px] text-blue-700/80 mt-1">
+                    Base para secuencias de correo y newsletters de valor.
+                  </p>
+                </div>
+                <button
+                  onClick={() => handleExportCsv(segmentoEmail, 'audiencia_email_nurturing')}
+                  disabled={!segmentoEmail.length}
+                  className="w-full py-1.5 px-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs transition-all flex items-center justify-center gap-1 cursor-pointer disabled:opacity-40"
+                >
+                  <Download className="w-3.5 h-3.5" />
+                  <span>Exportar CSV Email</span>
+                </button>
+              </div>
+
+              {/* Segmento 3: Reactivación Masiva */}
+              <div className="p-4 rounded-2xl bg-purple-50/50 border border-purple-200 flex flex-col justify-between gap-3">
+                <div>
+                  <span className="text-[10px] font-black uppercase text-purple-800 bg-purple-100 px-2 py-0.5 rounded-full">
+                    Re-engagement
+                  </span>
+                  <span className="text-2xl font-black text-purple-950 block mt-2">
+                    {segmentoReactivacion.length}
+                  </span>
+                  <h6 className="text-xs font-bold text-purple-900 mt-0.5">
+                    Base para Reactivación (+15d)
+                  </h6>
+                  <p className="text-[11px] text-purple-700/80 mt-1">
+                    Prospectos antiguos ideales para invitar a nuevos webinars.
+                  </p>
+                </div>
+                <button
+                  onClick={() => handleExportCsv(segmentoReactivacion, 'audiencia_reactivacion')}
+                  disabled={!segmentoReactivacion.length}
+                  className="w-full py-1.5 px-2.5 rounded-xl bg-purple-600 hover:bg-purple-700 text-white font-bold text-xs transition-all flex items-center justify-center gap-1 cursor-pointer disabled:opacity-40"
+                >
+                  <Download className="w-3.5 h-3.5" />
+                  <span>Exportar CSV Reactivación</span>
+                </button>
+              </div>
+
+              {/* Segmento 4: En Negociación */}
+              <div className="p-4 rounded-2xl bg-amber-50/50 border border-amber-200 flex flex-col justify-between gap-3">
+                <div>
+                  <span className="text-[10px] font-black uppercase text-amber-800 bg-amber-100 px-2 py-0.5 rounded-full">
+                    Pipeline Caliente
+                  </span>
+                  <span className="text-2xl font-black text-amber-950 block mt-2">
+                    {segmentoNegociacion.length}
+                  </span>
+                  <h6 className="text-xs font-bold text-amber-900 mt-0.5">
+                    Prospectos en Negociación
+                  </h6>
+                  <p className="text-[11px] text-amber-700/80 mt-1">
+                    Prospectos en fase avanzada pendientes de llamada de cierre.
+                  </p>
+                </div>
+                <button
+                  onClick={() => {
+                    setStatusFilter('en_proceso');
+                    setActiveSubTab('registrados');
+                  }}
+                  className="w-full py-1.5 px-2.5 rounded-xl bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs transition-all flex items-center justify-center gap-1 cursor-pointer"
+                >
+                  <span>Ver en Tabla</span>
+                  <ChevronRight className="w-3.5 h-3.5" />
+                </button>
+              </div>
+
             </div>
           </div>
 
