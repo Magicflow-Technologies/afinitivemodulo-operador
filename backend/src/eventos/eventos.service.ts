@@ -25,6 +25,7 @@ export interface RegistroAsistenteData {
   celular: string;
   pais?: string;
   interes_inversion?: string;
+  capital_disponible?: string;
   persona_contacto?: string;
 }
 
@@ -397,7 +398,11 @@ export class EventosService implements OnModuleInit {
     const celularClean = data.celular.trim();
     const paisClean = data.pais?.trim() || 'Perú';
     const interesClean = data.interes_inversion?.trim() || null;
-    const personaContactoClean = data.persona_contacto?.trim() || (evento.tipo === 'lead_form' ? 'Formulario TikTok' : 'Landing Oficial');
+    const capitalClean = data.capital_disponible?.trim() || null;
+    let personaContactoClean = data.persona_contacto?.trim() || (evento.tipo === 'lead_form' ? 'Formulario TikTok' : 'Landing Oficial');
+    if (capitalClean && !personaContactoClean.includes('Capital:')) {
+      personaContactoClean = `${personaContactoClean} | Capital: ${capitalClean}`;
+    }
 
     // 2. Comprobar si la persona ya está registrada para este evento en específico
     const { data: existente } = await this.supabase
@@ -440,6 +445,7 @@ export class EventosService implements OnModuleInit {
       celular: celularClean,
       pais: paisClean,
       interes_inversion: interesClean,
+      capital_disponible: capitalClean,
       persona_contacto: personaContactoClean,
     };
 
@@ -449,14 +455,14 @@ export class EventosService implements OnModuleInit {
       .select()
       .single();
 
-    // Si falla por columnas pais o interes_inversion no migradas aún, reintentar sin ellas
-    if (insertError && (insertError.message?.includes('pais') || insertError.message?.includes('interes_inversion') || insertError.code === 'PGRST204')) {
+    // Si falla por columnas pais, interes_inversion o capital_disponible no migradas aún, reintentar sin ellas
+    if (insertError && (insertError.message?.includes('pais') || insertError.message?.includes('interes_inversion') || insertError.message?.includes('capital_disponible') || insertError.code === 'PGRST204')) {
       const fallbackPayload = {
         evento_id: eventoId,
         nombre: nombreClean,
         correo: emailClean,
         celular: celularClean,
-        persona_contacto: `${personaContactoClean} | País: ${paisClean} | Interés: ${interesClean || 'No especificado'}`,
+        persona_contacto: `${personaContactoClean} | País: ${paisClean} | Interés: ${interesClean || 'No especificado'} | Capital: ${capitalClean || 'No especificado'}`,
       };
       const retry = await this.supabase
         .from('asistentes_evento')

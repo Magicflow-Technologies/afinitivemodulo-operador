@@ -77,6 +77,12 @@ const OPCIONES_INVERSION = [
   { id: 'Fondos', label: 'Fondos', icon: PieChart },
 ];
 
+const OPCIONES_CAPITAL = [
+  'Menos de $20,000 USD',
+  'De $20,000 a $50,000 USD',
+  'Más de $50,000 USD',
+];
+
 import type { BioButtonItem } from '../utils/bioLinkConfig';
 import { 
   getStoredBioButtonsSync, 
@@ -105,6 +111,7 @@ export default function PublicBioLink() {
     codigoPais: '+51',
     pais: 'Perú',
     interes_inversion: '',
+    capital_disponible: 'Menos de $20,000 USD',
   });
 
   const [submitting, setSubmitting] = useState(false);
@@ -168,7 +175,8 @@ export default function PublicBioLink() {
       celular: telefonoFinal,
       pais: formData.pais,
       interes_inversion: formData.interes_inversion || undefined,
-      persona_contacto: 'Bio Link TikTok - Dr. Finanzas',
+      capital_disponible: formData.capital_disponible || undefined,
+      persona_contacto: `Bio Link TikTok - Dr. Finanzas${formData.capital_disponible ? ` | Capital: ${formData.capital_disponible}` : ''}`,
     };
 
     let guardadoExitoso = false;
@@ -204,6 +212,7 @@ export default function PublicBioLink() {
             celular: payload.celular,
             pais: payload.pais,
             interes_inversion: payload.interes_inversion,
+            capital_disponible: payload.capital_disponible,
             persona_contacto: payload.persona_contacto,
           });
 
@@ -512,6 +521,24 @@ export default function PublicBioLink() {
                       {PAISES_LATAM.map((p) => (
                         <option key={p.code} value={p.name}>
                           {p.flag} {p.name} ({p.dial})
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  {/* Capital Disponible */}
+                  <div>
+                    <label className="block text-[11px] font-bold text-stone-700 mb-0.5">
+                      Capital disponible <span className="text-red-500">*</span>
+                    </label>
+                    <select
+                      value={formData.capital_disponible}
+                      onChange={(e) => setFormData({ ...formData, capital_disponible: e.target.value })}
+                      className="w-full bg-stone-50 border border-stone-300 rounded-xl px-2.5 py-2 text-xs sm:text-sm text-stone-900 focus:outline-none focus:border-amber-700 focus:bg-white transition-all cursor-pointer font-medium"
+                    >
+                      {OPCIONES_CAPITAL.map((op) => (
+                        <option key={op} value={op}>
+                          {op}
                         </option>
                       ))}
                     </select>

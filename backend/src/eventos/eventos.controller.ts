@@ -35,6 +35,7 @@ export class RegistroAsistenteDto {
   celular: string;
   pais?: string;
   interes_inversion?: string;
+  capital_disponible?: string;
   persona_contacto?: string;
 }
 
