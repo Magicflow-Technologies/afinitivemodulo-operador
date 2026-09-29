@@ -673,16 +673,24 @@ export const TemplateManagerModal: React.FC<TemplateManagerModalProps> = ({
                   {/* 2. ADJUNTAR IMAGEN (Si el layout lo soporta) */}
                   {layoutMode !== 'header_text_sig' && (
                     <div className="bg-[#08121D] p-3.5 rounded-xl border border-brand-gold/15 space-y-3">
-                      <label className="text-xs text-brand-gold font-bold uppercase tracking-wider flex items-center gap-2">
-                        <ImageIcon className="w-4 h-4" /> 2. Adjuntar Imagen / Flyer:
-                      </label>
+                      <div className="flex items-center justify-between">
+                        <label className="text-xs text-brand-gold font-bold uppercase tracking-wider flex items-center gap-2">
+                          <ImageIcon className="w-4 h-4" /> 2. Adjuntar Imagen / Flyer:
+                        </label>
+                        {imageUrl && (
+                          <span className="text-[10px] text-emerald-400 font-semibold flex items-center gap-1">
+                            <Check className="w-3 h-3" /> Imagen cargada
+                          </span>
+                        )}
+                      </div>
 
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                        <div className="space-y-1">
-                          <span className="text-[11px] text-slate-300 block">Subir desde la computadora:</span>
-                          <label className="flex items-center justify-center gap-2 px-3 py-2 bg-[#0D1B2A] hover:bg-brand-navy-dark border border-dashed border-brand-gold/40 hover:border-brand-gold rounded-lg text-xs text-slate-200 cursor-pointer transition-all">
-                            <Upload className="w-3.5 h-3.5 text-brand-gold" />
-                            <span>Seleccionar Imagen (PNG/JPG)</span>
+                        {/* Opción A: Subir Archivo */}
+                        <div className="space-y-1.5">
+                          <span className="text-[11px] text-slate-300 font-medium block">Opción A: Subir imagen desde tu PC</span>
+                          <label className="flex items-center justify-center gap-2 px-3 py-2.5 bg-[#0D1B2A] hover:bg-brand-navy-dark border border-dashed border-brand-gold/40 hover:border-brand-gold rounded-lg text-xs text-slate-200 cursor-pointer transition-all shadow-sm">
+                            <Upload className="w-4 h-4 text-brand-gold" />
+                            <span>Seleccionar archivo (PNG / JPG / WebP)</span>
                             <input
                               type="file"
                               accept="image/*"
@@ -692,26 +700,28 @@ export const TemplateManagerModal: React.FC<TemplateManagerModalProps> = ({
                           </label>
                         </div>
 
-                        <div className="space-y-1">
-                          <span className="text-[11px] text-slate-300 block">O pegar enlace web (URL):</span>
+                        {/* Opción B: Pegar URL */}
+                        <div className="space-y-1.5">
+                          <span className="text-[11px] text-slate-300 font-medium block">Opción B: Pegar enlace de imagen (URL)</span>
                           <input
                             type="url"
                             placeholder="https://links.afinitive.com.pe/img/evento.jpeg"
                             value={imageUrl}
                             onChange={(e) => setImageUrl(e.target.value)}
-                            className="w-full px-3 py-2 bg-[#0D1B2A] border border-brand-gold/20 rounded-lg text-xs text-slate-100 placeholder-slate-500 outline-none focus:border-brand-gold"
+                            className="w-full px-3 py-2 bg-[#0D1B2A] border border-brand-gold/20 rounded-lg text-xs text-slate-100 placeholder-slate-500 outline-none focus:border-brand-gold font-mono text-[11px]"
                           />
                         </div>
                       </div>
 
-                      <div className="space-y-1 pt-1">
+                      {/* Enlace de Redirección de la Imagen */}
+                      <div className="space-y-1 pt-1 border-t border-brand-gold/10">
                         <span className="text-[11px] text-slate-400 block">Link al hacer clic en la imagen (Opcional):</span>
                         <input
                           type="url"
-                          placeholder="https://eventos.afinitive.com.pe/?id=..."
+                          placeholder="https://eventos.afinitive.com.pe/?id=regsitro-de-tiktok"
                           value={imageClickUrl}
                           onChange={(e) => setImageClickUrl(e.target.value)}
-                          className="w-full px-3 py-1.5 bg-[#0D1B2A] border border-brand-gold/15 rounded-lg text-xs text-slate-300 placeholder-slate-600 outline-none"
+                          className="w-full px-3 py-1.5 bg-[#0D1B2A] border border-brand-gold/15 rounded-lg text-xs text-slate-300 placeholder-slate-600 outline-none focus:border-brand-gold"
                         />
                       </div>
                     </div>
