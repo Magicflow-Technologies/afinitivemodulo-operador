@@ -823,31 +823,45 @@ const deleteStoredTemplateSync = (id: string) => {
 
   // Obtener la Cola Pendiente
   const fetchPendingQueue = useCallback(async () => {
+    let items: any[] = [];
     try {
       const response = await fetch(`${BACKEND_URL}/api/test-email/queue/pending`);
       if (response.ok) {
-        const data = await response.json();
-        setQueueItems(data || []);
-        return;
+        items = await response.json();
       }
     } catch (err) {
       console.warn('Backend queue/pending no disponible, consultando Supabase directamente...', err);
     }
 
-    // Fallback directo a Supabase
-    try {
-      const { data, error } = await supabase
-        .from('email_queue')
-        .select('*')
-        .eq('status', 'pending')
-        .order('created_at', { ascending: true });
-      if (!error && data) {
-        setQueueItems(data);
+    if (!items || items.length === 0) {
+      try {
+        const { data, error } = await supabase
+          .from('email_queue')
+          .select('*')
+          .eq('status', 'pending')
+          .order('created_at', { ascending: true });
+        if (!error && data) {
+          items = data;
+        }
+      } catch (sbErr) {
+        console.error('Error al obtener cola pendiente vía Supabase:', sbErr);
       }
-    } catch (sbErr) {
-      console.error('Error al obtener cola pendiente vía Supabase:', sbErr);
     }
-  }, [BACKEND_URL]);
+
+    if (items && items.length > 0) {
+      setQueueItems((prev) => {
+        return items.map((item) => {
+          const matchedPrev = prev.find((p) => p.id === item.id || p.recipient_email === item.recipient_email);
+          return {
+            ...item,
+            tag: item.tag || matchedPrev?.tag || campaignTag.trim() || undefined
+          };
+        });
+      });
+    } else {
+      setQueueItems([]);
+    }
+  }, [BACKEND_URL, campaignTag]);
 
   // Obtener Slots Libres
   const fetchFreeSlots = useCallback(async (sigId?: string) => {
@@ -3350,10 +3364,12 @@ const deleteStoredTemplateSync = (id: string) => {
                             {item.recipient_name}
                           </td>
                           <td className="py-3.5 px-5 whitespace-nowrap">
-                            {item.tag ? (
+                            {(item.tag || campaignTag.trim()) ? (
                               <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold bg-amber-50 border border-amber-200 text-amber-900">
                                 <Tag className="w-3 h-3 text-amber-700 shrink-0" />
-                                <span className="truncate max-w-[130px]" title={item.tag}>{item.tag}</span>
+                                <span className="truncate max-w-[150px]" title={item.tag || campaignTag.trim()}>
+                                  {item.tag || campaignTag.trim()}
+                                </span>
                               </span>
                             ) : (
                               <span className="text-slate-400 font-mono text-xs italic">—</span>
