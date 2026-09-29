@@ -27,10 +27,20 @@ export class EnviarCorreoPlantillaAgentDto {
 }
 
 export class ConsultarClientesNuevosQueryDto {
-  origen?: 'todos' | 'bio_link' | 'webinar' | 'lead_form';
+  origen?: 'todos' | 'bio_link' | 'webinar' | 'lead_form' | string;
   estado?: 'todos' | 'pendiente' | 'atendido' | 'en_proceso' | string;
   desde_fecha?: string; // ISO datetime
   limite?: number;
+}
+
+export class ConsultarClientesRegistradosQueryDto {
+  estado?: string; // 'todos' | 'pendiente' | 'contactado' | 'calificado' | 'ganado' | 'reunion_agendada' | 'descartado'
+  origen?: string; // 'dr-finanzas-bio' | 'regsitro-de-tiktok' | 'bio_link_tiktok' | etc.
+  periodo?: 'hoy' | 'semana' | 'mes' | 'historico' | string;
+  limite?: number; // default: 10, max: 100
+  pagina?: number; // default: 1
+  offset?: number;
+  busqueda?: string; // Búsqueda por nombre, email o teléfono
 }
 
 export class ActualizarEstadoClienteAgentDto {

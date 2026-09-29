@@ -13,6 +13,7 @@ import {
   CrearReunionAgentDto,
   EnviarCorreoPlantillaAgentDto,
   ConsultarClientesNuevosQueryDto,
+  ConsultarClientesRegistradosQueryDto,
   ActualizarEstadoClienteAgentDto,
   RegistrarClientePotencialAgentDto,
 } from './agent.dto';
@@ -239,9 +240,9 @@ export class AgentService implements OnModuleInit {
         };
 
         if (dto.cliente_id) {
-          await this.supabase.from('eventos_asistentes').update(updateData).eq('id', dto.cliente_id);
+          await this.supabase.from('asistentes_evento').update(updateData).eq('id', dto.cliente_id);
         } else {
-          await this.supabase.from('eventos_asistentes').update(updateData).eq('correo', dto.cliente_email.toLowerCase().trim());
+          await this.supabase.from('asistentes_evento').update(updateData).eq('correo', dto.cliente_email.toLowerCase().trim());
         }
       } catch (sErr: any) {
         this.logger.warn(`Error actualizando estado del lead en Supabase: ${sErr.message}`);
@@ -396,7 +397,270 @@ export class AgentService implements OnModuleInit {
   }
 
   // =========================================================================
-  // 5. CONSULTAR CLIENTES NUEVOS (Bio-Link TikTok, Web, Formularios)
+  // HELPER: LÍMITES TEMPORALES EN ZONA HORARIA PERÚ (AMERICA/LIMA UTC-5)
+  // =========================================================================
+  private getLimaDateBoundaries() {
+    const now = new Date();
+    const limaDateStr = now.toLocaleDateString('en-CA', { timeZone: 'America/Lima' }); // 'YYYY-MM-DD'
+    const [year, month, day] = limaDateStr.split('-').map(Number);
+
+    // Inicio de hoy en Lima (00:00:00 -05:00)
+    const hoyInicio = new Date(`${limaDateStr}T00:00:00-05:00`);
+
+    // Inicio de semana (Lunes a las 00:00:00 -05:00)
+    const dateObj = new Date(`${limaDateStr}T12:00:00-05:00`);
+    const dayOfWeek = dateObj.getDay(); // 0: dom, 1: lun, ...
+    const diffToMonday = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
+    const mondayObj = new Date(dateObj.getTime() - diffToMonday * 24 * 60 * 60 * 1000);
+    const mondayStr = mondayObj.toLocaleDateString('en-CA', { timeZone: 'America/Lima' });
+    const semanaInicio = new Date(`${mondayStr}T00:00:00-05:00`);
+
+    // Inicio de mes (Día 1 a las 00:00:00 -05:00)
+    const monthStr = month < 10 ? `0${month}` : `${month}`;
+    const mesInicio = new Date(`${year}-${monthStr}-01T00:00:00-05:00`);
+
+    return {
+      hoy: hoyInicio.toISOString(),
+      semana: semanaInicio.toISOString(),
+      mes: mesInicio.toISOString(),
+    };
+  }
+
+  // =========================================================================
+  // 5.1. MÉTRICAS Y RESUMEN GENERAL DE CLIENTES (PARA AGENTE IA)
+  // =========================================================================
+  async consultarResumenClientes() {
+    this.logger.log('IA Agent: Consultando resumen y métricas generales de clientes...');
+
+    if (!this.supabase) {
+      return {
+        success: false,
+        error: 'Supabase no disponible',
+        totales: { total_registrados: 0, registrados_hoy: 0, registrados_esta_semana: 0, registrados_este_mes: 0 },
+        por_estado: {},
+        por_origen: {},
+        ultimos_registrados: [],
+      };
+    }
+
+    try {
+      const { hoy, semana, mes } = this.getLimaDateBoundaries();
+
+      // 1. Consultas simultáneas a la tabla oficial afinitivebd.asistentes_evento
+      const [totalRes, hoyRes, semanaRes, mesRes, allRowsRes, ultimosRes] = await Promise.all([
+        this.supabase.from('asistentes_evento').select('*', { count: 'exact', head: true }),
+        this.supabase.from('asistentes_evento').select('*', { count: 'exact', head: true }).gte('created_at', hoy),
+        this.supabase.from('asistentes_evento').select('*', { count: 'exact', head: true }).gte('created_at', semana),
+        this.supabase.from('asistentes_evento').select('*', { count: 'exact', head: true }).gte('created_at', mes),
+        this.supabase.from('asistentes_evento').select('estado, evento_id, persona_contacto'),
+        this.supabase.from('asistentes_evento').select('*').order('created_at', { ascending: false }).limit(10),
+      ]);
+
+      const totalRegistrados = totalRes.count || 0;
+      const registradosHoy = hoyRes.count || 0;
+      const registradosEstaSemana = semanaRes.count || 0;
+      const registradosEsteMes = mesRes.count || 0;
+
+      // 2. Desglose por Estado
+      const porEstado: Record<string, number> = {
+        pendiente: 0,
+        contactado: 0,
+        calificado: 0,
+        reunion_agendada: 0,
+        ganado: 0,
+        descartado: 0,
+      };
+
+      // 3. Desglose por Origen
+      const porOrigen: Record<string, number> = {
+        bio_link_tiktok: 0,
+        landing_page: 0,
+        whatsapp_directo: 0,
+      };
+
+      if (allRowsRes.data) {
+        for (const row of allRowsRes.data) {
+          // Estado
+          const est = (row.estado || 'pendiente').toLowerCase().trim();
+          porEstado[est] = (porEstado[est] || 0) + 1;
+
+          // Origen
+          const evId = (row.evento_id || '').toLowerCase().trim();
+          const pContacto = (row.persona_contacto || '').toLowerCase().trim();
+
+          if (evId === 'dr-finanzas-bio' || evId.includes('tiktok') || pContacto.includes('tiktok') || pContacto.includes('bio')) {
+            porOrigen['bio_link_tiktok'] = (porOrigen['bio_link_tiktok'] || 0) + 1;
+          } else if (evId.includes('whatsapp') || pContacto.includes('whatsapp')) {
+            porOrigen['whatsapp_directo'] = (porOrigen['whatsapp_directo'] || 0) + 1;
+          } else if (evId) {
+            porOrigen[evId] = (porOrigen[evId] || 0) + 1;
+          } else {
+            porOrigen['landing_page'] = (porOrigen['landing_page'] || 0) + 1;
+          }
+        }
+      }
+
+      // 4. Últimos registrados enriquecidos
+      const ultimosRegistrados = (ultimosRes.data || []).map((lead: any) => {
+        let orig = 'landing_page';
+        const evId = (lead.evento_id || '').toLowerCase();
+        const pContacto = (lead.persona_contacto || '').toLowerCase();
+        if (evId === 'dr-finanzas-bio' || evId.includes('tiktok') || pContacto.includes('tiktok')) {
+          orig = 'bio_link_tiktok';
+        } else if (evId.includes('whatsapp') || pContacto.includes('whatsapp')) {
+          orig = 'whatsapp_directo';
+        } else if (lead.evento_id) {
+          orig = lead.evento_id;
+        }
+
+        return {
+          id: lead.id,
+          nombre: lead.nombre,
+          telefono: lead.celular || null,
+          email: lead.correo || null,
+          empresa_o_interes: lead.interes_inversion || lead.persona_contacto || 'General',
+          origen: orig,
+          estado: lead.estado || 'pendiente',
+          fecha_registro: lead.created_at,
+        };
+      });
+
+      return {
+        success: true,
+        totales: {
+          total_registrados: totalRegistrados,
+          registrados_hoy: registradosHoy,
+          registrados_esta_semana: registradosEstaSemana,
+          registrados_este_mes: registradosEsteMes,
+        },
+        por_estado: porEstado,
+        por_origen: porOrigen,
+        ultimos_registrados: ultimosRegistrados,
+      };
+    } catch (err: any) {
+      this.logger.error(`Error consultando resumen de clientes: ${err.message}`);
+      return {
+        success: false,
+        error: err.message,
+        totales: { total_registrados: 0, registrados_hoy: 0, registrados_esta_semana: 0, registrados_este_mes: 0 },
+        por_estado: {},
+        por_origen: {},
+        ultimos_registrados: [],
+      };
+    }
+  }
+
+  // =========================================================================
+  // 5.2. LISTADO FLEXIBLE DE CLIENTES REGISTRADOS (CON FILTROS Y BÚSQUEDA)
+  // =========================================================================
+  async consultarClientesRegistrados(query: ConsultarClientesRegistradosQueryDto) {
+    this.logger.log(`IA Agent: Listando clientes registrados con filtros: ${JSON.stringify(query)}`);
+
+    if (!this.supabase) {
+      return { success: false, total_encontrados: 0, pagina_actual: 1, limite: 10, clientes: [], error: 'Supabase no disponible' };
+    }
+
+    try {
+      const limite = Math.min(Math.max(Number(query.limite) || 10, 1), 100);
+      const pagina = Math.max(Number(query.pagina) || 1, 1);
+      const offset = query.offset !== undefined ? Number(query.offset) : (pagina - 1) * limite;
+
+      let q = this.supabase
+        .from('asistentes_evento')
+        .select('*', { count: 'exact' });
+
+      // Filtro por Estado
+      if (query.estado && query.estado !== 'todos') {
+        q = q.eq('estado', query.estado.toLowerCase().trim());
+      }
+
+      // Filtro por Origen
+      if (query.origen && query.origen !== 'todos') {
+        const origClean = query.origen.toLowerCase().trim();
+        if (origClean === 'bio_link_tiktok' || origClean === 'bio_link' || origClean === 'tiktok') {
+          q = q.or('evento_id.eq.dr-finanzas-bio,evento_id.ilike.%tiktok%,persona_contacto.ilike.%tiktok%');
+        } else if (origClean === 'whatsapp' || origClean === 'whatsapp_directo') {
+          q = q.or('evento_id.ilike.%whatsapp%,persona_contacto.ilike.%whatsapp%');
+        } else {
+          q = q.eq('evento_id', query.origen);
+        }
+      }
+
+      // Filtro por Periodo
+      if (query.periodo && query.periodo !== 'historico' && query.periodo !== 'todos') {
+        const { hoy, semana, mes } = this.getLimaDateBoundaries();
+        if (query.periodo === 'hoy') {
+          q = q.gte('created_at', hoy);
+        } else if (query.periodo === 'semana') {
+          q = q.gte('created_at', semana);
+        } else if (query.periodo === 'mes') {
+          q = q.gte('created_at', mes);
+        }
+      }
+
+      // Filtro por Búsqueda de Texto (nombre, correo o celular)
+      if (query.busqueda && query.busqueda.trim()) {
+        const term = query.busqueda.trim();
+        q = q.or(`nombre.ilike.%${term}%,correo.ilike.%${term}%,celular.ilike.%${term}%`);
+      }
+
+      // Orden y Paginación
+      q = q.order('created_at', { ascending: false })
+           .range(offset, offset + limite - 1);
+
+      const { data, count, error } = await q;
+
+      if (error) {
+        throw new BadRequestException(error.message);
+      }
+
+      const clientes = (data || []).map((lead: any) => {
+        let orig = 'landing_page';
+        const evId = (lead.evento_id || '').toLowerCase();
+        const pContacto = (lead.persona_contacto || '').toLowerCase();
+        if (evId === 'dr-finanzas-bio' || evId.includes('tiktok') || pContacto.includes('tiktok')) {
+          orig = 'bio_link_tiktok';
+        } else if (evId.includes('whatsapp') || pContacto.includes('whatsapp')) {
+          orig = 'whatsapp_directo';
+        } else if (lead.evento_id) {
+          orig = lead.evento_id;
+        }
+
+        return {
+          id: lead.id,
+          nombre: lead.nombre,
+          telefono: lead.celular || null,
+          email: lead.correo || null,
+          empresa_o_interes: lead.interes_inversion || lead.persona_contacto || 'General',
+          origen: orig,
+          estado: lead.estado || 'pendiente',
+          fecha_registro: lead.created_at,
+          notas: lead.notas || null,
+        };
+      });
+
+      return {
+        success: true,
+        total_encontrados: count !== null ? count : clientes.length,
+        pagina_actual: pagina,
+        limite: limite,
+        clientes: clientes,
+      };
+    } catch (err: any) {
+      this.logger.error(`Error al listar clientes registrados: ${err.message}`);
+      return {
+        success: false,
+        total_encontrados: 0,
+        pagina_actual: Number(query.pagina) || 1,
+        limite: Number(query.limite) || 10,
+        clientes: [],
+        error: err.message,
+      };
+    }
+  }
+
+  // =========================================================================
+  // 5.3. CONSULTAR CLIENTES NUEVOS (Bio-Link TikTok, Web, Formularios)
   // =========================================================================
   async consultarClientesNuevos(query: ConsultarClientesNuevosQueryDto) {
     this.logger.log(`IA Agent: Consultando clientes nuevos en base de datos...`);
@@ -407,7 +671,7 @@ export class AgentService implements OnModuleInit {
 
     try {
       let q = this.supabase
-        .from('eventos_asistentes')
+        .from('asistentes_evento')
         .select('*')
         .order('created_at', { ascending: false });
 
@@ -506,7 +770,7 @@ export class AgentService implements OnModuleInit {
     }
 
     const { data, error } = await this.supabase
-      .from('eventos_asistentes')
+      .from('asistentes_evento')
       .update(updatePayload)
       .eq('id', id)
       .select()
@@ -548,7 +812,7 @@ export class AgentService implements OnModuleInit {
     try {
       // 1. Verificar si ya existe un cliente con este celular
       const { data: existingLeads } = await this.supabase
-        .from('eventos_asistentes')
+        .from('asistentes_evento')
         .select('*')
         .or(`celular.eq.${cleanPhone},celular.eq.${cleanPhone.replace(/[^0-9]/g, '')}`)
         .limit(1);
@@ -567,7 +831,7 @@ export class AgentService implements OnModuleInit {
         }
 
         const { data: updated, error: updateErr } = await this.supabase
-          .from('eventos_asistentes')
+          .from('asistentes_evento')
           .update(updatePayload)
           .eq('id', lead.id)
           .select()
@@ -606,7 +870,7 @@ export class AgentService implements OnModuleInit {
       };
 
       const { data: created, error: createErr } = await this.supabase
-        .from('eventos_asistentes')
+        .from('asistentes_evento')
         .insert(insertPayload)
         .select()
         .single();
@@ -641,6 +905,57 @@ export class AgentService implements OnModuleInit {
   obtenerToolsOpenAI() {
     return {
       tools: [
+        {
+          type: 'function',
+          function: {
+            name: 'consultar_resumen_clientes',
+            description:
+              'Obtiene métricas y estadísticas consolidadas de clientes y prospectos registrados en Afinitive: totales (hoy, semana, mes, histórico), desglose por estado y desglose por canal de origen (TikTok, Web, WhatsApp).',
+            parameters: {
+              type: 'object',
+              properties: {},
+            },
+          },
+        },
+        {
+          type: 'function',
+          function: {
+            name: 'consultar_clientes_registrados',
+            description:
+              'Lista clientes y prospectos registrados en el sistema con soporte de filtros por estado, canal de origen, periodo temporal (hoy/semana/mes), paginación y búsqueda por texto.',
+            parameters: {
+              type: 'object',
+              properties: {
+                estado: {
+                  type: 'string',
+                  enum: ['todos', 'pendiente', 'contactado', 'calificado', 'reunion_agendada', 'ganado', 'descartado'],
+                  description: 'Filtrar por estado comercial del cliente.',
+                },
+                origen: {
+                  type: 'string',
+                  description: 'Filtrar por canal o evento (ej: "bio_link_tiktok", "dr-finanzas-bio", "whatsapp_directo").',
+                },
+                periodo: {
+                  type: 'string',
+                  enum: ['hoy', 'semana', 'mes', 'historico'],
+                  description: 'Filtrar por ventana de tiempo de registro (Zona Horaria Perú).',
+                },
+                busqueda: {
+                  type: 'string',
+                  description: 'Texto para buscar por nombre, correo electrónico o celular.',
+                },
+                limite: {
+                  type: 'number',
+                  description: 'Cantidad máxima de registros a retornar (por defecto 10, máximo 100).',
+                },
+                pagina: {
+                  type: 'number',
+                  description: 'Número de página para paginación (por defecto 1).',
+                },
+              },
+            },
+          },
+        },
         {
           type: 'function',
           function: {

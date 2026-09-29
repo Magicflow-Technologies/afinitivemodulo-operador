@@ -5,6 +5,7 @@ import {
   CrearReunionAgentDto,
   EnviarCorreoPlantillaAgentDto,
   ConsultarClientesNuevosQueryDto,
+  ConsultarClientesRegistradosQueryDto,
   ActualizarEstadoClienteAgentDto,
 } from './agent.dto';
 
@@ -36,7 +37,19 @@ export class AgentController {
     return await this.agentService.enviarCorreoPlantilla(dto);
   }
 
-  // 5. CONSULTAR CLIENTES NUEVOS (BIO-LINK / LANDINGS)
+  // 5.1. MÉTRICAS Y RESUMEN GENERAL DE CLIENTES (PARA AGENTE IA)
+  @Get('clientes/resumen')
+  async consultarResumenClientes() {
+    return await this.agentService.consultarResumenClientes();
+  }
+
+  // 5.2. LISTADO FLEXIBLE DE CLIENTES REGISTRADOS CON FILTROS Y PAGINACIÓN
+  @Get('clientes/registrados')
+  async consultarClientesRegistrados(@Query() query: ConsultarClientesRegistradosQueryDto) {
+    return await this.agentService.consultarClientesRegistrados(query);
+  }
+
+  // 5.3. CONSULTAR CLIENTES NUEVOS (COMPATIBILIDAD ANTERIOR)
   @Get('clientes/nuevos')
   async consultarClientesNuevos(@Query() query: ConsultarClientesNuevosQueryDto) {
     return await this.agentService.consultarClientesNuevos(query);
@@ -57,7 +70,7 @@ export class AgentController {
     return await this.agentService.registrarClientePotencial(dto);
   }
 
-  // 7. ESQUEMA DE TOOLS PARA AGENTES DE IA (OpenAI / Claude / n8n / LangChain)
+  // 8. ESQUEMA DE TOOLS PARA AGENTES DE IA (OpenAI / Claude / n8n / LangChain)
   @Get('tools')
   obtenerToolsOpenAI() {
     return this.agentService.obtenerToolsOpenAI();
