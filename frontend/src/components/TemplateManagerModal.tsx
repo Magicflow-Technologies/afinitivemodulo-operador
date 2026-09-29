@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { 
   X, 
   Upload, 
@@ -8,8 +8,15 @@ import {
   Check, 
   Plus, 
   Search,
-  Code2,
-  AlertCircle
+  AlertCircle,
+  Image as ImageIcon,
+  FileText,
+  Layout,
+  MessageCircle,
+  Calendar,
+  Ticket,
+  Link2,
+  Eye
 } from 'lucide-react';
 
 export interface EmailTemplateItem {
@@ -28,6 +35,14 @@ export interface EmailTemplateItem {
   is_active?: boolean;
   createdAt?: string;
   created_at?: string;
+}
+
+interface CustomButtonConfig {
+  id: string;
+  tipo: 'whatsapp' | 'registro' | 'agenda' | 'personalizado';
+  texto: string;
+  url: string;
+  color: 'gold' | 'green' | 'blue' | 'dark';
 }
 
 interface TemplateManagerModalProps {
@@ -49,63 +64,258 @@ export const TemplateManagerModal: React.FC<TemplateManagerModalProps> = ({
   onUploadHtml,
   onDeleteTemplate,
 }) => {
-  const [activeTab, setActiveTab] = useState<'catalog' | 'upload'>('catalog');
-  const [creationMode, setCreationMode] = useState<'file' | 'code'>('file');
+  const [activeTab, setActiveTab] = useState<'catalog' | 'builder'>('catalog');
   const [searchQuery, setSearchQuery] = useState('');
-  const [dragActive, setDragActive] = useState(false);
-  const [droppedFile, setDroppedFile] = useState<File | null>(null);
-  const [rawHtmlCode, setRawHtmlCode] = useState('');
-  const [templateName, setTemplateName] = useState('');
-  const [templateSubject, setTemplateSubject] = useState('');
-  const [templateCategory, setTemplateCategory] = useState('Inmobiliario');
-  const [templateActionType, setTemplateActionType] = useState<'whatsapp_lead' | 'calendar_booking'>('whatsapp_lead');
   const [uploading, setUploading] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
 
+  // Estados del Creador Visual de Plantillas
+  // Modos de diseño solicitados:
+  // 1: header_image_sig (Encabezado Afinitive + Imagen/Texto + Firma Ricardo)
+  // 2: image_sig (Sin Encabezado + Imagen/Texto + Firma Ricardo)
+  // 3: image_only (Solo Imagen / Flyer limpio, sin encabezado ni firma)
+  // 4: header_text_sig (Encabezado Afinitive + Texto redactado + Firma Ricardo)
+  const [layoutMode, setLayoutMode] = useState<'header_image_sig' | 'image_sig' | 'image_only' | 'header_text_sig'>('header_image_sig');
+
+  // Metadatos
+  const [templateName, setTemplateName] = useState('');
+  const [templateSubject, setTemplateSubject] = useState('');
+  const [templateCategory, setTemplateCategory] = useState('Inmobiliario');
+
+  // Contenido
+  const [imageUrl, setImageUrl] = useState('https://links.afinitive.com.pe/img/evento.jpeg');
+  const [imageClickUrl, setImageClickUrl] = useState('');
+  const imageAlt = 'Oportunidad de Inversión Afinitive';
+  const [textContent, setTextContent] = useState('Estimado/a {{nombre}}:\n\nLe escribimos para extenderle una invitación exclusiva a nuestra próxima presentación privada sobre oportunidades de inversión y optimización patrimonial.');
+
+  const [themeMode, setThemeMode] = useState<'light' | 'dark'>('dark');
+
+  // Botones Interactivos
+  const [buttons, setButtons] = useState<CustomButtonConfig[]>([
+    {
+      id: 'btn-1',
+      tipo: 'whatsapp',
+      texto: '💬 Contactar por WhatsApp',
+      url: 'https://wa.me/51982100208?text=Hola%20Ricardo,%20deseo%20m%C3%A1s%20informaci%C3%B3n',
+      color: 'gold',
+    }
+  ]);
+
   if (!isOpen) return null;
 
-  const handleDrag = (e: React.DragEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    if (e.type === 'dragenter' || e.type === 'dragover') {
-      setDragActive(true);
-    } else if (e.type === 'dragleave') {
-      setDragActive(false);
-    }
-  };
-
-  const handleDrop = (e: React.DragEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    setDragActive(false);
-    if (e.dataTransfer.files && e.dataTransfer.files[0]) {
-      processFile(e.dataTransfer.files[0]);
-    }
-  };
-
-  const handleFileInput = (e: React.ChangeEvent<HTMLInputElement>) => {
+  // Manejador de subida de imagen local (Convierte a Data URL)
+  const handleImageFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
-      processFile(e.target.files[0]);
+      const file = e.target.files[0];
+      const reader = new FileReader();
+      reader.onload = () => {
+        if (reader.result) {
+          setImageUrl(reader.result.toString());
+        }
+      };
+      reader.readAsDataURL(file);
     }
   };
 
-  const processFile = (file: File) => {
-    setFormError(null);
-    if (!file.name.endsWith('.html') && !file.name.endsWith('.htm')) {
-      setFormError('Solo se admiten archivos con extensión .html o .htm');
-      return;
+  // Agregar botón CTA
+  const handleAddButton = (tipo: 'whatsapp' | 'registro' | 'agenda' | 'personalizado') => {
+    let defaultText = 'Hacer clic aquí';
+    let defaultUrl = 'https://afinitive.com.pe';
+    let defaultColor: 'gold' | 'green' | 'blue' | 'dark' = 'gold';
+
+    if (tipo === 'whatsapp') {
+      defaultText = '💬 Escríbenos por WhatsApp';
+      defaultUrl = 'https://wa.me/51982100208?text=Hola%20Ricardo,%20deseo%20m%C3%A1s%20informaci%C3%B3n';
+      defaultColor = 'green';
+    } else if (tipo === 'registro') {
+      defaultText = '🎟️ Registrarme al Evento';
+      defaultUrl = 'https://eventos.afinitive.com.pe/?id=regsitro-de-tiktok';
+      defaultColor = 'gold';
+    } else if (tipo === 'agenda') {
+      defaultText = '📅 Agendar Reunión con Ricardo';
+      defaultUrl = 'https://calendly.com/rbertalmio-afinitive';
+      defaultColor = 'blue';
     }
-    setDroppedFile(file);
-    if (!templateName) {
-      const cleanName = file.name.replace(/\.[^/.]+$/, '').replace(/[_-]/g, ' ');
-      setTemplateName(cleanName.charAt(0).toUpperCase() + cleanName.slice(1));
-    }
-    if (!templateSubject) {
-      setTemplateSubject('Invitación Exclusiva - Afinitive');
-    }
+
+    const newBtn: CustomButtonConfig = {
+      id: `btn-${Date.now()}`,
+      tipo,
+      texto: defaultText,
+      url: defaultUrl,
+      color: defaultColor,
+    };
+    setButtons([...buttons, newBtn]);
   };
 
-  const handleSave = async (e: React.FormEvent) => {
+  const handleRemoveButton = (id: string) => {
+    setButtons(buttons.filter((b) => b.id !== id));
+  };
+
+  const handleUpdateButton = (id: string, updates: Partial<CustomButtonConfig>) => {
+    setButtons(buttons.map((b) => (b.id === id ? { ...b, ...updates } : b)));
+  };
+
+  // Generador de HTML Automático en base a la selección
+  const generatedHtml = useMemo(() => {
+    const isDark = themeMode === 'dark';
+    const bgOuter = isDark ? '#0b111e' : '#f1f5f9';
+    const bgCard = isDark ? '#0e172a' : '#ffffff';
+    const textColor = isDark ? '#f8fafc' : '#1e293b';
+    const cardBorder = isDark ? '#1e293b' : '#e2e8f0';
+
+    const hasHeader = layoutMode === 'header_image_sig' || layoutMode === 'header_text_sig';
+    const hasImage = layoutMode !== 'header_text_sig' && !!imageUrl;
+    const hasText = (layoutMode === 'header_text_sig' || textContent.trim().length > 0) && layoutMode !== 'image_only';
+    const hasSignature = layoutMode !== 'image_only';
+
+    // 1. Encabezado HTML
+    const headerHtml = hasHeader ? `
+      <!-- Encabezado Corporativo Afinitive -->
+      <tr>
+        <td align="center" style="padding: 26px 20px 18px 20px; border-bottom: 1px solid ${cardBorder}; background-color: ${isDark ? '#080d1a' : '#ffffff'};">
+          <img src="https://links.afinitive.com.pe/img/afinitive_logo.png" alt="Afinitive" width="165" style="display: block; margin: 0 auto; max-width: 165px; height: auto;" />
+        </td>
+      </tr>
+    ` : '';
+
+    // 2. Imagen HTML
+    const imageBlockHtml = hasImage ? `
+      <!-- Flyer / Imagen de Campaña -->
+      <tr>
+        <td align="center" style="padding: ${layoutMode === 'image_only' ? '0' : '20px 20px 10px 20px'}; line-height: 0;">
+          ${imageClickUrl ? `<a href="${imageClickUrl}" target="_blank" style="text-decoration: none; display: block;">` : ''}
+            <img 
+              src="${imageUrl}" 
+              alt="${imageAlt}" 
+              width="600" 
+              style="display: block; width: 100%; max-width: 600px; height: auto; border-radius: ${layoutMode === 'image_only' ? '12px' : '8px'}; border: 0; outline: none; text-decoration: none;" 
+            />
+          ${imageClickUrl ? `</a>` : ''}
+        </td>
+      </tr>
+    ` : '';
+
+    // 3. Texto HTML
+    const formattedParagraphs = textContent
+      .split('\n\n')
+      .map(p => `<p style="margin: 0 0 14px 0; line-height: 1.6;">${p.replace(/\n/g, '<br/>')}</p>`)
+      .join('');
+
+    const textBlockHtml = hasText ? `
+      <!-- Cuerpo de Texto -->
+      <tr>
+        <td style="padding: 24px 28px 12px 28px; color: ${textColor}; font-family: Arial, Helvetica, sans-serif; font-size: 15px; line-height: 1.6;">
+          ${formattedParagraphs}
+        </td>
+      </tr>
+    ` : '';
+
+    // 4. Botones CTA HTML
+    const buttonsHtml = buttons.length > 0 ? `
+      <!-- Botones de Acción (CTAs) -->
+      <tr>
+        <td align="center" style="padding: 18px 20px 28px 20px;">
+          <table border="0" cellpadding="0" cellspacing="0" role="presentation" style="margin: 0 auto;">
+            ${buttons.map(btn => {
+              let btnBg = 'background-color: #d4af37; background: linear-gradient(135deg, #d4af37 0%, #b38738 100%); color: #080d1a !important; border: 2px solid #ffebb5;';
+              if (btn.color === 'green') {
+                btnBg = 'background-color: #25d366; background: linear-gradient(135deg, #25d366 0%, #128c7e 100%); color: #ffffff !important; border: 2px solid #86efac;';
+              } else if (btn.color === 'blue') {
+                btnBg = 'background-color: #2563eb; background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%); color: #ffffff !important; border: 2px solid #93c5fd;';
+              } else if (btn.color === 'dark') {
+                btnBg = 'background-color: #0f172a; color: #ffffff !important; border: 1px solid #334155;';
+              }
+
+              return `
+                <tr>
+                  <td align="center" style="padding: 6px 0;">
+                    <a href="${btn.url || '{{whatsapp_link}}'}" target="_blank" style="${btnBg} display: inline-block; font-family: Arial, Helvetica, sans-serif; font-size: 15px; font-weight: 800; line-height: 1.2; text-decoration: none; padding: 15px 32px; border-radius: 35px; text-transform: uppercase; letter-spacing: 0.5px; text-align: center; box-shadow: 0 4px 14px rgba(0,0,0,0.25); -webkit-text-size-adjust: none;">
+                      ${btn.texto}
+                    </a>
+                  </td>
+                </tr>
+              `;
+            }).join('')}
+          </table>
+        </td>
+      </tr>
+    ` : '';
+
+    // 5. Firma de Ricardo Bertalmio HTML
+    const signatureHtml = hasSignature ? `
+      <!-- Firma Oficial de Ricardo Bertalmio -->
+      <tr>
+        <td style="padding: 20px 28px 26px 28px; border-top: 1px solid ${cardBorder}; background-color: ${isDark ? '#080d1a' : '#fafafa'};">
+          <table cellpadding="0" cellspacing="0" border="0" style="font-family: Arial, Helvetica, sans-serif; width: 100%;">
+            <tr>
+              <td valign="middle" style="padding-right: 15px; width: 75px;">
+                <img src="https://dashbportal.com/afinitive/rbertalmio.png" alt="Ricardo Bertalmio Ruibal" width="68" style="display: block; border-radius: 50%; border: 2px solid #d4af37;" />
+              </td>
+              <td valign="middle">
+                <div style="font-size: 15px; color: ${isDark ? '#ffffff' : '#0f172a'}; font-weight: bold; margin: 0; line-height: 1.2;">Ricardo Bertalmio Ruibal</div>
+                <div style="font-size: 12px; color: ${isDark ? '#94a3b8' : '#64748b'}; margin: 2px 0 6px 0;">CEO Afinitive Wealth Management</div>
+                <table cellpadding="0" cellspacing="0" border="0" style="font-size: 11px; color: ${isDark ? '#cbd5e1' : '#334155'};">
+                  <tr>
+                    <td style="padding-right: 12px; padding-bottom: 3px;">
+                      📞 <span style="font-weight: 500;">(511) 982100208</span>
+                    </td>
+                    <td style="padding-bottom: 3px;">
+                      📍 <span>San Isidro, Lima</span>
+                    </td>
+                  </tr>
+                  <tr>
+                    <td style="padding-right: 12px;">
+                      🌐 <a href="https://afinitive.com.pe" target="_blank" style="color: #60a5fa; text-decoration: none;">afinitive.com.pe</a>
+                    </td>
+                    <td>
+                      💼 <a href="https://www.linkedin.com/in/ricardo-bertalmio" target="_blank" style="color: #60a5fa; text-decoration: none;">LinkedIn</a>
+                    </td>
+                  </tr>
+                </table>
+              </td>
+            </tr>
+          </table>
+        </td>
+      </tr>
+    ` : '';
+
+    return `<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml" lang="es">
+<head>
+  <meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="x-apple-disable-message-reformatting" />
+  <title>${templateSubject || 'Invitación Exclusiva - Afinitive'}</title>
+  <style type="text/css">
+    body, table, td, a { -webkit-text-size-adjust: 100%; -ms-text-size-adjust: 100%; }
+    table, td { mso-table-lspace: 0pt; mso-table-rspace: 0pt; }
+    img { -ms-interpolation-mode: bicubic; border: 0; height: auto; line-height: 100%; outline: none; text-decoration: none; }
+    table { border-collapse: collapse !important; }
+    body { height: 100% !important; margin: 0 !important; padding: 0 !important; width: 100% !important; background-color: ${bgOuter}; }
+  </style>
+</head>
+<body style="margin: 0; padding: 0; background-color: ${bgOuter}; font-family: Arial, Helvetica, sans-serif;">
+
+  <table border="0" cellpadding="0" cellspacing="0" width="100%" style="background-color: ${bgOuter};" role="presentation">
+    <tr>
+      <td align="center" style="padding: 20px 10px;">
+        <table border="0" cellpadding="0" cellspacing="0" width="100%" style="max-width: 600px; background-color: ${bgCard}; border-radius: 14px; overflow: hidden; border: 1px solid ${cardBorder}; box-shadow: 0 10px 30px rgba(0,0,0,0.25);" role="presentation">
+          ${headerHtml}
+          ${imageBlockHtml}
+          ${textBlockHtml}
+          ${buttonsHtml}
+          ${signatureHtml}
+        </table>
+      </td>
+    </tr>
+  </table>
+
+</body>
+</html>`.trim();
+  }, [layoutMode, templateSubject, imageUrl, imageClickUrl, imageAlt, textContent, themeMode, buttons]);
+
+  // Guardar plantilla creada
+  const handleSaveVisualTemplate = async (e: React.FormEvent) => {
     e.preventDefault();
     setFormError(null);
 
@@ -119,30 +329,16 @@ export const TemplateManagerModal: React.FC<TemplateManagerModalProps> = ({
       return;
     }
 
-    if (creationMode === 'file' && !droppedFile) {
-      setFormError('Por favor selecciona o arrastra un archivo .html.');
-      return;
-    }
-
-    if (creationMode === 'code' && !rawHtmlCode.trim()) {
-      setFormError('Por favor escribe o pega el código HTML de la plantilla.');
-      return;
-    }
-
     setUploading(true);
     try {
-      const payloadSource = creationMode === 'file' ? droppedFile! : rawHtmlCode.trim();
-      await onUploadHtml(payloadSource, templateName.trim(), templateSubject.trim(), templateCategory, templateActionType);
+      const actionType = buttons.some(b => b.tipo === 'whatsapp') ? 'whatsapp_lead' : 'event_invitation';
+      await onUploadHtml(generatedHtml, templateName.trim(), templateSubject.trim(), templateCategory, actionType);
       
-      // Limpiar formulario al guardar
-      setDroppedFile(null);
-      setRawHtmlCode('');
-      setTemplateName('');
-      setTemplateSubject('');
+      // Limpiar y regresar
       setFormError(null);
       setActiveTab('catalog');
     } catch (err: any) {
-      setFormError(err.message || 'Error al guardar la plantilla. Por favor verifica los datos.');
+      setFormError(err.message || 'Error al guardar la plantilla.');
     } finally {
       setUploading(false);
     }
@@ -156,19 +352,19 @@ export const TemplateManagerModal: React.FC<TemplateManagerModalProps> = ({
   );
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-950/80 backdrop-blur-sm animate-fade-in">
-      <div className="bg-[#0D1B2A] border border-brand-gold/30 rounded-2xl w-full max-w-3xl max-h-[90vh] flex flex-col shadow-2xl overflow-hidden">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-slate-950/85 backdrop-blur-md animate-fade-in">
+      <div className="bg-[#0B1522] border border-brand-gold/30 rounded-2xl w-full max-w-5xl max-h-[94vh] flex flex-col shadow-2xl overflow-hidden">
         
         {/* Cabecera del Modal */}
-        <div className="flex items-center justify-between p-4 sm:p-5 border-b border-brand-gold/20 bg-brand-navy-dark">
+        <div className="flex items-center justify-between p-4 sm:p-5 border-b border-brand-gold/20 bg-[#070F19]">
           <div className="flex items-center gap-3">
             <div className="p-2.5 rounded-xl bg-brand-gold/10 border border-brand-gold/30 text-brand-gold">
-              <FileCode className="w-5 h-5" />
+              <Layout className="w-5 h-5" />
             </div>
             <div>
-              <h3 className="font-bold text-base text-slate-100">Gestor de Plantillas de Correo</h3>
+              <h3 className="font-bold text-base text-slate-100">Diseñador y Gestor de Plantillas de Correo</h3>
               <p className="text-xs text-slate-400">
-                Selecciona plantillas de captación WhatsApp, agendamiento de citas o sube tus diseños en HTML.
+                Diseña plantillas visualmente con encabezado Afinitive, imagen, botones de WhatsApp/Registro y firma ejecutiva.
               </p>
             </div>
           </div>
@@ -181,7 +377,7 @@ export const TemplateManagerModal: React.FC<TemplateManagerModalProps> = ({
         </div>
 
         {/* Pestañas */}
-        <div className="flex border-b border-brand-gold/15 bg-[#08111B] px-5">
+        <div className="flex border-b border-brand-gold/15 bg-[#050C14] px-5">
           <button
             onClick={() => setActiveTab('catalog')}
             className={`py-3 px-4 text-xs font-bold border-b-2 transition-all flex items-center gap-2 cursor-pointer ${
@@ -190,28 +386,29 @@ export const TemplateManagerModal: React.FC<TemplateManagerModalProps> = ({
                 : 'border-transparent text-slate-400 hover:text-slate-200'
             }`}
           >
-            <span>Catálogo de Plantillas ({templates.length})</span>
+            <FileCode className="w-4 h-4" />
+            <span>Biblioteca de Plantillas ({templates.length})</span>
           </button>
           <button
             onClick={() => {
-              setActiveTab('upload');
+              setActiveTab('builder');
               setFormError(null);
             }}
             className={`py-3 px-4 text-xs font-bold border-b-2 transition-all flex items-center gap-2 cursor-pointer ${
-              activeTab === 'upload'
+              activeTab === 'builder'
                 ? 'border-brand-gold text-brand-gold'
                 : 'border-transparent text-slate-400 hover:text-slate-200'
             }`}
           >
-            <Plus className="w-3.5 h-3.5" />
-            <span>+ Crear / Subir Plantilla HTML</span>
+            <Plus className="w-4 h-4" />
+            <span>+ Crear Nueva Plantilla Visual</span>
           </button>
         </div>
 
-        {/* Contenido */}
-        <div className="p-4 sm:p-5 overflow-y-auto flex-1 space-y-4">
+        {/* Contenido Principal */}
+        <div className="p-4 sm:p-5 overflow-y-auto flex-1">
           {activeTab === 'catalog' ? (
-            <>
+            <div className="space-y-4">
               {/* Buscador */}
               <div className="relative">
                 <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
@@ -220,7 +417,7 @@ export const TemplateManagerModal: React.FC<TemplateManagerModalProps> = ({
                   placeholder="Buscar plantilla por nombre, asunto o categoría..."
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  className="w-full pl-10 pr-4 py-2.5 bg-brand-navy-dark border border-brand-gold/20 focus:border-brand-gold rounded-xl text-xs text-slate-100 placeholder-slate-500 outline-none"
+                  className="w-full pl-10 pr-4 py-2.5 bg-[#0D1B2A] border border-brand-gold/20 focus:border-brand-gold rounded-xl text-xs text-slate-100 placeholder-slate-500 outline-none"
                 />
               </div>
 
@@ -231,7 +428,7 @@ export const TemplateManagerModal: React.FC<TemplateManagerModalProps> = ({
                   const isAi = (template.createdBy || template.created_by) === 'ai_agent';
                   const isFull = template.type === 'full_html';
                   const isWhatsapp = template.actionType === 'whatsapp_lead' || template.action_type === 'whatsapp_lead' || template.name?.toLowerCase().includes('whatsapp');
-                  const isEvent = template.actionType === 'event_invitation' || template.category === 'Eventos & Landings';
+                  const isEvent = template.actionType === 'event_invitation' || template.category === 'Eventos';
 
                   return (
                     <div
@@ -243,16 +440,14 @@ export const TemplateManagerModal: React.FC<TemplateManagerModalProps> = ({
                       className={`p-4 rounded-xl border transition-all cursor-pointer flex flex-col justify-between group relative ${
                         isSelected
                           ? 'bg-brand-gold/10 border-brand-gold ring-1 ring-brand-gold/50 shadow-lg'
-                          : 'bg-[#09131E] border-brand-gold/15 hover:border-brand-gold/40 hover:bg-brand-navy-dark'
+                          : 'bg-[#09131E] border-brand-gold/15 hover:border-brand-gold/40 hover:bg-[#0D1B2A]'
                       }`}
                     >
                       <div className="space-y-2">
                         <div className="flex items-start justify-between gap-2">
-                          <div className="flex items-center gap-2 flex-wrap">
-                            <span className="font-bold text-sm text-slate-100 group-hover:text-brand-gold transition-colors">
-                              {template.name}
-                            </span>
-                          </div>
+                          <span className="font-bold text-sm text-slate-100 group-hover:text-brand-gold transition-colors">
+                            {template.name}
+                          </span>
                           {isSelected && (
                             <span className="p-1 rounded-full bg-brand-gold text-brand-navy shrink-0">
                               <Check className="w-3 h-3 stroke-[3]" />
@@ -271,7 +466,7 @@ export const TemplateManagerModal: React.FC<TemplateManagerModalProps> = ({
                             </span>
                           ) : isEvent ? (
                             <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-500/20 text-amber-300 border border-amber-500/40 flex items-center gap-1">
-                              🎟️ Evento & Landing
+                              🎟️ Evento & Flyer
                             </span>
                           ) : (
                             <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-blue-500/20 text-blue-300 border border-blue-500/40 flex items-center gap-1">
@@ -284,13 +479,9 @@ export const TemplateManagerModal: React.FC<TemplateManagerModalProps> = ({
                               <Sparkles className="w-3 h-3 text-purple-400" /> Agente IA
                             </span>
                           )}
-                          {isFull ? (
-                            <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-amber-500/15 text-amber-300 border border-amber-500/30">
-                              Landing HTML
-                            </span>
-                          ) : (
-                            <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-slate-800 text-slate-300 border border-slate-700">
-                              Institucional
+                          {isFull && (
+                            <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-indigo-500/20 text-indigo-300 border border-indigo-500/40">
+                              Visual / HTML
                             </span>
                           )}
                           <span className="px-2 py-0.5 rounded-full text-[10px] text-slate-400 bg-slate-800 border border-slate-700">
@@ -328,46 +519,11 @@ export const TemplateManagerModal: React.FC<TemplateManagerModalProps> = ({
                   </div>
                 )}
               </div>
-            </>
+            </div>
           ) : (
-            /* Tab: Crear / Subir Plantilla HTML */
-            <form onSubmit={handleSave} className="space-y-4">
+            /* Tab: Creador Visual de Plantillas */
+            <form onSubmit={handleSaveVisualTemplate} className="space-y-5">
               
-              {/* Selector de Método de Creación */}
-              <div className="flex bg-[#08111B] p-1 rounded-xl border border-brand-gold/20 gap-1">
-                <button
-                  type="button"
-                  onClick={() => {
-                    setCreationMode('file');
-                    setFormError(null);
-                  }}
-                  className={`flex-1 py-2 px-3 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-2 cursor-pointer ${
-                    creationMode === 'file'
-                      ? 'bg-brand-gold text-brand-navy shadow-sm'
-                      : 'text-slate-400 hover:text-slate-200'
-                  }`}
-                >
-                  <Upload className="w-3.5 h-3.5" />
-                  <span>Subir Archivo .HTML</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setCreationMode('code');
-                    setFormError(null);
-                  }}
-                  className={`flex-1 py-2 px-3 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-2 cursor-pointer ${
-                    creationMode === 'code'
-                      ? 'bg-brand-gold text-brand-navy shadow-sm'
-                      : 'text-slate-400 hover:text-slate-200'
-                  }`}
-                >
-                  <Code2 className="w-3.5 h-3.5" />
-                  <span>Pegar / Escribir Código HTML</span>
-                </button>
-              </div>
-
-              {/* Mensaje de Error si ocurre */}
               {formError && (
                 <div className="p-3 bg-red-500/15 border border-red-500/40 rounded-xl text-red-300 text-xs flex items-center gap-2">
                   <AlertCircle className="w-4 h-4 shrink-0 text-red-400" />
@@ -375,151 +531,373 @@ export const TemplateManagerModal: React.FC<TemplateManagerModalProps> = ({
                 </div>
               )}
 
-              {creationMode === 'file' ? (
-                /* Zona Drag & Drop de Archivo */
-                <div
-                  onDragEnter={handleDrag}
-                  onDragLeave={handleDrag}
-                  onDragOver={handleDrag}
-                  onDrop={handleDrop}
-                  className={`border-2 border-dashed rounded-2xl p-7 text-center transition-all flex flex-col items-center justify-center gap-2.5 cursor-pointer ${
-                    dragActive
-                      ? 'border-brand-gold bg-brand-gold/10'
-                      : droppedFile
-                        ? 'border-emerald-500/50 bg-emerald-500/10'
-                        : 'border-brand-gold/25 hover:border-brand-gold/50 bg-slate-950/40'
-                  }`}
-                  onClick={() => document.getElementById('html-file-upload-input')?.click()}
-                >
-                  <input
-                    id="html-file-upload-input"
-                    type="file"
-                    accept=".html,.htm"
-                    onChange={handleFileInput}
-                    className="hidden"
-                  />
-
-                  <div className="p-3 rounded-full bg-brand-gold/10 border border-brand-gold/30 text-brand-gold">
-                    <Upload className="w-5 h-5" />
+              {/* 1. SELECCIÓN DE ESTRUCTURA / FORMATO */}
+              <div className="space-y-2">
+                <label className="text-xs text-brand-gold font-bold uppercase tracking-wider flex items-center gap-2">
+                  <Layout className="w-4 h-4" /> 1. Elige el Formato / Estructura del Correo:
+                </label>
+                
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2.5">
+                  
+                  {/* Opción 1 */}
+                  <div
+                    onClick={() => setLayoutMode('header_image_sig')}
+                    className={`p-3 rounded-xl border transition-all cursor-pointer flex flex-col justify-between ${
+                      layoutMode === 'header_image_sig'
+                        ? 'bg-brand-gold/15 border-brand-gold ring-1 ring-brand-gold shadow-md'
+                        : 'bg-[#08121D] border-brand-gold/15 hover:border-brand-gold/30 hover:bg-[#0D1B2A]'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between mb-1.5">
+                      <span className="text-xs font-bold text-slate-100">Encabezado + Imagen + Firma</span>
+                      {layoutMode === 'header_image_sig' && <Check className="w-4 h-4 text-brand-gold" />}
+                    </div>
+                    <p className="text-[11px] text-slate-400">
+                      Mantiene el logo superior de Afinitive, incrusta la imagen/flyer y la firma de Ricardo Bertalmio.
+                    </p>
                   </div>
 
-                  {droppedFile ? (
-                    <div>
-                      <p className="font-bold text-sm text-emerald-400 flex items-center justify-center gap-1.5">
-                        <Check className="w-4 h-4" /> {droppedFile.name}
-                      </p>
-                      <p className="text-[11px] text-slate-400 mt-0.5">
-                        {(droppedFile.size / 1024).toFixed(1)} KB &bull; Haz clic para cambiar archivo
-                      </p>
+                  {/* Opción 2 */}
+                  <div
+                    onClick={() => setLayoutMode('image_sig')}
+                    className={`p-3 rounded-xl border transition-all cursor-pointer flex flex-col justify-between ${
+                      layoutMode === 'image_sig'
+                        ? 'bg-brand-gold/15 border-brand-gold ring-1 ring-brand-gold shadow-md'
+                        : 'bg-[#08121D] border-brand-gold/15 hover:border-brand-gold/30 hover:bg-[#0D1B2A]'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between mb-1.5">
+                      <span className="text-xs font-bold text-slate-100">Sin Encabezado + Firma</span>
+                      {layoutMode === 'image_sig' && <Check className="w-4 h-4 text-brand-gold" />}
                     </div>
-                  ) : (
-                    <div>
-                      <p className="font-semibold text-xs sm:text-sm text-slate-200">
-                        Arrastra tu archivo <span className="text-brand-gold font-mono">.html</span> aquí o haz clic para explorar
-                      </p>
-                      <p className="text-[11px] text-slate-400 mt-0.5">
-                        Compatible con Mailchimp, BEE Free, Stripo, Figma o plantillas personalizadas.
-                      </p>
+                    <p className="text-[11px] text-slate-400">
+                      Oculta el logo superior, muestra la imagen/flyer y finaliza con la firma de Ricardo.
+                    </p>
+                  </div>
+
+                  {/* Opción 3 */}
+                  <div
+                    onClick={() => setLayoutMode('image_only')}
+                    className={`p-3 rounded-xl border transition-all cursor-pointer flex flex-col justify-between ${
+                      layoutMode === 'image_only'
+                        ? 'bg-brand-gold/15 border-brand-gold ring-1 ring-brand-gold shadow-md'
+                        : 'bg-[#08121D] border-brand-gold/15 hover:border-brand-gold/30 hover:bg-[#0D1B2A]'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between mb-1.5">
+                      <span className="text-xs font-bold text-slate-100">Solo Flyer / Imagen</span>
+                      {layoutMode === 'image_only' && <Check className="w-4 h-4 text-brand-gold" />}
+                    </div>
+                    <p className="text-[11px] text-slate-400">
+                      Oculta el encabezado y la firma. Muestra únicamente la imagen publicitaria limpia.
+                    </p>
+                  </div>
+
+                  {/* Opción 4 */}
+                  <div
+                    onClick={() => setLayoutMode('header_text_sig')}
+                    className={`p-3 rounded-xl border transition-all cursor-pointer flex flex-col justify-between ${
+                      layoutMode === 'header_text_sig'
+                        ? 'bg-brand-gold/15 border-brand-gold ring-1 ring-brand-gold shadow-md'
+                        : 'bg-[#08121D] border-brand-gold/15 hover:border-brand-gold/30 hover:bg-[#0D1B2A]'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between mb-1.5">
+                      <span className="text-xs font-bold text-slate-100">Carta / Texto Institucional</span>
+                      {layoutMode === 'header_text_sig' && <Check className="w-4 h-4 text-brand-gold" />}
+                    </div>
+                    <p className="text-[11px] text-slate-400">
+                      Encabezado Afinitive + Texto redactado formal + Firma ejecutiva de Ricardo.
+                    </p>
+                  </div>
+
+                </div>
+              </div>
+
+              {/* CONTENEDOR EN 2 COLUMNAS: FORMULARIO + VISTA PREVIA EN VIVO */}
+              <div className="grid grid-cols-1 lg:grid-cols-12 gap-5">
+                
+                {/* Columna Izquierda: Configuración de Contenido y Botones (7 cols) */}
+                <div className="lg:col-span-7 space-y-4">
+                  
+                  {/* Datos Básicos */}
+                  <div className="bg-[#08121D] p-3.5 rounded-xl border border-brand-gold/15 space-y-3">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <div className="space-y-1">
+                        <label className="text-[11px] text-brand-gold font-semibold uppercase block">
+                          Nombre de la Plantilla *
+                        </label>
+                        <input
+                          type="text"
+                          required
+                          placeholder="Ej: Taller Zoom IA - Ricardo"
+                          value={templateName}
+                          onChange={(e) => setTemplateName(e.target.value)}
+                          className="w-full px-3 py-2 bg-[#0D1B2A] border border-brand-gold/20 rounded-lg text-xs text-slate-100 placeholder-slate-500 outline-none focus:border-brand-gold"
+                        />
+                      </div>
+
+                      <div className="space-y-1">
+                        <label className="text-[11px] text-brand-gold font-semibold uppercase block">
+                          Categoría
+                        </label>
+                        <select
+                          value={templateCategory}
+                          onChange={(e) => setTemplateCategory(e.target.value)}
+                          className="w-full px-3 py-2 bg-[#0D1B2A] border border-brand-gold/20 rounded-lg text-xs text-slate-100 outline-none focus:border-brand-gold cursor-pointer"
+                        >
+                          <option value="Eventos">Eventos</option>
+                          <option value="Inmobiliario">Inmobiliario</option>
+                          <option value="Prospección">Prospección</option>
+                          <option value="Seguimiento">Seguimiento</option>
+                          <option value="General">General</option>
+                        </select>
+                      </div>
+                    </div>
+
+                    <div className="space-y-1">
+                      <label className="text-[11px] text-brand-gold font-semibold uppercase block">
+                        Asunto del Correo *
+                      </label>
+                      <input
+                        type="text"
+                        required
+                        placeholder="Ej: {{nombre}}, invitación exclusiva al evento online de Afinitive"
+                        value={templateSubject}
+                        onChange={(e) => setTemplateSubject(e.target.value)}
+                        className="w-full px-3 py-2 bg-[#0D1B2A] border border-brand-gold/20 rounded-lg text-xs text-slate-100 placeholder-slate-500 outline-none focus:border-brand-gold"
+                      />
+                    </div>
+                  </div>
+
+                  {/* 2. ADJUNTAR IMAGEN (Si el layout lo soporta) */}
+                  {layoutMode !== 'header_text_sig' && (
+                    <div className="bg-[#08121D] p-3.5 rounded-xl border border-brand-gold/15 space-y-3">
+                      <label className="text-xs text-brand-gold font-bold uppercase tracking-wider flex items-center gap-2">
+                        <ImageIcon className="w-4 h-4" /> 2. Adjuntar Imagen / Flyer:
+                      </label>
+
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        <div className="space-y-1">
+                          <span className="text-[11px] text-slate-300 block">Subir desde la computadora:</span>
+                          <label className="flex items-center justify-center gap-2 px-3 py-2 bg-[#0D1B2A] hover:bg-brand-navy-dark border border-dashed border-brand-gold/40 hover:border-brand-gold rounded-lg text-xs text-slate-200 cursor-pointer transition-all">
+                            <Upload className="w-3.5 h-3.5 text-brand-gold" />
+                            <span>Seleccionar Imagen (PNG/JPG)</span>
+                            <input
+                              type="file"
+                              accept="image/*"
+                              onChange={handleImageFileChange}
+                              className="hidden"
+                            />
+                          </label>
+                        </div>
+
+                        <div className="space-y-1">
+                          <span className="text-[11px] text-slate-300 block">O pegar enlace web (URL):</span>
+                          <input
+                            type="url"
+                            placeholder="https://links.afinitive.com.pe/img/evento.jpeg"
+                            value={imageUrl}
+                            onChange={(e) => setImageUrl(e.target.value)}
+                            className="w-full px-3 py-2 bg-[#0D1B2A] border border-brand-gold/20 rounded-lg text-xs text-slate-100 placeholder-slate-500 outline-none focus:border-brand-gold"
+                          />
+                        </div>
+                      </div>
+
+                      <div className="space-y-1 pt-1">
+                        <span className="text-[11px] text-slate-400 block">Link al hacer clic en la imagen (Opcional):</span>
+                        <input
+                          type="url"
+                          placeholder="https://eventos.afinitive.com.pe/?id=..."
+                          value={imageClickUrl}
+                          onChange={(e) => setImageClickUrl(e.target.value)}
+                          className="w-full px-3 py-1.5 bg-[#0D1B2A] border border-brand-gold/15 rounded-lg text-xs text-slate-300 placeholder-slate-600 outline-none"
+                        />
+                      </div>
                     </div>
                   )}
+
+                  {/* 3. REDACTAR TEXTO */}
+                  {layoutMode !== 'image_only' && (
+                    <div className="bg-[#08121D] p-3.5 rounded-xl border border-brand-gold/15 space-y-2">
+                      <div className="flex items-center justify-between">
+                        <label className="text-xs text-brand-gold font-bold uppercase tracking-wider flex items-center gap-2">
+                          <FileText className="w-4 h-4" /> 3. Texto del Mensaje:
+                        </label>
+                        <span className="text-[10px] text-slate-400">
+                          Usa <code className="text-amber-300">{'{{nombre}}'}</code> para personalizar
+                        </span>
+                      </div>
+                      <textarea
+                        rows={4}
+                        placeholder="Estimado/a {{nombre}}:&#10;&#10;Escribe aquí el cuerpo del mensaje..."
+                        value={textContent}
+                        onChange={(e) => setTextContent(e.target.value)}
+                        className="w-full px-3 py-2 bg-[#0D1B2A] border border-brand-gold/20 rounded-lg text-xs text-slate-100 placeholder-slate-600 outline-none focus:border-brand-gold resize-y"
+                      />
+                    </div>
+                  )}
+
+                  {/* 4. BOTONES PERSONALIZADOS (CTAs) */}
+                  <div className="bg-[#08121D] p-3.5 rounded-xl border border-brand-gold/15 space-y-3">
+                    <div className="flex items-center justify-between flex-wrap gap-2">
+                      <label className="text-xs text-brand-gold font-bold uppercase tracking-wider flex items-center gap-2">
+                        <Ticket className="w-4 h-4" /> 4. Botones de Acción (CTAs):
+                      </label>
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        <button
+                          type="button"
+                          onClick={() => handleAddButton('whatsapp')}
+                          className="px-2 py-1 bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 border border-emerald-500/40 rounded-lg text-[11px] font-bold flex items-center gap-1 cursor-pointer transition-all"
+                        >
+                          <MessageCircle className="w-3 h-3" /> + WhatsApp
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleAddButton('registro')}
+                          className="px-2 py-1 bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/40 rounded-lg text-[11px] font-bold flex items-center gap-1 cursor-pointer transition-all"
+                        >
+                          <Ticket className="w-3 h-3" /> + Registro
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleAddButton('agenda')}
+                          className="px-2 py-1 bg-blue-500/20 hover:bg-blue-500/30 text-blue-300 border border-blue-500/40 rounded-lg text-[11px] font-bold flex items-center gap-1 cursor-pointer transition-all"
+                        >
+                          <Calendar className="w-3 h-3" /> + Agenda
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleAddButton('personalizado')}
+                          className="px-2 py-1 bg-purple-500/20 hover:bg-purple-500/30 text-purple-300 border border-purple-500/40 rounded-lg text-[11px] font-bold flex items-center gap-1 cursor-pointer transition-all"
+                        >
+                          <Link2 className="w-3 h-3" /> + Link
+                        </button>
+                      </div>
+                    </div>
+
+                    {buttons.length === 0 ? (
+                      <p className="text-[11px] text-slate-500 italic">
+                        No hay botones agregados. Puedes añadir botones de WhatsApp, Registro o Agenda con los botones superiores.
+                      </p>
+                    ) : (
+                      <div className="space-y-2.5">
+                        {buttons.map((btn, index) => (
+                          <div key={btn.id} className="p-2.5 bg-[#0D1B2A] rounded-lg border border-brand-gold/15 space-y-2">
+                            <div className="flex items-center justify-between gap-2">
+                              <span className="text-[11px] font-bold text-slate-300">
+                                Botón #{index + 1} ({btn.tipo.toUpperCase()})
+                              </span>
+                              <div className="flex items-center gap-2">
+                                <select
+                                  value={btn.color}
+                                  onChange={(e) => handleUpdateButton(btn.id, { color: e.target.value as any })}
+                                  className="px-2 py-0.5 bg-[#08121D] border border-slate-700 rounded text-[10px] text-slate-300 outline-none"
+                                >
+                                  <option value="gold">Dorado Corporativo</option>
+                                  <option value="green">Verde WhatsApp</option>
+                                  <option value="blue">Azul Calendario</option>
+                                  <option value="dark">Oscuro Elegante</option>
+                                </select>
+                                <button
+                                  type="button"
+                                  onClick={() => handleRemoveButton(btn.id)}
+                                  className="text-red-400 hover:text-red-300 p-1 hover:bg-red-500/10 rounded cursor-pointer"
+                                  title="Quitar botón"
+                                >
+                                  <Trash2 className="w-3.5 h-3.5" />
+                                </button>
+                              </div>
+                            </div>
+
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                              <div>
+                                <input
+                                  type="text"
+                                  placeholder="Texto del botón"
+                                  value={btn.texto}
+                                  onChange={(e) => handleUpdateButton(btn.id, { texto: e.target.value })}
+                                  className="w-full px-2.5 py-1.5 bg-[#08121D] border border-brand-gold/15 rounded text-xs text-slate-100 outline-none"
+                                />
+                              </div>
+                              <div>
+                                <input
+                                  type="text"
+                                  placeholder="URL destino (https://...)"
+                                  value={btn.url}
+                                  onChange={(e) => handleUpdateButton(btn.id, { url: e.target.value })}
+                                  className="w-full px-2.5 py-1.5 bg-[#08121D] border border-brand-gold/15 rounded text-xs text-slate-100 outline-none"
+                                />
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Selector de Estilo de Fondo (Claro / Oscuro) */}
+                  <div className="flex items-center justify-between p-3 bg-[#08121D] rounded-xl border border-brand-gold/15 text-xs text-slate-300">
+                    <span>Estilo de Fondo del Correo:</span>
+                    <div className="flex gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setThemeMode('dark')}
+                        className={`px-3 py-1 rounded-lg font-bold text-xs cursor-pointer ${
+                          themeMode === 'dark' ? 'bg-brand-gold text-brand-navy' : 'bg-slate-800 text-slate-400'
+                        }`}
+                      >
+                        🌙 Modo Oscuro (Exclusivo)
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setThemeMode('light')}
+                        className={`px-3 py-1 rounded-lg font-bold text-xs cursor-pointer ${
+                          themeMode === 'light' ? 'bg-brand-gold text-brand-navy' : 'bg-slate-800 text-slate-400'
+                        }`}
+                      >
+                        ☀️ Modo Claro (Clásico)
+                      </button>
+                    </div>
+                  </div>
+
                 </div>
-              ) : (
-                /* Editor / Textarea Directo para HTML */
-                <div className="space-y-1.5">
-                  <div className="flex items-center justify-between">
-                    <label className="text-xs text-brand-gold font-medium uppercase tracking-wider block">
-                      Código HTML de la Plantilla
-                    </label>
-                    <span className="text-[10px] text-slate-400">
-                      Usa variables como <code className="text-amber-300">{'{{nombre}}'}</code>, <code className="text-amber-300">[SOLO_WHATSAPP]</code>, etc.
+
+                {/* Columna Derecha: Vista Previa en Vivo (5 cols) */}
+                <div className="lg:col-span-5 flex flex-col">
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-xs text-brand-gold font-bold uppercase tracking-wider flex items-center gap-1.5">
+                      <Eye className="w-4 h-4" /> Vista Previa en Tiempo Real:
+                    </span>
+                    <span className="text-[10px] text-slate-400 bg-slate-800 px-2 py-0.5 rounded">
+                      Ancho 600px Responsive
                     </span>
                   </div>
-                  <textarea
-                    rows={8}
-                    required
-                    placeholder="<!DOCTYPE html>&#10;<html>&#10;<body>&#10;  <h2>Hola {{nombre}},</h2>&#10;  <p>Te invitamos a conocer nuestras oportunidades...</p>&#10;  <p>[SOLO_WHATSAPP]</p>&#10;</body>&#10;</html>"
-                    value={rawHtmlCode}
-                    onChange={(e) => setRawHtmlCode(e.target.value)}
-                    className="w-full px-3.5 py-2.5 bg-brand-navy-dark border border-brand-gold/20 rounded-xl text-xs text-slate-100 placeholder-slate-600 outline-none focus:border-brand-gold font-mono resize-y"
-                  />
-                </div>
-              )}
 
-              {/* Formulario de Metadatos */}
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                <div className="space-y-1.5">
-                  <label className="text-xs text-brand-gold font-medium uppercase tracking-wider block">
-                    Nombre de la Plantilla <span className="text-red-400">*</span>
-                  </label>
-                  <input
-                    type="text"
-                    required
-                    placeholder="Ej: Preventa The New York Tower"
-                    value={templateName}
-                    onChange={(e) => setTemplateName(e.target.value)}
-                    className="w-full px-3.5 py-2.5 bg-brand-navy-dark border border-brand-gold/20 rounded-xl text-xs text-slate-100 placeholder-slate-500 outline-none focus:border-brand-gold"
-                  />
+                  <div className="bg-slate-900 border border-brand-gold/20 rounded-xl p-3 flex-1 overflow-y-auto max-h-[520px] shadow-inner">
+                    <iframe
+                      title="Live Email Preview"
+                      srcDoc={generatedHtml}
+                      className="w-full h-[480px] bg-transparent border-0 rounded"
+                    />
+                  </div>
                 </div>
 
-                <div className="space-y-1.5">
-                  <label className="text-xs text-brand-gold font-medium uppercase tracking-wider block">
-                    Tipo de Acción
-                  </label>
-                  <select
-                    value={templateActionType}
-                    onChange={(e) => setTemplateActionType(e.target.value as any)}
-                    className="w-full px-3.5 py-2.5 bg-brand-navy-dark border border-brand-gold/20 rounded-xl text-xs text-slate-100 outline-none focus:border-brand-gold cursor-pointer"
-                  >
-                    <option value="whatsapp_lead">💬 Captación WhatsApp (Sin slots)</option>
-                    <option value="calendar_booking">📅 Agendamiento Cita 1 a 1</option>
-                  </select>
-                </div>
-
-                <div className="space-y-1.5">
-                  <label className="text-xs text-brand-gold font-medium uppercase tracking-wider block">
-                    Categoría
-                  </label>
-                  <select
-                    value={templateCategory}
-                    onChange={(e) => setTemplateCategory(e.target.value)}
-                    className="w-full px-3.5 py-2.5 bg-brand-navy-dark border border-brand-gold/20 rounded-xl text-xs text-slate-100 outline-none focus:border-brand-gold cursor-pointer"
-                  >
-                    <option value="Inmobiliario">Inmobiliario</option>
-                    <option value="Prospección">Prospección</option>
-                    <option value="Eventos">Eventos</option>
-                    <option value="Seguimiento">Seguimiento</option>
-                    <option value="General">General</option>
-                  </select>
-                </div>
               </div>
 
-              <div className="space-y-1.5">
-                <label className="text-xs text-brand-gold font-medium uppercase tracking-wider block">
-                  Asunto del Correo <span className="text-red-400">*</span>
-                </label>
-                <input
-                  type="text"
-                  required
-                  placeholder="Ej: {{nombre}}, invitación a evento online de inversión inmobiliaria"
-                  value={templateSubject}
-                  onChange={(e) => setTemplateSubject(e.target.value)}
-                  className="w-full px-3.5 py-2.5 bg-brand-navy-dark border border-brand-gold/20 rounded-xl text-xs text-slate-100 placeholder-slate-500 outline-none focus:border-brand-gold"
-                />
-              </div>
-
-              {/* Botón de Guardado */}
-              <div className="flex justify-end gap-3 pt-2">
+              {/* Botones de Acción Finales */}
+              <div className="flex justify-end gap-3 pt-3 border-t border-brand-gold/15">
                 <button
                   type="button"
                   onClick={() => setActiveTab('catalog')}
-                  className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl text-xs font-semibold transition-all cursor-pointer"
+                  className="px-5 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl text-xs font-semibold transition-all cursor-pointer"
                 >
                   Cancelar
                 </button>
                 <button
                   type="submit"
                   disabled={uploading}
-                  className="px-6 py-2.5 bg-gradient-to-r from-brand-gold-dark to-brand-gold hover:opacity-95 text-brand-navy font-bold rounded-xl text-xs shadow-lg hover:shadow-brand-gold/20 transition-all disabled:opacity-50 flex items-center gap-2 cursor-pointer active:scale-98"
+                  className="px-7 py-2.5 bg-gradient-to-r from-brand-gold-dark to-brand-gold hover:opacity-95 text-brand-navy font-bold rounded-xl text-xs shadow-lg hover:shadow-brand-gold/20 transition-all disabled:opacity-50 flex items-center gap-2 cursor-pointer active:scale-98"
                 >
                   {uploading ? (
                     <>
@@ -528,12 +906,13 @@ export const TemplateManagerModal: React.FC<TemplateManagerModalProps> = ({
                     </>
                   ) : (
                     <>
-                      <Plus className="w-4 h-4" />
+                      <Check className="w-4 h-4" />
                       <span>Guardar y Usar Plantilla</span>
                     </>
                   )}
                 </button>
               </div>
+
             </form>
           )}
         </div>
@@ -541,4 +920,3 @@ export const TemplateManagerModal: React.FC<TemplateManagerModalProps> = ({
     </div>
   );
 };
-
