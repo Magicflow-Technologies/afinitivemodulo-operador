@@ -138,12 +138,34 @@ export class TemplateRenderEngine {
     // Reemplazo de variables universales en el cuerpo
     let processedContent = template.htmlContent || '';
 
+    // Parámetros adicionales de contexto (Eventos, Zoom, Meet, etc.)
+    const customParams = context.customParams || {};
+    const linkZoom = customParams.link_zoom || customParams.link_reunion || customParams.zoom_url || '';
+    const eventoNombre = customParams.evento || customParams.evento_nombre || '';
+    const horaEvento = customParams.hora || '';
+    const fechaEvento = customParams.fecha || formattedDate;
+    const celularDest = context.recipientPhone || customParams.celular || customParams.telefono || '';
+    const correoDest = context.recipientEmail || '';
+    const firstName = cleanName.split(' ')[0] || cleanName;
+
     // Tokens con llaves {{variable}}
     processedContent = processedContent
       .replace(/\{\{\s*nombre\s*\}\}/gi, cleanName)
+      .replace(/\{\{\s*first_name\s*\}\}/gi, firstName)
+      .replace(/\{\{\s*primer_nombre\s*\}\}/gi, firstName)
+      .replace(/\{\{\s*correo\s*\}\}/gi, correoDest)
+      .replace(/\{\{\s*email\s*\}\}/gi, correoDest)
+      .replace(/\{\{\s*celular\s*\}\}/gi, celularDest)
+      .replace(/\{\{\s*telefono\s*\}\}/gi, celularDest)
+      .replace(/\{\{\s*evento\s*\}\}/gi, eventoNombre)
+      .replace(/\{\{\s*evento_nombre\s*\}\}/gi, eventoNombre)
+      .replace(/\{\{\s*link_zoom\s*\}\}/gi, linkZoom)
+      .replace(/\{\{\s*link_reunion\s*\}\}/gi, linkZoom)
+      .replace(/\{\{\s*zoom_url\s*\}\}/gi, linkZoom)
+      .replace(/\{\{\s*hora\s*\}\}/gi, horaEvento)
       .replace(/\{\{\s*saludo\s*\}\}/gi, greeting)
-      .replace(/\{\{\s*fecha_reunion\s*\}\}/gi, formattedDate)
-      .replace(/\{\{\s*fecha\s*\}\}/gi, formattedDate)
+      .replace(/\{\{\s*fecha_reunion\s*\}\}/gi, fechaEvento)
+      .replace(/\{\{\s*fecha\s*\}\}/gi, fechaEvento)
       .replace(/\{\{\s*firma_nombre\s*\}\}/gi, operatorName)
       .replace(/\{\{\s*firma_cargo\s*\}\}/gi, operatorRole)
       .replace(/\{\{\s*whatsapp_link\s*\}\}/gi, whatsappTrackingLink)
@@ -155,7 +177,10 @@ export class TemplateRenderEngine {
     let processedSubject = template.subject || 'Invitación Exclusiva - Afinitive';
     processedSubject = processedSubject
       .replace(/\{\{\s*nombre\s*\}\}/gi, cleanName)
-      .replace(/\{\{\s*fecha_reunion\s*\}\}/gi, formattedDate);
+      .replace(/\{\{\s*first_name\s*\}\}/gi, firstName)
+      .replace(/\{\{\s*evento\s*\}\}/gi, eventoNombre)
+      .replace(/\{\{\s*fecha_reunion\s*\}\}/gi, fechaEvento)
+      .replace(/\{\{\s*fecha\s*\}\}/gi, fechaEvento);
 
     // 1. MODO: DOCUMENTO HTML COMPLETO (Landing / Campaña Autónoma)
     if (template.type === 'full_html') {

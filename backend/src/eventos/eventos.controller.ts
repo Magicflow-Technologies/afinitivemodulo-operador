@@ -55,6 +55,36 @@ export class AgendarCitaDirectaDto {
 export class EventosController {
   constructor(private readonly eventosService: EventosService) {}
 
+  // --- AUTOMATIZACIÓN DE NUEVOS REGISTROS & COLAS ---
+
+  // Obtener estado del interruptor de automatización y conteo de pendientes
+  @Get('automatizacion/status')
+  async getAutomatizacionStatus() {
+    const status = await this.eventosService.getAutomatizacionStatus();
+    return { success: true, data: status };
+  }
+
+  // Activar / Desactivar la automatización de procesamiento
+  @Post('automatizacion/toggle')
+  async toggleAutomatizacion(@Body() body: { activa: boolean }) {
+    const result = this.eventosService.setAutomatizacionActiva(body.activa);
+    return { success: true, data: result };
+  }
+
+  // Procesar cola de asistentes pendientes secuencialmente (Webhook IA + Correo con Plantilla)
+  @Post('automatizacion/procesar-pendientes')
+  async procesarColaPendientes(@Body() body: { limite?: number }) {
+    const result = await this.eventosService.procesarColaPendientes(body.limite || 50);
+    return { success: true, data: result };
+  }
+
+  // Procesar un asistente individual específico
+  @Post('automatizacion/procesar/:asistenteId')
+  async procesarAsistenteIndividual(@Param('asistenteId') asistenteId: string) {
+    const result = await this.eventosService.procesarAsistenteIndividual(asistenteId);
+    return result;
+  }
+
   // Agendar cita directa 1 a 1 con lead (Google Calendar + Meet + Resend Email)
   @Post('agendar-cita-directa')
   async agendarCitaDirecta(@Body() body: AgendarCitaDirectaDto) {

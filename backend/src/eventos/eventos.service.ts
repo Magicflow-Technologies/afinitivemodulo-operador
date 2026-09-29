@@ -5,6 +5,7 @@ import { Resend } from 'resend';
 import { google } from 'googleapis';
 import * as fs from 'fs';
 import * as path from 'path';
+import { TemplatesService } from '../templates/templates.service';
 
 export interface EventoData {
   id?: string;
@@ -36,8 +37,12 @@ export class EventosService implements OnModuleInit {
   private supabase: any;
   private resend: Resend;
   private senderEmail: string;
+  private automatizacionActiva: boolean = true;
 
-  constructor(private configService: ConfigService) {
+  constructor(
+    private configService: ConfigService,
+    private templatesService: TemplatesService,
+  ) {
     const supabaseUrl = this.configService.get<string>('SUPABASE_URL');
     const supabaseKey =
       this.configService.get<string>('SUPABASE_SERVICE_ROLE_KEY') ||
@@ -507,15 +512,22 @@ export class EventosService implements OnModuleInit {
       throw new BadRequestException(`Error al guardar registro: ${insertError.message}`);
     }
 
-    // 5. Enviar Correo de Confirmación solo si es un webinar con fecha
-    if (!esLeadForm && evento.fecha_inicio && evento.link_reunion) {
+    // 5. Si la automatización está activa, procesar Webhook IA + Correo con Plantilla Vinculada
+    if (this.automatizacionActiva && asistenteInsertado?.id) {
+      setTimeout(() => {
+        this.procesarAsistenteIndividual(asistenteInsertado.id).catch((err) => {
+          this.logger.warn(`Error en procesamiento automático para asistente ${asistenteInsertado.id}: ${err.message}`);
+        });
+      }, 500);
+    } else if (!esLeadForm && evento.fecha_inicio && evento.link_reunion) {
+      // Fallback básico si la automatización está apagada
       try {
         await this.enviarCorreoConfirmacion(evento, {
           nombre: nombreClean,
           correo: emailClean,
           celular: celularClean,
         });
-      } catch (mailErr) {
+      } catch (mailErr: any) {
         this.logger.warn(`No se pudo enviar correo de confirmación: ${mailErr.message}`);
       }
     }
@@ -1015,7 +1027,7 @@ export class EventosService implements OnModuleInit {
     // 3. Actualizar estado en Supabase
     if (this.supabase && data.asistente_id) {
       await this.supabase
-        .from('eventos_asistentes')
+        .from('asistentes_evento')
         .update({
           estado: 'en_proceso',
           fecha_atencion: new Date().toISOString(),
@@ -1029,6 +1041,423 @@ export class EventosService implements OnModuleInit {
       googleEventId: googleRes?.id || null,
       meetLink: meetLink,
       message: 'Cita agendada, sala de Google Meet creada y correo de confirmación enviado exitosamente',
+    };
+  }
+
+  // ==========================================
+  // AUTOMATIZACIÓN DE NUEVOS REGISTROS & COLAS
+  // ==========================================
+
+  // Estado del interruptor de automatización
+  async getAutomatizacionStatus(): Promise<{ activa: boolean; totalPendientes: number }> {
+    let totalPendientes = 0;
+    if (this.supabase) {
+      const { count } = await this.supabase
+        .from('asistentes_evento')
+        .select('*', { count: 'exact', head: true })
+        .or('estado.eq.pendiente,estado.is.null');
+      totalPendientes = count || 0;
+    }
+    return {
+      activa: this.automatizacionActiva,
+      totalPendientes,
+    };
+  }
+
+  setAutomatizacionActiva(activa: boolean): { success: boolean; activa: boolean } {
+    this.automatizacionActiva = !!activa;
+    this.logger.log(`Automatización de nuevos registros ${this.automatizacionActiva ? 'ACTIVADA' : 'DESACTIVADA'}`);
+    return { success: true, activa: this.automatizacionActiva };
+  }
+
+  // 1. Envío al Webhook de la IA
+  async enviarWebhookIA(payload: {
+    nombre: string;
+    telefono: string;
+    email: string;
+    evento: string;
+    fecha: string;
+    hora: string;
+    link_zoom: string;
+    origen: string;
+    plantilla_id?: string;
+  }): Promise<{ success: boolean; data?: any; error?: string }> {
+    const webhookUrl = 'https://agent-afinitive.vercel.app/api/webhook/nuevo-registro';
+    this.logger.log(`Enviando registro a Webhook IA: ${payload.email} (${payload.nombre}) -> ${webhookUrl}`);
+
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 15000);
+
+    try {
+      const res = await fetch(webhookUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(payload),
+        signal: controller.signal,
+      });
+
+      clearTimeout(timeoutId);
+
+      if (!res.ok) {
+        const errText = await res.text();
+        this.logger.warn(`Webhook IA retornó HTTP ${res.status}: ${errText}`);
+        return { success: false, error: `HTTP ${res.status}: ${errText || 'Error en Webhook IA'}` };
+      }
+
+      let resJson: any = {};
+      try {
+        resJson = await res.json();
+      } catch {
+        resJson = { statusText: res.statusText };
+      }
+
+      this.logger.log(`Webhook IA respondió con éxito para ${payload.email}`);
+      return { success: true, data: resJson };
+    } catch (err: any) {
+      clearTimeout(timeoutId);
+      this.logger.error(`Error al conectar con Webhook IA: ${err.message}`);
+      return { success: false, error: err.message || 'Error al conectar con Webhook IA' };
+    }
+  }
+
+  // 2. Envío de Correo Electrónico usando la Plantilla Vinculada
+  async enviarCorreoConPlantilla(asistente: any, evento: any): Promise<{ success: boolean; data?: any; error?: string }> {
+    if (!this.resend) {
+      return { success: false, error: 'Servicio Resend no configurado' };
+    }
+
+    const cleanName = (asistente.nombre || 'Estimado(a)').trim();
+    const firstName = cleanName.split(' ')[0] || cleanName;
+    const zoomLink = (evento.link_reunion || '').trim();
+
+    let fechaFormatted = 'Fecha por coordinar';
+    let horaFormatted = 'Por coordinar';
+
+    if (evento.fecha_inicio) {
+      try {
+        const d = new Date(evento.fecha_inicio);
+        fechaFormatted = d.toLocaleDateString('es-PE', {
+          weekday: 'long',
+          year: 'numeric',
+          month: 'long',
+          day: 'numeric',
+          timeZone: 'America/Lima',
+        });
+        horaFormatted = d.toLocaleTimeString('es-PE', {
+          hour: '2-digit',
+          minute: '2-digit',
+          hour12: true,
+          timeZone: 'America/Lima',
+        });
+      } catch {}
+    }
+
+    const backendBaseUrl = (this.configService.get<string>('BACKEND_PUBLIC_URL') || process.env.BACKEND_PUBLIC_URL || 'https://links.afinitive.com.pe').replace(/\/+$/, '');
+
+    const renderContext = {
+      recipientEmail: asistente.correo,
+      recipientName: cleanName,
+      recipientPhone: asistente.celular || '',
+      proposedTime: evento.fecha_inicio,
+      backendBaseUrl,
+      customParams: {
+        evento: evento.nombre || 'Evento Afinitive',
+        evento_nombre: evento.nombre || 'Evento Afinitive',
+        link_zoom: zoomLink,
+        link_reunion: zoomLink,
+        zoom_url: zoomLink,
+        fecha: fechaFormatted,
+        hora: horaFormatted,
+        celular: asistente.celular || '',
+        telefono: asistente.celular || '',
+        correo: asistente.correo,
+      },
+    };
+
+    let renderedSubject = `Confirmación y Acceso: ${evento.nombre || 'Evento Afinitive'}`;
+    let renderedHtml = '';
+
+    const plantillaId = evento.plantilla_id;
+
+    if (plantillaId) {
+      try {
+        const tpl = await this.templatesService.getTemplateById(plantillaId);
+        if (tpl) {
+          const renderResult = this.templatesService.getRenderEngine().render(tpl, renderContext);
+          renderedSubject = renderResult.subject || renderedSubject;
+          renderedHtml = renderResult.html;
+        }
+      } catch (tplErr: any) {
+        this.logger.warn(`No se pudo cargar plantilla ${plantillaId}: ${tplErr.message}. Usando plantilla institucional estándar.`);
+      }
+    }
+
+    // Si no había plantilla vinculada o falló, usar plantilla HTML de alta conversión Afinitive
+    if (!renderedHtml) {
+      renderedHtml = `
+        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 24px; color: #1e293b; background-color: #ffffff; border: 1px solid #e2e8f0; border-radius: 12px;">
+          <div style="margin-bottom: 24px; text-align: center;">
+            <img src="https://links.afinitive.com.pe/img/afinitive_logo.png" alt="Afinitive" width="140" style="display: inline-block; margin-bottom: 8px;">
+            <h2 style="color: #0f172a; margin: 8px 0 4px 0; font-size: 20px;">¡Confirmación de Registro!</h2>
+            <p style="color: #64748b; font-size: 14px; margin: 0;">${evento.nombre}</p>
+          </div>
+
+          <p style="font-size: 15px; line-height: 1.6;">Hola <strong>${firstName}</strong>,</p>
+          <p style="font-size: 14px; line-height: 1.6; color: #334155;">
+            Hemos recibido exitosamente tu registro. A continuación tienes los detalles de acceso:
+          </p>
+
+          <div style="background-color: #f8fafc; border: 1px solid #cbd5e1; border-radius: 8px; padding: 16px; margin: 20px 0;">
+            <table style="width: 100%; font-size: 13px; color: #334155;">
+              <tr>
+                <td style="padding: 4px 0; font-weight: bold; width: 110px;">📅 Fecha:</td>
+                <td style="padding: 4px 0;">${fechaFormatted}</td>
+              </tr>
+              <tr>
+                <td style="padding: 4px 0; font-weight: bold;">⏰ Hora:</td>
+                <td style="padding: 4px 0;">${horaFormatted}</td>
+              </tr>
+              ${zoomLink ? `
+              <tr>
+                <td style="padding: 4px 0; font-weight: bold;">💻 Enlace Sala:</td>
+                <td style="padding: 4px 0;">
+                  <a href="${zoomLink}" target="_blank" style="color: #2563eb; text-decoration: underline; font-weight: bold;">
+                    ${zoomLink}
+                  </a>
+                </td>
+              </tr>` : ''}
+            </table>
+          </div>
+
+          ${zoomLink ? `
+          <div style="text-align: center; margin: 25px 0;">
+            <a href="${zoomLink}" target="_blank" style="display: inline-block; background-color: #0f172a; color: #ffffff; padding: 12px 28px; font-weight: bold; text-decoration: none; border-radius: 6px; font-size: 14px;">
+              🚀 Ingresar a la Reunión Zoom / Meet
+            </a>
+          </div>` : ''}
+
+          <p style="font-size: 13px; color: #64748b; line-height: 1.5; margin-top: 24px;">
+            Si tienes alguna duda o requieres asistencia previa, responde directamente a este correo o comunícate con nosotros.
+          </p>
+
+          <div style="margin-top: 30px; padding-top: 20px; border-top: 1px solid #e2e8f0;">
+            <table cellpadding="0" cellspacing="0" border="0" style="font-family: Arial, sans-serif;">
+              <tr>
+                <td valign="middle" style="padding-right: 15px;">
+                  <img src="https://dashbportal.com/afinitive/rbertalmio.png" alt="Ricardo Bertalmio Ruibal" width="65" style="border-radius: 50%;">
+                </td>
+                <td valign="middle">
+                  <strong style="color: #0f172a; font-size: 14px; display: block;">Ricardo Bertalmio Ruibal</strong>
+                  <span style="color: #64748b; font-size: 12px; display: block;">CEO Afinitive Wealth Management</span>
+                  <span style="color: #64748b; font-size: 12px;">📱 (511) 982100208 | <a href="https://afinitive.com.pe" style="color: #2563eb; text-decoration: none;">afinitive.com.pe</a></span>
+                </td>
+              </tr>
+            </table>
+          </div>
+        </div>
+      `;
+    }
+
+    try {
+      const sendResult = await this.resend.emails.send({
+        from: `Ricardo Bertalmio - Afinitive <${this.senderEmail}>`,
+        to: [asistente.correo],
+        subject: renderedSubject,
+        html: renderedHtml,
+      });
+
+      if (sendResult.error) {
+        this.logger.warn(`Error al enviar correo a ${asistente.correo}: ${sendResult.error.message}`);
+        return { success: false, error: sendResult.error.message };
+      }
+
+      this.logger.log(`Correo enviado con éxito a ${asistente.correo} (ID: ${sendResult.data?.id})`);
+      return { success: true, data: sendResult.data };
+    } catch (err: any) {
+      this.logger.error(`Error al enviar correo con Resend a ${asistente.correo}: ${err.message}`);
+      return { success: false, error: err.message };
+    }
+  }
+
+  // 3. Procesar un asistente individual (Webhook IA + Correo con Plantilla -> Estado 'en_proceso')
+  async procesarAsistenteIndividual(asistenteId: string): Promise<{ success: boolean; data?: any; error?: string }> {
+    if (!this.supabase) throw new BadRequestException('Supabase no disponible');
+
+    const { data: asistente, error: astErr } = await this.supabase
+      .from('asistentes_evento')
+      .select('*')
+      .eq('id', asistenteId)
+      .single();
+
+    if (astErr || !asistente) {
+      throw new NotFoundException(`Asistente con ID ${asistenteId} no encontrado`);
+    }
+
+    let evento: any = null;
+    try {
+      evento = await this.findEventById(asistente.evento_id);
+    } catch {
+      evento = {
+        id: asistente.evento_id,
+        nombre: 'Registro General Afinitive',
+        tipo: 'lead_form',
+        link_reunion: '',
+        plantilla_id: '',
+      };
+    }
+
+    let fechaFormateada = 'Fecha por coordinar';
+    let horaFormateada = 'Por coordinar';
+    if (evento.fecha_inicio) {
+      try {
+        const d = new Date(evento.fecha_inicio);
+        fechaFormateada = d.toLocaleDateString('es-PE', {
+          weekday: 'long',
+          year: 'numeric',
+          month: 'long',
+          day: 'numeric',
+          timeZone: 'America/Lima',
+        });
+        horaFormateada = d.toLocaleTimeString('es-PE', {
+          hour: '2-digit',
+          minute: '2-digit',
+          hour12: true,
+          timeZone: 'America/Lima',
+        });
+      } catch {}
+    }
+
+    const webhookPayload = {
+      nombre: asistente.nombre,
+      telefono: asistente.celular,
+      email: asistente.correo,
+      evento: evento.nombre,
+      fecha: fechaFormateada,
+      hora: horaFormateada,
+      link_zoom: evento.link_reunion || '',
+      origen: asistente.persona_contacto || (evento.tipo === 'lead_form' ? 'bio_link_tiktok' : 'formulario_web'),
+      plantilla_id: evento.plantilla_id || '',
+    };
+
+    this.logger.log(`[Automatización] Procesando asistente ${asistente.nombre} (${asistente.correo})...`);
+
+    // Paso 1: Enviar al Webhook de la IA y esperar OK
+    const webhookResult = await this.enviarWebhookIA(webhookPayload);
+    if (!webhookResult.success) {
+      this.logger.warn(`[Automatización] Falló webhook IA para ${asistente.correo}: ${webhookResult.error}`);
+      return {
+        success: false,
+        error: `Error en Webhook IA: ${webhookResult.error}`,
+      };
+    }
+
+    // Paso 2: Enviar Correo con Plantilla Vinculada y esperar OK
+    const emailResult = await this.enviarCorreoConPlantilla(asistente, evento);
+    if (!emailResult.success) {
+      this.logger.warn(`[Automatización] Falló envío de correo para ${asistente.correo}: ${emailResult.error}`);
+      return {
+        success: false,
+        error: `Webhook IA OK, pero falló envío de correo: ${emailResult.error}`,
+      };
+    }
+
+    // Paso 3: Ambos confirmados OK -> Cambiar estado a 'en_proceso'
+    const updatePayload = {
+      estado: 'en_proceso',
+      fecha_atencion: new Date().toISOString(),
+      notas: `Automatización OK: Webhook IA enviado ✓ + Correo (${evento.plantilla_id || 'estándar'}) enviado ✓`,
+    };
+
+    await this.supabase
+      .from('asistentes_evento')
+      .update(updatePayload)
+      .eq('id', asistenteId);
+
+    this.logger.log(`[Automatización] Asistente ${asistente.nombre} procesado con éxito (Estado: en_proceso)`);
+
+    return {
+      success: true,
+      data: {
+        asistenteId,
+        nombre: asistente.nombre,
+        correo: asistente.correo,
+        webhook: webhookResult,
+        email: emailResult,
+        nuevo_estado: 'en_proceso',
+      },
+    };
+  }
+
+  // 4. Procesar la Cola de Contactos con estado 'pendiente'
+  async procesarColaPendientes(limite = 50): Promise<{
+    total: number;
+    procesados: number;
+    fallidos: number;
+    resultados: any[];
+  }> {
+    if (!this.supabase) throw new BadRequestException('Supabase no disponible');
+
+    const { data: pendientes, error } = await this.supabase
+      .from('asistentes_evento')
+      .select('*')
+      .or('estado.eq.pendiente,estado.is.null')
+      .order('created_at', { ascending: true })
+      .limit(limite);
+
+    if (error) {
+      throw new BadRequestException(`Error al consultar cola de pendientes: ${error.message}`);
+    }
+
+    const items = pendientes || [];
+    this.logger.log(`[Cola Automatización] Iniciando procesamiento de ${items.length} pendientes...`);
+
+    const resultados: any[] = [];
+    let procesados = 0;
+    let fallidos = 0;
+
+    for (const ast of items) {
+      try {
+        const res = await this.procesarAsistenteIndividual(ast.id);
+        if (res.success) {
+          procesados++;
+          resultados.push({
+            id: ast.id,
+            nombre: ast.nombre,
+            correo: ast.correo,
+            status: 'ok',
+          });
+        } else {
+          fallidos++;
+          resultados.push({
+            id: ast.id,
+            nombre: ast.nombre,
+            correo: ast.correo,
+            status: 'error',
+            error: res.error,
+          });
+        }
+      } catch (err: any) {
+        fallidos++;
+        resultados.push({
+          id: ast.id,
+          nombre: ast.nombre,
+          correo: ast.correo,
+          status: 'error',
+          error: err.message,
+        });
+      }
+
+      // Esperar 800ms entre cada contacto para procesar de forma ordenada
+      await new Promise((r) => setTimeout(r, 800));
+    }
+
+    return {
+      total: items.length,
+      procesados,
+      fallidos,
+      resultados,
     };
   }
 }

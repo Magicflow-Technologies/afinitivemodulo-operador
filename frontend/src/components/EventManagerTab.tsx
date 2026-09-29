@@ -39,7 +39,8 @@ import {
   Timer,
   ChevronRight,
   Repeat,
-  Target
+  Target,
+  Bot
 } from 'lucide-react';
 import type { BioButtonItem } from '../utils/bioLinkConfig';
 import { 
@@ -259,11 +260,108 @@ export default function EventManagerTab({ onUseAsCampaign }: EventManagerTabProp
   // Plantillas disponibles para vincular con eventos/formularios
   const [availableTemplates, setAvailableTemplates] = useState<{ id: string; name: string; category?: string }[]>([]);
 
+  // Estado de Automatización (Webhook IA + Correo con Plantilla Vinculada)
+  const [autoProcessActive, setAutoProcessActive] = useState<boolean>(true);
+  const [queueProcessing, setQueueProcessing] = useState<boolean>(false);
+  const [processingAstId, setProcessingAstId] = useState<string | null>(null);
+
   useEffect(() => {
     fetchEventos();
     fetchAllAttendees();
     fetchTemplatesList();
+    fetchAutomationStatus();
   }, []);
+
+  const fetchAutomationStatus = async () => {
+    try {
+      const res = await fetch(`${backendUrl}/api/eventos/automatizacion/status`);
+      if (res.ok) {
+        const json = await res.json();
+        if (json.success && json.data) {
+          setAutoProcessActive(json.data.activa);
+        }
+      }
+    } catch (e) {
+      console.warn('Error al obtener estado de automatización:', e);
+    }
+  };
+
+  const handleToggleAutomation = async (active: boolean) => {
+    try {
+      setAutoProcessActive(active);
+      const res = await fetch(`${backendUrl}/api/eventos/automatizacion/toggle`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ activa: active }),
+      });
+      if (res.ok) {
+        showToast(
+          active 
+            ? '🤖 Automatización ACTIVADA: Nuevos registros enviarán Webhook IA y correo automáticamente' 
+            : '⏸️ Automatización PAUSADA: Los registros se acumularán como pendientes',
+          active ? 'success' : 'info'
+        );
+      }
+    } catch (err: any) {
+      showToast('Error al cambiar estado de automatización', 'error');
+    }
+  };
+
+  const handleProcessQueue = async () => {
+    if (totalPendientesCount === 0) {
+      showToast('No hay contactos en estado pendiente para procesar', 'info');
+      return;
+    }
+    if (!window.confirm(`¿Deseas procesar secuencialmente los ${totalPendientesCount} contactos pendientes (Webhook IA + Correo con plantilla)?`)) {
+      return;
+    }
+
+    setQueueProcessing(true);
+    try {
+      const res = await fetch(`${backendUrl}/api/eventos/automatizacion/procesar-pendientes`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ limite: 50 }),
+      });
+
+      const data = await res.json();
+      if (res.ok && data.success) {
+        const { total, procesados, fallidos } = data.data;
+        showToast(`✅ Cola procesada: ${procesados} de ${total} contactos atendidos exitosamente (Fallidos: ${fallidos})`, procesados > 0 ? 'success' : 'info');
+        await fetchAllAttendees();
+      } else {
+        throw new Error(data.message || 'Error al procesar cola');
+      }
+    } catch (err: any) {
+      console.error('Error al procesar cola:', err);
+      showToast(err.message || 'Error al procesar cola de pendientes', 'error');
+    } finally {
+      setQueueProcessing(false);
+    }
+  };
+
+  const handleProcessIndividual = async (ast: Asistente) => {
+    setProcessingAstId(ast.id);
+    try {
+      const res = await fetch(`${backendUrl}/api/eventos/automatizacion/procesar/${ast.id}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+      });
+
+      const data = await res.json();
+      if (res.ok && data.success) {
+        showToast(`✅ Contacto ${ast.nombre} procesado con éxito (Webhook IA ✓ + Correo ✓)`, 'success');
+        await fetchAllAttendees();
+      } else {
+        throw new Error(data.message || data.error || 'Error al procesar contacto');
+      }
+    } catch (err: any) {
+      console.error('Error al procesar contacto:', err);
+      showToast(err.message || 'Error al procesar contacto', 'error');
+    } finally {
+      setProcessingAstId(null);
+    }
+  };
 
   const fetchTemplatesList = async () => {
     try {
@@ -1578,6 +1676,75 @@ export default function EventManagerTab({ onUseAsCampaign }: EventManagerTabProp
             </button>
           </div>
 
+          {/* Panel de Control de Automatización de Registros (Webhook IA + Envío de Correo) */}
+          <div className="bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 border border-indigo-500/30 rounded-2xl p-4 sm:p-5 text-white shadow-lg flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+            <div className="flex items-start gap-3.5">
+              <div className="w-10 h-10 rounded-xl bg-indigo-600/30 border border-indigo-400/40 flex items-center justify-center shrink-0 shadow-inner mt-0.5">
+                <Bot className="w-5 h-5 text-indigo-300" />
+              </div>
+              <div className="space-y-1">
+                <div className="flex items-center gap-2.5 flex-wrap">
+                  <h4 className="text-sm font-black tracking-tight text-white flex items-center gap-1.5">
+                    <span>Automatización de Nuevos Registros</span>
+                    <span className="text-slate-400 font-normal">|</span>
+                    <span className="text-xs text-indigo-300 font-semibold">Webhook IA & Correo Plantilla</span>
+                  </h4>
+                  <span className={`px-2 py-0.5 rounded-full text-[10px] font-extrabold border ${
+                    autoProcessActive 
+                      ? 'bg-emerald-500/20 text-emerald-300 border-emerald-400/40' 
+                      : 'bg-amber-500/20 text-amber-300 border-amber-400/40'
+                  }`}>
+                    {autoProcessActive ? '● ACTIVA (EN TIEMPO REAL)' : '⏸️ PAUSADA'}
+                  </span>
+                </div>
+                <p className="text-xs text-slate-300 leading-relaxed max-w-2xl">
+                  {autoProcessActive 
+                    ? 'Cada nuevo registro envía los datos al Webhook de la IA y el correo con la plantilla asignada, pasando automáticamente a "En Negociación".'
+                    : 'La automatización está pausada. Los registros quedan en estado "Pendiente" y pueden procesarse en lote con el botón de la derecha.'}
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-3 w-full md:w-auto shrink-0 justify-end flex-wrap">
+              {/* Switch Activar / Desactivar */}
+              <label className="flex items-center gap-2 cursor-pointer bg-slate-800/80 hover:bg-slate-800 px-3 py-1.5 rounded-xl border border-slate-700 transition-colors">
+                <span className="text-xs font-bold text-slate-300">Auto-envío:</span>
+                <input
+                  type="checkbox"
+                  checked={autoProcessActive}
+                  onChange={(e) => handleToggleAutomation(e.target.checked)}
+                  className="sr-only peer"
+                />
+                <div className="w-9 h-5 bg-slate-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-emerald-600 relative"></div>
+              </label>
+
+              {/* Botón Procesar Cola de Pendientes */}
+              <button
+                type="button"
+                onClick={handleProcessQueue}
+                disabled={queueProcessing || totalPendientesCount === 0}
+                className={`inline-flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-black transition-all cursor-pointer shadow-md ${
+                  totalPendientesCount > 0
+                    ? 'bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-600 hover:to-orange-700 text-slate-950 active:scale-95'
+                    : 'bg-slate-800 text-slate-500 border border-slate-700 cursor-not-allowed'
+                }`}
+                title="Procesa secuencialmente todos los contactos pendientes (Webhook IA + Correo con plantilla)"
+              >
+                {queueProcessing ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin text-slate-950" />
+                    <span>Procesando Cola ({totalPendientesCount})...</span>
+                  </>
+                ) : (
+                  <>
+                    <Zap className="w-4 h-4 text-slate-950" />
+                    <span>Procesar Cola ({totalPendientesCount} pendientes)</span>
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+
           {/* Métricas Rápidas de Atención (Fondo Blanco Limpio) */}
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5">
             {/* 1. Total General */}
@@ -2023,15 +2190,33 @@ export default function EventManagerTab({ onUseAsCampaign }: EventManagerTabProp
 
                           {/* Agendar & Acciones */}
                           <td className="py-3.5 px-4 text-center">
-                            <button
-                              type="button"
-                              onClick={() => handleOpenScheduleModal(a)}
-                              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-blue-50 hover:bg-blue-600 text-blue-700 hover:text-white border border-blue-200 hover:border-blue-600 text-xs font-bold transition-all shadow-2xs cursor-pointer active:scale-95 group"
-                              title="Agendar reunión 1 a 1 con enlace de Google Meet y enviar confirmación"
-                            >
-                              <Video className="w-3.5 h-3.5 text-blue-600 group-hover:text-white transition-colors" />
-                              <span>Agendar Meet</span>
-                            </button>
+                            <div className="flex items-center justify-center gap-1.5 flex-wrap">
+                              {(!a.estado || a.estado === 'pendiente') && (
+                                <button
+                                  type="button"
+                                  onClick={() => handleProcessIndividual(a)}
+                                  disabled={processingAstId === a.id}
+                                  className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-amber-50 hover:bg-amber-600 text-amber-900 hover:text-white border border-amber-300 hover:border-amber-600 text-xs font-bold transition-all shadow-2xs cursor-pointer active:scale-95 group"
+                                  title="Procesar ahora: Enviar Webhook IA y Correo con plantilla vinculada"
+                                >
+                                  {processingAstId === a.id ? (
+                                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                                  ) : (
+                                    <Zap className="w-3.5 h-3.5 text-amber-700 group-hover:text-white" />
+                                  )}
+                                  <span>{processingAstId === a.id ? 'Enviando...' : 'IA + Correo'}</span>
+                                </button>
+                              )}
+                              <button
+                                type="button"
+                                onClick={() => handleOpenScheduleModal(a)}
+                                className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-blue-50 hover:bg-blue-600 text-blue-700 hover:text-white border border-blue-200 hover:border-blue-600 text-xs font-bold transition-all shadow-2xs cursor-pointer active:scale-95 group"
+                                title="Agendar reunión 1 a 1 con enlace de Google Meet y enviar confirmación"
+                              >
+                                <Video className="w-3.5 h-3.5 text-blue-600 group-hover:text-white transition-colors" />
+                                <span>Agendar Meet</span>
+                              </button>
+                            </div>
                           </td>
 
                         </tr>
