@@ -307,7 +307,7 @@ export default function EmailMonitoringDashboard({ onNavigateToBooking }: EmailM
       // 1. Enriquecer con datos de email_queue
       const { data: queueData } = await supabase
         .from('email_queue')
-        .select('recipient_email, recipient_name, recipient_phone, proposed_time, whatsapp_clicked_at, tag');
+        .select('*');
 
       const phoneMap = new Map<string, string>();
       const nameMap = new Map<string, string>();
@@ -980,12 +980,12 @@ const deleteStoredTemplateSync = (id: string) => {
 
         // Si el backend no respondió, guardar de forma directa y garantizada en Supabase
         if (!result) {
+          const defaultTime = new Date().toISOString();
           const queueItemsToInsert = contacts.map((c) => ({
             recipient_name: c.name,
             recipient_email: c.email,
             recipient_phone: c.phone || null,
-            proposed_time: null,
-            tag: campaignTag.trim() || null,
+            proposed_time: defaultTime,
             status: 'pending'
           }));
 
@@ -994,11 +994,7 @@ const deleteStoredTemplateSync = (id: string) => {
             .insert(queueItemsToInsert);
 
           if (insErr) {
-            const fallbackItems = queueItemsToInsert.map(({ tag: _, ...rest }) => rest);
-            const { error: retryErr } = await supabase.from('email_queue').insert(fallbackItems);
-            if (retryErr) {
-              throw new Error(`Error al guardar en base de datos: ${retryErr.message}`);
-            }
+            throw new Error(`Error al guardar en base de datos: ${insErr.message}`);
           }
 
           result = {

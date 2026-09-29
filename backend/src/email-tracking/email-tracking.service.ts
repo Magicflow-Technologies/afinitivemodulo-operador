@@ -735,13 +735,13 @@ export class EmailTrackingService {
     if (isLeadGenerationMode) {
       // MODO CAPTACIÓN / WHATSAPP / EVENTOS: Carga directa instantánea (sin llamadas a Google Calendar)
       this.logger.log(`Cargando ${validContacts.length} contactos en modo CAPTACIÓN/EVENTO (sin bloqueo de calendario).`);
+      const defaultTime = new Date().toISOString();
       for (const contact of validContacts) {
         queueItems.push({
           recipient_name: contact.name,
           recipient_email: contact.email,
           recipient_phone: contact.phone || null,
-          proposed_time: null,
-          tag: contact.tag || tag || null,
+          proposed_time: defaultTime,
           status: 'pending'
         });
       }
@@ -790,31 +790,27 @@ export class EmailTrackingService {
           recipient_name: contact.name,
           recipient_email: contact.email,
           recipient_phone: contact.phone || null,
-          proposed_time: slotTime ? slotTime.toISOString() : null,
-          tag: contact.tag || tag || null,
+          proposed_time: slotTime ? slotTime.toISOString() : new Date().toISOString(),
           status: 'pending'
         });
       }
     }
 
-    // 7. Guardar en base de datos
+    // 7. Guardar en base de datos de forma limpia con las columnas existentes
     let insertedData: any[] = [];
     if (queueItems.length > 0) {
-      let { data, error } = await this.supabase
-        .from('email_queue')
-        .insert(queueItems)
-        .select();
+      const cleanItems = queueItems.map(item => ({
+        recipient_name: item.recipient_name,
+        recipient_email: item.recipient_email,
+        recipient_phone: item.recipient_phone || null,
+        proposed_time: item.proposed_time || new Date().toISOString(),
+        status: item.status || 'pending'
+      }));
 
-      if (error && (tag || queueItems.some(q => q.tag))) {
-        this.logger.warn(`Inserción con tag en email_queue falló (${error.message}). Reintentando sin columna tag...`);
-        const fallbackItems = queueItems.map(({ tag: _, ...rest }) => rest);
-        const retry = await this.supabase
-          .from('email_queue')
-          .insert(fallbackItems)
-          .select();
-        data = retry.data;
-        error = retry.error;
-      }
+      const { data, error } = await this.supabase
+        .from('email_queue')
+        .insert(cleanItems)
+        .select();
 
       if (error) {
         this.logger.error(`Error al guardar contactos en email_queue: ${error.message}`);
