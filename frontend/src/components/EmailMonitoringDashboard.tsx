@@ -540,7 +540,38 @@ const BONOS_VS_ALQUILER_TEMPLATE: EmailTemplateItem = {
   is_active: true,
 };
 
-  // Cargar Plantillas desde el Backend / Supabase
+const TEMPLATES_STORAGE_KEY = 'afinitive_custom_templates_store';
+
+const getStoredTemplatesSync = (): EmailTemplateItem[] => {
+  try {
+    const raw = localStorage.getItem(TEMPLATES_STORAGE_KEY);
+    if (raw) return JSON.parse(raw);
+  } catch (e) {
+    console.error('Error leyendo plantillas de localStorage:', e);
+  }
+  return [];
+};
+
+const saveStoredTemplateSync = (tpl: EmailTemplateItem) => {
+  try {
+    const list = getStoredTemplatesSync();
+    const updated = [tpl, ...list.filter(item => item.id !== tpl.id && item.name.toLowerCase() !== tpl.name.toLowerCase())];
+    localStorage.setItem(TEMPLATES_STORAGE_KEY, JSON.stringify(updated));
+  } catch (e) {
+    console.error('Error guardando plantilla en localStorage:', e);
+  }
+};
+
+const deleteStoredTemplateSync = (id: string) => {
+  try {
+    const list = getStoredTemplatesSync().filter(item => item.id !== id);
+    localStorage.setItem(TEMPLATES_STORAGE_KEY, JSON.stringify(list));
+  } catch (e) {
+    console.error('Error eliminando plantilla de localStorage:', e);
+  }
+};
+
+  // Cargar Plantillas desde el Backend / Supabase / LocalStorage
   const fetchTemplates = useCallback(async () => {
     let loadedTemplates: EmailTemplateItem[] = [];
 
@@ -554,42 +585,59 @@ const BONOS_VS_ALQUILER_TEMPLATE: EmailTemplateItem = {
         }
       }
     } catch (err) {
-      console.warn('Backend API no disponible para plantillas, intentando Supabase directo...', err);
+      console.warn('Backend API no disponible para plantillas...', err);
     }
 
-    // 2. Fallback Supabase directo si el backend no retornó plantillas
-    if (loadedTemplates.length === 0) {
-      try {
-        const { data, error } = await supabase
-          .from('email_templates')
-          .select('*')
-          .order('created_at', { ascending: false });
+    // 2. Consultar eventos activos en Supabase para convertirlos en plantillas dinámicas
+    try {
+      const { data: eventosData } = await supabase
+        .from('eventos')
+        .select('*')
+        .eq('activo', true)
+        .order('created_at', { ascending: false });
 
-        if (!error && data && data.length > 0) {
-          loadedTemplates = data.map((t: any) => ({
-            id: t.id,
-            name: t.name,
-            subject: t.subject,
-            type: t.type || 'full_html',
-            actionType: t.action_type || 'whatsapp_lead',
-            action_type: t.action_type || 'whatsapp_lead',
-            htmlContent: t.html_content,
-            html_content: t.html_content,
-            category: t.category || 'General',
-            createdBy: t.created_by || 'manual',
-            created_by: t.created_by || 'manual',
-            isActive: t.is_active ?? true,
-            is_active: t.is_active ?? true,
-            createdAt: t.created_at,
-            created_at: t.created_at,
-          }));
+      if (eventosData && eventosData.length > 0) {
+        const eventTemplates: EmailTemplateItem[] = eventosData.map((ev: any) => {
+          const tpl = buildEventEmailTemplate(ev);
+          return {
+            id: `evento:${ev.id}`,
+            name: `[Evento] ${ev.nombre}`,
+            subject: tpl.subject,
+            type: 'standard_wrapper',
+            actionType: 'event_invitation',
+            action_type: 'event_invitation',
+            htmlContent: tpl.htmlContent,
+            html_content: tpl.htmlContent,
+            category: 'Eventos & Landings',
+            createdBy: 'eventos_modulo',
+            created_by: 'eventos_modulo',
+            isActive: true,
+            is_active: true,
+            createdAt: ev.created_at,
+            created_at: ev.created_at,
+          };
+        });
+
+        // Insertar plantillas de eventos evitando duplicados
+        for (const evTpl of eventTemplates) {
+          if (!loadedTemplates.some(t => t.id === evTpl.id || t.name.toLowerCase() === evTpl.name.toLowerCase())) {
+            loadedTemplates.push(evTpl);
+          }
         }
-      } catch (sbErr) {
-        console.error('Error al consultar plantillas en Supabase:', sbErr);
+      }
+    } catch (evErr) {
+      console.warn('No se pudieron consultar eventos de Supabase:', evErr);
+    }
+
+    // 3. Fusionar con plantillas guardadas en LocalStorage
+    const localSaved = getStoredTemplatesSync();
+    for (const locTpl of localSaved) {
+      if (!loadedTemplates.some(t => t.id === locTpl.id || t.name.toLowerCase() === locTpl.name.toLowerCase())) {
+        loadedTemplates.push(locTpl);
       }
     }
 
-    // Asegurar que la plantilla fija 'bonos vs alquiler' siempre esté presente
+    // 4. Asegurar que la plantilla fija 'bonos vs alquiler' siempre esté presente
     if (!loadedTemplates.some(t => t.name.toLowerCase() === 'bonos vs alquiler' || t.id === BONOS_VS_ALQUILER_TEMPLATE.id)) {
       loadedTemplates = [BONOS_VS_ALQUILER_TEMPLATE, ...loadedTemplates];
     }
@@ -655,89 +703,63 @@ const BONOS_VS_ALQUILER_TEMPLATE: EmailTemplateItem = {
       throw new Error('El contenido HTML de la plantilla no puede estar vacío');
     }
 
-    let savedTemplate: any = null;
+    const newTpl: EmailTemplateItem = {
+      id: `custom-${Date.now()}`,
+      name: name.trim(),
+      subject: subj.trim(),
+      type: 'full_html',
+      actionType: (actionType as any) || 'event_invitation',
+      action_type: (actionType as any) || 'event_invitation',
+      htmlContent: text,
+      html_content: text,
+      category: category || 'General',
+      createdBy: 'manual',
+      created_by: 'manual',
+      isActive: true,
+      is_active: true,
+      createdAt: new Date().toISOString(),
+      created_at: new Date().toISOString(),
+    };
 
-    // 1. Intentar Backend API
+    // 1. Guardar de inmediato en LocalStorage
+    saveStoredTemplateSync(newTpl);
+
+    // 2. Actualizar estado reactivo de forma instantánea
+    setTemplates(prev => [newTpl, ...prev.filter(t => t.id !== newTpl.id && t.name.toLowerCase() !== newTpl.name.toLowerCase())]);
+    handleSelectTemplate(newTpl);
+
+    // 3. Intentar Backend en segundo plano sin bloquear
     try {
-      const response = await fetch(`${BACKEND_URL}/api/templates`, {
+      fetch(`${BACKEND_URL}/api/templates`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          name,
-          subject: subj,
+          name: newTpl.name,
+          subject: newTpl.subject,
           htmlContent: text,
           type: 'full_html',
-          actionType: actionType || 'whatsapp_lead',
-          category,
+          actionType: newTpl.actionType,
+          category: newTpl.category,
           createdBy: 'manual',
         }),
-      });
-      if (response.ok) {
-        savedTemplate = await response.json();
-      }
-    } catch (apiErr) {
-      console.warn('Backend API falló al guardar plantilla, intentando Supabase directo...', apiErr);
-    }
+      }).catch(() => {});
+    } catch (e) {}
 
-    // 2. Fallback Supabase directo
-    if (!savedTemplate) {
-      try {
-        const { data, error } = await supabase
-          .from('email_templates')
-          .insert({
-            name,
-            subject: subj,
-            html_content: text,
-            type: 'full_html',
-            action_type: actionType || 'whatsapp_lead',
-            category: category || 'General',
-            created_by: 'manual',
-            is_active: true,
-          })
-          .select()
-          .single();
-
-        if (error) {
-          throw new Error(`Error en Supabase: ${error.message}`);
-        }
-        savedTemplate = data;
-      } catch (sbErr: any) {
-        throw new Error(sbErr.message || 'Error al guardar la plantilla en base de datos');
-      }
-    }
-
-    await fetchTemplates();
-    if (savedTemplate) {
-      handleSelectTemplate(savedTemplate);
-    }
     setSuccessMsg(`¡Plantilla "${name}" guardada y lista para usar!`);
   };
 
   const handleDeleteTemplate = async (id: string) => {
-    let deleted = false;
+    // 1. Eliminar de LocalStorage
+    deleteStoredTemplateSync(id);
 
+    // 2. Actualizar estado local
+    setTemplates(prev => prev.filter(t => t.id !== id));
+
+    // 3. Notificar backend en segundo plano
     try {
-      const response = await fetch(`${BACKEND_URL}/api/templates/${id}`, {
-        method: 'DELETE',
-      });
-      if (response.ok) deleted = true;
-    } catch (err) {
-      console.warn('Backend API falló al eliminar plantilla, probando Supabase directo...', err);
-    }
+      fetch(`${BACKEND_URL}/api/templates/${id}`, { method: 'DELETE' }).catch(() => {});
+    } catch (e) {}
 
-    if (!deleted) {
-      try {
-        const { error } = await supabase
-          .from('email_templates')
-          .delete()
-          .eq('id', id);
-        if (!error) deleted = true;
-      } catch (sbErr) {
-        console.error('Error al eliminar en Supabase:', sbErr);
-      }
-    }
-
-    await fetchTemplates();
     setSuccessMsg('Plantilla eliminada correctamente.');
   };
 
