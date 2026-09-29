@@ -1494,21 +1494,25 @@ const deleteStoredTemplateSync = (id: string) => {
               <ExternalLink className="w-3 h-3 text-slate-400" />
             </button>
 
-            <a
-              href="https://operador.afinitive.com.pe/formEvento/index2.html"
-              target="_blank"
-              rel="noopener noreferrer"
-              onClick={(e) => {
-                e.preventDefault();
-                e.stopPropagation();
-                window.open("https://operador.afinitive.com.pe/formEvento/index2.html", "_blank");
-              }}
-              className="flex items-center gap-2 px-3.5 py-2 bg-white hover:bg-slate-50 border border-slate-300 text-xs font-semibold text-slate-700 rounded-xl transition-all shadow-xs"
+            <button
+              type="button"
+              onClick={() => setShowTemplateModal(true)}
+              className="flex items-center gap-2 px-3.5 py-2 bg-white hover:bg-slate-50 border border-slate-300 text-xs font-semibold text-slate-700 rounded-xl transition-all shadow-xs cursor-pointer"
+              title="Abrir Creador y Gestor Visual de Plantillas de Correo"
+            >
+              <LayoutTemplate className="w-3.5 h-3.5 text-amber-600" />
+              <span>Plantillas de Correo</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setActiveTab('eventos')}
+              className="flex items-center gap-2 px-3.5 py-2 bg-white hover:bg-slate-50 border border-slate-300 text-xs font-semibold text-slate-700 rounded-xl transition-all shadow-xs cursor-pointer"
+              title="Ir al Gestor de Eventos y Formularios"
             >
               <Building2 className="w-3.5 h-3.5 text-slate-600" />
-              <span>Formulario Eventos</span>
-              <ExternalLink className="w-3 h-3 text-slate-400" />
-            </a>
+              <span>Gestor de Eventos</span>
+            </button>
 
             <button
               onClick={() => fetchEmails()}
