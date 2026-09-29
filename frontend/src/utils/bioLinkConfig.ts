@@ -14,6 +14,7 @@ export const DEFAULT_BIO_BUTTONS: BioButtonItem[] = [
     id: 'registro',
     title: 'Déjanos tus datos para contactarte',
     subtitle: 'Recibe una propuesta de inversión a tu medida',
+    url: 'https://eventos.afinitive.com.pe/?id=regsitro-de-tiktok',
     enabled: true,
     isPrimary: true,
   },
@@ -214,7 +215,7 @@ function mergeWithDefaults(saved: any[]): BioButtonItem[] {
       ...def,
       title: existing.title || def.title,
       subtitle: existing.subtitle !== undefined ? existing.subtitle : def.subtitle,
-      url: existing.url !== undefined ? existing.url : def.url,
+      url: existing.url || def.url,
       enabled: existing.enabled !== undefined ? existing.enabled : def.enabled,
     };
   });

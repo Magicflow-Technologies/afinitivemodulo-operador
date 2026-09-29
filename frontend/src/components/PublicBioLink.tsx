@@ -266,6 +266,7 @@ export default function PublicBioLink() {
     .map((btn) => {
       const { icon, iconColor } = getIconForButton(btn.id);
       const isPrimary = btn.id === 'registro' || btn.isPrimary;
+      const targetUrl = btn.url || (btn.id === 'registro' ? 'https://eventos.afinitive.com.pe/?id=regsitro-de-tiktok' : undefined);
       return {
         id: btn.id,
         title: btn.title,
@@ -273,11 +274,7 @@ export default function PublicBioLink() {
         icon,
         iconColor,
         isPrimary,
-        url: btn.url,
-        onClick: isPrimary ? () => {
-          setSubmitted(false);
-          setIsModalOpen(true);
-        } : undefined,
+        url: targetUrl,
       };
     });
 
@@ -348,10 +345,11 @@ export default function PublicBioLink() {
             const Icon = item.icon;
 
             if (item.isPrimary) {
+              const primaryUrl = item.url || 'https://eventos.afinitive.com.pe/?id=regsitro-de-tiktok';
               return (
-                <button
+                <a
                   key={item.id}
-                  onClick={item.onClick}
+                  href={primaryUrl}
                   className="w-full p-3.5 bg-gradient-to-r from-stone-900 via-stone-800 to-stone-900 hover:from-stone-800 hover:to-stone-700 text-white rounded-2xl shadow-md hover:shadow-lg transition-all duration-200 transform active:scale-[0.99] border border-amber-500/30 flex items-center justify-between group cursor-pointer text-left"
                 >
                   <div className="flex items-center gap-3 min-w-0">
@@ -368,7 +366,7 @@ export default function PublicBioLink() {
                     </div>
                   </div>
                   <ChevronRight className="w-4 h-4 text-amber-300 shrink-0 opacity-80 group-hover:translate-x-0.5 transition-transform" />
-                </button>
+                </a>
               );
             }
 
