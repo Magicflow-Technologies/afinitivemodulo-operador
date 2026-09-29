@@ -828,9 +828,24 @@ const deleteStoredTemplateSync = (id: string) => {
       if (response.ok) {
         const data = await response.json();
         setQueueItems(data || []);
+        return;
       }
     } catch (err) {
-      console.error('Error al obtener cola pendiente:', err);
+      console.warn('Backend queue/pending no disponible, consultando Supabase directamente...', err);
+    }
+
+    // Fallback directo a Supabase
+    try {
+      const { data, error } = await supabase
+        .from('email_queue')
+        .select('*')
+        .eq('status', 'pending')
+        .order('created_at', { ascending: true });
+      if (!error && data) {
+        setQueueItems(data);
+      }
+    } catch (sbErr) {
+      console.error('Error al obtener cola pendiente vía Supabase:', sbErr);
     }
   }, [BACKEND_URL]);
 
@@ -927,27 +942,72 @@ const deleteStoredTemplateSync = (id: string) => {
           throw new Error('No se encontraron contactos válidos en el archivo CSV. Asegúrate de tener las columnas: Nombre, Correo, Celular (opcional)');
         }
 
-        const isLeadGen = selectedTemplate?.actionType === 'whatsapp_lead' || 
-                          selectedTemplate?.action_type === 'whatsapp_lead' ||
-                          selectedTemplate?.name?.toLowerCase().includes('whatsapp');
+        const isLeadGen = 
+          selectedTemplate?.actionType === 'whatsapp_lead' || 
+          selectedTemplate?.action_type === 'whatsapp_lead' ||
+          selectedTemplate?.actionType === 'event_invitation' ||
+          selectedTemplate?.action_type === 'event_invitation' ||
+          (selectedTemplate?.type as any) === 'evento' ||
+          selectedTemplate?.category?.toLowerCase().includes('evento') ||
+          (selectedTemplate as any)?.requires_calendar_slot === false ||
+          selectedTemplate?.name?.toLowerCase().includes('whatsapp') ||
+          selectedTemplate?.name?.toLowerCase().includes('evento') ||
+          selectedTemplate?.name?.toLowerCase().includes('bono') ||
+          selectedTemplate?.name?.toLowerCase().includes('alquiler');
+
         const uploadMode = isLeadGen ? 'lead_generation' : 'calendar_booking';
 
-        const response = await fetch(`${BACKEND_URL}/api/test-email/queue/load`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ 
-            contacts, 
-            tag: campaignTag.trim() || undefined,
-            mode: uploadMode
-          }),
-        });
+        let result: any = null;
+        try {
+          const response = await fetch(`${BACKEND_URL}/api/test-email/queue/load`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ 
+              contacts, 
+              tag: campaignTag.trim() || undefined,
+              mode: uploadMode
+            }),
+          });
 
-        if (!response.ok) {
-          const errData = await response.json();
-          throw new Error(errData.message || 'Error al procesar el archivo CSV');
+          if (response.ok) {
+            result = await response.json();
+          } else {
+            console.warn('Backend /queue/load retornó código no exitoso, ejecutando inserción directa en Supabase...');
+          }
+        } catch (apiErr) {
+          console.warn('Backend /queue/load falló con excepción, ejecutando fallback Supabase...', apiErr);
         }
 
-        const result = await response.json();
+        // Si el backend no respondió, guardar de forma directa y garantizada en Supabase
+        if (!result) {
+          const queueItemsToInsert = contacts.map((c) => ({
+            recipient_name: c.name,
+            recipient_email: c.email,
+            recipient_phone: c.phone || null,
+            proposed_time: null,
+            tag: campaignTag.trim() || null,
+            status: 'pending'
+          }));
+
+          const { error: insErr } = await supabase
+            .from('email_queue')
+            .insert(queueItemsToInsert);
+
+          if (insErr) {
+            const fallbackItems = queueItemsToInsert.map(({ tag: _, ...rest }) => rest);
+            const { error: retryErr } = await supabase.from('email_queue').insert(fallbackItems);
+            if (retryErr) {
+              throw new Error(`Error al guardar en base de datos: ${retryErr.message}`);
+            }
+          }
+
+          result = {
+            totalUploaded: contacts.length,
+            validCount: contacts.length,
+            skippedCount: 0,
+            skippedContacts: []
+          };
+        }
 
         if (result.skippedCount > 0) {
           setUploadSummary({
@@ -957,19 +1017,19 @@ const deleteStoredTemplateSync = (id: string) => {
             skippedContacts: result.skippedContacts || [],
           });
           const modeDetail = isLeadGen 
-            ? 'listos para envío directo por WhatsApp' 
+            ? 'listos para envío directo por WhatsApp / Invitación a Evento' 
             : 'agendados en Google Calendar';
           setSuccessMsg(`¡Campaña procesada! ${result.validCount} contactos válidos ${modeDetail}. Se omitieron ${result.skippedCount} contactos duplicados o enviados en los últimos 60 días.`);
         } else {
           setUploadSummary(null);
           const modeDetail = isLeadGen 
-            ? 'listos para envío directo con enlace a WhatsApp (sin ocupar agenda).' 
+            ? 'listos para envío directo (sin ocupar turnos de agenda).' 
             : 'y se asignaron horarios de Google Calendar.';
           setSuccessMsg(`¡CSV cargado con éxito! Se procesaron ${result.validCount || contacts.length} contactos ${modeDetail}`);
         }
         await fetchPendingQueue();
       } catch (err: any) {
-        setErrorMsg(err.message || 'Error al parsear el archivo CSV');
+        setErrorMsg(err.message || 'Error al procesar el archivo CSV');
       } finally {
         setQueueLoading(false);
       }
@@ -3123,6 +3183,51 @@ const deleteStoredTemplateSync = (id: string) => {
                                     <option value="minutes">Minutos</option>
                                     <option value="hours">Horas</option>
                                   </select>
+                                </div>
+                              </div>
+
+                              {/* Documento Adjunto para la Campaña Masiva */}
+                              <div className="bg-white border border-slate-200 rounded-xl p-3 space-y-2 text-xs">
+                                <div className="flex items-center justify-between">
+                                  <label className="text-slate-800 font-bold uppercase tracking-wider flex items-center gap-1.5">
+                                    <Paperclip className="w-3.5 h-3.5 text-slate-600" />
+                                    Documento Adjunto (Opcional):
+                                  </label>
+                                  <span className="text-[10px] text-slate-500 font-mono">Máx 10MB</span>
+                                </div>
+                                <div className="flex flex-wrap items-center gap-2">
+                                  <label className="flex items-center gap-1.5 px-3 py-2 bg-slate-50 hover:bg-slate-100 border border-slate-300 rounded-xl text-slate-700 cursor-pointer transition-all text-xs select-none">
+                                    <Paperclip className="w-3.5 h-3.5 text-slate-500" />
+                                    <span>{selectedFile ? 'Cambiar archivo' : 'Adjuntar PDF / Presentación'}</span>
+                                    <input
+                                      type="file"
+                                      className="hidden"
+                                      onChange={(e) => {
+                                        const file = e.target.files?.[0];
+                                        if (file) {
+                                          if (file.size > 10 * 1024 * 1024) {
+                                            alert("El archivo excede el tamaño máximo permitido de 10MB");
+                                            e.target.value = '';
+                                            return;
+                                          }
+                                          setSelectedFile(file);
+                                        }
+                                      }}
+                                    />
+                                  </label>
+                                  {selectedFile && (
+                                    <div className="flex items-center gap-2 px-2.5 py-1.5 bg-amber-50 border border-amber-200 rounded-xl text-xs text-amber-900 truncate">
+                                      <span className="truncate max-w-[150px] font-medium">{selectedFile.name}</span>
+                                      <button
+                                        type="button"
+                                        onClick={() => setSelectedFile(null)}
+                                        className="text-amber-700 hover:text-amber-950 cursor-pointer"
+                                        title="Quitar adjunto"
+                                      >
+                                        <X className="w-3.5 h-3.5" />
+                                      </button>
+                                    </div>
+                                  )}
                                 </div>
                               </div>
 

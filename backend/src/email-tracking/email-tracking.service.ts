@@ -660,7 +660,7 @@ export class EmailTrackingService {
     // 2. Obtener configuraciones de agenda
     const settings = await this.getCalendarSettings();
     const calendarId = 'rbertalmio@afinitive.com';
-    const isLeadGenerationMode = mode === 'lead_generation' || mode === 'whatsapp_lead';
+    const isLeadGenerationMode = mode === 'lead_generation' || mode === 'whatsapp_lead' || mode === 'event_invitation';
 
     // 3. Consultar histórico de envíos de Supabase (email_tracking_test) para validar duplicidad y regla de enfriamiento (60 días)
     const { data: trackingHistory, error: historyErr } = await this.supabase
@@ -733,8 +733,8 @@ export class EmailTrackingService {
     const queueItems: any[] = [];
 
     if (isLeadGenerationMode) {
-      // MODO CAPTACIÓN / WHATSAPP: Carga directa instantánea (sin llamadas a Google Calendar)
-      this.logger.log(`Cargando ${validContacts.length} contactos en modo CAPTACIÓN (sin bloqueo de calendario).`);
+      // MODO CAPTACIÓN / WHATSAPP / EVENTOS: Carga directa instantánea (sin llamadas a Google Calendar)
+      this.logger.log(`Cargando ${validContacts.length} contactos en modo CAPTACIÓN/EVENTO (sin bloqueo de calendario).`);
       for (const contact of validContacts) {
         queueItems.push({
           recipient_name: contact.name,
@@ -765,24 +765,32 @@ export class EmailTrackingService {
 
       // Calcular slot y armar records ÚNICAMENTE para los contactos válidos
       for (const contact of validContacts) {
-        const slotTime = await this.findNextAvailableSlot(
-          calendarId,
-          settings.slot_duration,
-          settings.morning_start,
-          settings.morning_end,
-          settings.afternoon_start,
-          settings.afternoon_end,
-          occupiedEvents,
-          reservedSlots
-        );
+        let slotTime: Date | null = null;
+        try {
+          slotTime = await this.findNextAvailableSlot(
+            calendarId,
+            settings?.slot_duration || 60,
+            settings?.morning_start || '09:00',
+            settings?.morning_end || '12:00',
+            settings?.afternoon_start || '14:00',
+            settings?.afternoon_end || '17:00',
+            occupiedEvents,
+            reservedSlots
+          );
+        } catch (slotErr) {
+          this.logger.warn(`Error calculando slot para ${contact.email}, usando asignación directa: ${slotErr.message}`);
+          slotTime = null;
+        }
 
-        reservedSlots.push(slotTime);
+        if (slotTime) {
+          reservedSlots.push(slotTime);
+        }
 
         queueItems.push({
           recipient_name: contact.name,
           recipient_email: contact.email,
           recipient_phone: contact.phone || null,
-          proposed_time: slotTime.toISOString(),
+          proposed_time: slotTime ? slotTime.toISOString() : null,
           tag: contact.tag || tag || null,
           status: 'pending'
         });
@@ -809,6 +817,7 @@ export class EmailTrackingService {
       }
 
       if (error) {
+        this.logger.error(`Error al guardar contactos en email_queue: ${error.message}`);
         throw new HttpException(`Error al guardar contactos en cola: ${error.message}`, HttpStatus.INTERNAL_SERVER_ERROR);
       }
       insertedData = data || [];
