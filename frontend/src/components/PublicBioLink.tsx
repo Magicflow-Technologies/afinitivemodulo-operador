@@ -96,6 +96,21 @@ export default function PublicBioLink() {
 
   // Cargar botones desde Supabase / Backend al montar
   React.useEffect(() => {
+    document.title = 'Dr. Finanzas | Preserva y Multiplica tu Capital';
+    const setMetaTag = (attr: string, key: string, content: string) => {
+      let el = document.querySelector(`meta[${attr}="${key}"]`);
+      if (!el) {
+        el = document.createElement('meta');
+        el.setAttribute(attr, key);
+        document.head.appendChild(el);
+      }
+      el.setAttribute('content', content);
+    };
+    setMetaTag('property', 'og:title', 'Dr. Finanzas | Preserva y Multiplica tu Capital');
+    setMetaTag('property', 'og:description', 'Estrategias patrimoniales en Inmobiliaria, Bolsa de Valores y Fondos con Afinitive Wealth Management.');
+    setMetaTag('property', 'og:image', 'https://links.afinitive.com.pe/img/evento.jpeg');
+    setMetaTag('property', 'og:image:secure_url', 'https://links.afinitive.com.pe/img/evento.jpeg');
+
     fetchBioButtons().then((btnList) => {
       if (btnList && btnList.length > 0) {
         setButtonsConfig(btnList);

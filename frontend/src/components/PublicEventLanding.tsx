@@ -210,6 +210,35 @@ export default function PublicEventLanding({ eventId: propEventId }: PublicEvent
     setLoadingEvent(false);
   };
 
+  // Actualizar dinámicamente Open Graph / Metadatos de previsualización para WhatsApp y Redes
+  useEffect(() => {
+    if (!evento) return;
+    const defaultImage = 'https://links.afinitive.com.pe/img/evento.jpeg';
+    const imgUrl = evento.imagen_url?.trim() || defaultImage;
+    const title = evento.nombre ? `${evento.nombre} | Afinitive Wealth Management` : 'Afinitive Wealth Management';
+    const desc = evento.descripcion || 'Completa tus datos para recibir asesoría personalizada y acceso exclusivo.';
+
+    document.title = title;
+
+    const setMetaTag = (attr: string, key: string, content: string) => {
+      let el = document.querySelector(`meta[${attr}="${key}"]`);
+      if (!el) {
+        el = document.createElement('meta');
+        el.setAttribute(attr, key);
+        document.head.appendChild(el);
+      }
+      el.setAttribute('content', content);
+    };
+
+    setMetaTag('property', 'og:title', title);
+    setMetaTag('property', 'og:description', desc);
+    setMetaTag('property', 'og:image', imgUrl);
+    setMetaTag('property', 'og:image:secure_url', imgUrl);
+    setMetaTag('name', 'twitter:title', title);
+    setMetaTag('name', 'twitter:description', desc);
+    setMetaTag('name', 'twitter:image', imgUrl);
+  }, [evento]);
+
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
     setFormData(prev => ({ ...prev, [name]: value }));
