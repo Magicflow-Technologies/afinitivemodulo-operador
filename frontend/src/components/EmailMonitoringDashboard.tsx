@@ -402,21 +402,60 @@ export default function EmailMonitoringDashboard({ onNavigateToBooking }: EmailM
     return () => clearInterval(interval);
   }, [fetchEmails]);
 
-  // Cargar Plantillas desde el Backend
+  // Cargar Plantillas desde el Backend / Supabase
   const fetchTemplates = useCallback(async () => {
+    let loadedTemplates: EmailTemplateItem[] = [];
+
+    // 1. Intentar Backend API
     try {
       const response = await fetch(`${BACKEND_URL}/api/templates`);
       if (response.ok) {
         const data: EmailTemplateItem[] = await response.json();
-        setTemplates(data || []);
         if (data && data.length > 0) {
-          const current = data.find((t) => t.id === selectedTemplateId) || data[0];
-          setSelectedTemplate(current);
-          setSelectedTemplateId(current.id);
+          loadedTemplates = data;
         }
       }
     } catch (err) {
-      console.error('Error al cargar plantillas:', err);
+      console.warn('Backend API no disponible para plantillas, intentando Supabase directo...', err);
+    }
+
+    // 2. Fallback Supabase directo si el backend no retornó plantillas
+    if (loadedTemplates.length === 0) {
+      try {
+        const { data, error } = await supabase
+          .from('email_templates')
+          .select('*')
+          .order('created_at', { ascending: false });
+
+        if (!error && data && data.length > 0) {
+          loadedTemplates = data.map((t: any) => ({
+            id: t.id,
+            name: t.name,
+            subject: t.subject,
+            type: t.type || 'full_html',
+            actionType: t.action_type || 'whatsapp_lead',
+            action_type: t.action_type || 'whatsapp_lead',
+            htmlContent: t.html_content,
+            html_content: t.html_content,
+            category: t.category || 'General',
+            createdBy: t.created_by || 'manual',
+            created_by: t.created_by || 'manual',
+            isActive: t.is_active ?? true,
+            is_active: t.is_active ?? true,
+            createdAt: t.created_at,
+            created_at: t.created_at,
+          }));
+        }
+      } catch (sbErr) {
+        console.error('Error al consultar plantillas en Supabase:', sbErr);
+      }
+    }
+
+    if (loadedTemplates.length > 0) {
+      setTemplates(loadedTemplates);
+      const current = loadedTemplates.find((t) => t.id === selectedTemplateId) || loadedTemplates[0];
+      setSelectedTemplate(current);
+      setSelectedTemplateId(current.id);
     }
   }, [BACKEND_URL, selectedTemplateId]);
 
@@ -455,39 +494,108 @@ export default function EmailMonitoringDashboard({ onNavigateToBooking }: EmailM
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
-  const handleUploadHtml = async (file: File, name: string, subj: string, category: string, actionType?: string) => {
-    const text = await file.text();
-    const response = await fetch(`${BACKEND_URL}/api/templates`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        name,
-        subject: subj,
-        htmlContent: text,
-        type: 'full_html',
-        actionType: actionType || 'whatsapp_lead',
-        category,
-        createdBy: 'manual',
-      }),
-    });
-    if (!response.ok) {
-      const err = await response.json();
-      throw new Error(err.message || 'Error al guardar plantilla');
+  const handleUploadHtml = async (
+    fileOrContent: File | string, 
+    name: string, 
+    subj: string, 
+    category: string, 
+    actionType?: string
+  ) => {
+    let text = '';
+    if (typeof fileOrContent === 'string') {
+      text = fileOrContent;
+    } else {
+      text = await fileOrContent.text();
     }
-    const newTpl = await response.json();
+
+    if (!text.trim()) {
+      throw new Error('El contenido HTML de la plantilla no puede estar vacío');
+    }
+
+    let savedTemplate: any = null;
+
+    // 1. Intentar Backend API
+    try {
+      const response = await fetch(`${BACKEND_URL}/api/templates`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name,
+          subject: subj,
+          htmlContent: text,
+          type: 'full_html',
+          actionType: actionType || 'whatsapp_lead',
+          category,
+          createdBy: 'manual',
+        }),
+      });
+      if (response.ok) {
+        savedTemplate = await response.json();
+      }
+    } catch (apiErr) {
+      console.warn('Backend API falló al guardar plantilla, intentando Supabase directo...', apiErr);
+    }
+
+    // 2. Fallback Supabase directo
+    if (!savedTemplate) {
+      try {
+        const { data, error } = await supabase
+          .from('email_templates')
+          .insert({
+            name,
+            subject: subj,
+            html_content: text,
+            type: 'full_html',
+            action_type: actionType || 'whatsapp_lead',
+            category: category || 'General',
+            created_by: 'manual',
+            is_active: true,
+          })
+          .select()
+          .single();
+
+        if (error) {
+          throw new Error(`Error en Supabase: ${error.message}`);
+        }
+        savedTemplate = data;
+      } catch (sbErr: any) {
+        throw new Error(sbErr.message || 'Error al guardar la plantilla en base de datos');
+      }
+    }
+
     await fetchTemplates();
-    handleSelectTemplate(newTpl);
+    if (savedTemplate) {
+      handleSelectTemplate(savedTemplate);
+    }
     setSuccessMsg(`¡Plantilla "${name}" guardada y lista para usar!`);
   };
 
   const handleDeleteTemplate = async (id: string) => {
-    const response = await fetch(`${BACKEND_URL}/api/templates/${id}`, {
-      method: 'DELETE',
-    });
-    if (response.ok) {
-      await fetchTemplates();
-      setSuccessMsg('Plantilla eliminada correctamente.');
+    let deleted = false;
+
+    try {
+      const response = await fetch(`${BACKEND_URL}/api/templates/${id}`, {
+        method: 'DELETE',
+      });
+      if (response.ok) deleted = true;
+    } catch (err) {
+      console.warn('Backend API falló al eliminar plantilla, probando Supabase directo...', err);
     }
+
+    if (!deleted) {
+      try {
+        const { error } = await supabase
+          .from('email_templates')
+          .delete()
+          .eq('id', id);
+        if (!error) deleted = true;
+      } catch (sbErr) {
+        console.error('Error al eliminar en Supabase:', sbErr);
+      }
+    }
+
+    await fetchTemplates();
+    setSuccessMsg('Plantilla eliminada correctamente.');
   };
 
   // Cargar Configuraciones de Agenda

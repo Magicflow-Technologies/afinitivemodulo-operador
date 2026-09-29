@@ -7,7 +7,9 @@ import {
   Trash2, 
   Check, 
   Plus, 
-  Search
+  Search,
+  Code2,
+  AlertCircle
 } from 'lucide-react';
 
 export interface EmailTemplateItem {
@@ -34,7 +36,7 @@ interface TemplateManagerModalProps {
   templates: EmailTemplateItem[];
   selectedTemplateId: string | null;
   onSelectTemplate: (template: EmailTemplateItem) => void;
-  onUploadHtml: (file: File, name: string, subject: string, category: string, actionType?: string) => Promise<void>;
+  onUploadHtml: (fileOrContent: File | string, name: string, subject: string, category: string, actionType?: string) => Promise<void>;
   onDeleteTemplate: (id: string) => Promise<void>;
 }
 
@@ -48,14 +50,17 @@ export const TemplateManagerModal: React.FC<TemplateManagerModalProps> = ({
   onDeleteTemplate,
 }) => {
   const [activeTab, setActiveTab] = useState<'catalog' | 'upload'>('catalog');
+  const [creationMode, setCreationMode] = useState<'file' | 'code'>('file');
   const [searchQuery, setSearchQuery] = useState('');
   const [dragActive, setDragActive] = useState(false);
   const [droppedFile, setDroppedFile] = useState<File | null>(null);
+  const [rawHtmlCode, setRawHtmlCode] = useState('');
   const [templateName, setTemplateName] = useState('');
   const [templateSubject, setTemplateSubject] = useState('');
   const [templateCategory, setTemplateCategory] = useState('Inmobiliario');
   const [templateActionType, setTemplateActionType] = useState<'whatsapp_lead' | 'calendar_booking'>('whatsapp_lead');
   const [uploading, setUploading] = useState(false);
+  const [formError, setFormError] = useState<string | null>(null);
 
   if (!isOpen) return null;
 
@@ -85,8 +90,9 @@ export const TemplateManagerModal: React.FC<TemplateManagerModalProps> = ({
   };
 
   const processFile = (file: File) => {
+    setFormError(null);
     if (!file.name.endsWith('.html') && !file.name.endsWith('.htm')) {
-      alert('Solo se admiten archivos .html o .htm');
+      setFormError('Solo se admiten archivos con extensión .html o .htm');
       return;
     }
     setDroppedFile(file);
@@ -97,24 +103,46 @@ export const TemplateManagerModal: React.FC<TemplateManagerModalProps> = ({
     if (!templateSubject) {
       setTemplateSubject('Invitación Exclusiva - Afinitive');
     }
-    setActiveTab('upload');
   };
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!droppedFile || !templateName.trim()) {
-      alert('Por favor selecciona un archivo HTML e indica el nombre');
+    setFormError(null);
+
+    if (!templateName.trim()) {
+      setFormError('Por favor ingresa un nombre para la plantilla.');
       return;
     }
+
+    if (!templateSubject.trim()) {
+      setFormError('Por favor ingresa el asunto del correo.');
+      return;
+    }
+
+    if (creationMode === 'file' && !droppedFile) {
+      setFormError('Por favor selecciona o arrastra un archivo .html.');
+      return;
+    }
+
+    if (creationMode === 'code' && !rawHtmlCode.trim()) {
+      setFormError('Por favor escribe o pega el código HTML de la plantilla.');
+      return;
+    }
+
     setUploading(true);
     try {
-      await onUploadHtml(droppedFile, templateName, templateSubject, templateCategory, templateActionType);
+      const payloadSource = creationMode === 'file' ? droppedFile! : rawHtmlCode.trim();
+      await onUploadHtml(payloadSource, templateName.trim(), templateSubject.trim(), templateCategory, templateActionType);
+      
+      // Limpiar formulario al guardar
       setDroppedFile(null);
+      setRawHtmlCode('');
       setTemplateName('');
       setTemplateSubject('');
+      setFormError(null);
       setActiveTab('catalog');
     } catch (err: any) {
-      alert(err.message || 'Error al subir plantilla');
+      setFormError(err.message || 'Error al guardar la plantilla. Por favor verifica los datos.');
     } finally {
       setUploading(false);
     }
@@ -128,10 +156,11 @@ export const TemplateManagerModal: React.FC<TemplateManagerModalProps> = ({
   );
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm animate-fade-in">
-      <div className="bg-[#0D1B2A] border border-brand-gold/30 rounded-2xl w-full max-w-3xl max-h-[85vh] flex flex-col shadow-2xl overflow-hidden">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-950/80 backdrop-blur-sm animate-fade-in">
+      <div className="bg-[#0D1B2A] border border-brand-gold/30 rounded-2xl w-full max-w-3xl max-h-[90vh] flex flex-col shadow-2xl overflow-hidden">
+        
         {/* Cabecera del Modal */}
-        <div className="flex items-center justify-between p-5 border-b border-brand-gold/20 bg-brand-navy-dark">
+        <div className="flex items-center justify-between p-4 sm:p-5 border-b border-brand-gold/20 bg-brand-navy-dark">
           <div className="flex items-center gap-3">
             <div className="p-2.5 rounded-xl bg-brand-gold/10 border border-brand-gold/30 text-brand-gold">
               <FileCode className="w-5 h-5" />
@@ -145,7 +174,7 @@ export const TemplateManagerModal: React.FC<TemplateManagerModalProps> = ({
           </div>
           <button
             onClick={onClose}
-            className="p-2 rounded-lg text-slate-400 hover:text-slate-100 hover:bg-slate-800/80 transition-colors"
+            className="p-2 rounded-lg text-slate-400 hover:text-slate-100 hover:bg-slate-800/80 transition-colors cursor-pointer"
           >
             <X className="w-5 h-5" />
           </button>
@@ -164,7 +193,10 @@ export const TemplateManagerModal: React.FC<TemplateManagerModalProps> = ({
             <span>Catálogo de Plantillas ({templates.length})</span>
           </button>
           <button
-            onClick={() => setActiveTab('upload')}
+            onClick={() => {
+              setActiveTab('upload');
+              setFormError(null);
+            }}
             className={`py-3 px-4 text-xs font-bold border-b-2 transition-all flex items-center gap-2 cursor-pointer ${
               activeTab === 'upload'
                 ? 'border-brand-gold text-brand-gold'
@@ -172,12 +204,12 @@ export const TemplateManagerModal: React.FC<TemplateManagerModalProps> = ({
             }`}
           >
             <Plus className="w-3.5 h-3.5" />
-            <span>Subir Nueva Plantilla (.HTML)</span>
+            <span>+ Crear / Subir Plantilla HTML</span>
           </button>
         </div>
 
         {/* Contenido */}
-        <div className="p-5 overflow-y-auto flex-1 space-y-4">
+        <div className="p-4 sm:p-5 overflow-y-auto flex-1 space-y-4">
           {activeTab === 'catalog' ? (
             <>
               {/* Buscador */}
@@ -279,7 +311,7 @@ export const TemplateManagerModal: React.FC<TemplateManagerModalProps> = ({
                                 onDeleteTemplate(template.id);
                               }
                             }}
-                            className="text-red-400 hover:text-red-300 p-1 hover:bg-red-500/10 rounded transition-all"
+                            className="text-red-400 hover:text-red-300 p-1 hover:bg-red-500/10 rounded transition-all cursor-pointer"
                             title="Eliminar plantilla"
                           >
                             <Trash2 className="w-3.5 h-3.5" />
@@ -298,61 +330,126 @@ export const TemplateManagerModal: React.FC<TemplateManagerModalProps> = ({
               </div>
             </>
           ) : (
-            /* Tab: Subir Archivo HTML */
+            /* Tab: Crear / Subir Plantilla HTML */
             <form onSubmit={handleSave} className="space-y-4">
-              {/* Zona Drag & Drop */}
-              <div
-                onDragEnter={handleDrag}
-                onDragLeave={handleDrag}
-                onDragOver={handleDrag}
-                onDrop={handleDrop}
-                className={`border-2 border-dashed rounded-2xl p-8 text-center transition-all flex flex-col items-center justify-center gap-3 cursor-pointer ${
-                  dragActive
-                    ? 'border-brand-gold bg-brand-gold/10'
-                    : droppedFile
-                      ? 'border-emerald-500/50 bg-emerald-500/5'
-                      : 'border-brand-gold/25 hover:border-brand-gold/50 bg-slate-950/40'
-                }`}
-                onClick={() => document.getElementById('html-file-upload-input')?.click()}
-              >
-                <input
-                  id="html-file-upload-input"
-                  type="file"
-                  accept=".html,.htm"
-                  onChange={handleFileInput}
-                  className="hidden"
-                />
-
-                <div className="p-3.5 rounded-full bg-brand-gold/10 border border-brand-gold/30 text-brand-gold">
-                  <Upload className="w-6 h-6" />
-                </div>
-
-                {droppedFile ? (
-                  <div>
-                    <p className="font-bold text-sm text-emerald-400 flex items-center justify-center gap-1.5">
-                      <Check className="w-4 h-4" /> {droppedFile.name}
-                    </p>
-                    <p className="text-xs text-slate-400 mt-1">
-                      {(droppedFile.size / 1024).toFixed(1)} KB &bull; Clic para cambiar archivo
-                    </p>
-                  </div>
-                ) : (
-                  <div>
-                    <p className="font-semibold text-sm text-slate-200">
-                      Arrastra tu archivo <span className="text-brand-gold font-mono">.html</span> aquí o haz clic para explorar
-                    </p>
-                    <p className="text-xs text-slate-400 mt-1">
-                      Soporta diseños completos (BEE, Stripo, Mailchimp, Figma o HTML a medida)
-                    </p>
-                  </div>
-                )}
+              
+              {/* Selector de Método de Creación */}
+              <div className="flex bg-[#08111B] p-1 rounded-xl border border-brand-gold/20 gap-1">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setCreationMode('file');
+                    setFormError(null);
+                  }}
+                  className={`flex-1 py-2 px-3 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-2 cursor-pointer ${
+                    creationMode === 'file'
+                      ? 'bg-brand-gold text-brand-navy shadow-sm'
+                      : 'text-slate-400 hover:text-slate-200'
+                  }`}
+                >
+                  <Upload className="w-3.5 h-3.5" />
+                  <span>Subir Archivo .HTML</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setCreationMode('code');
+                    setFormError(null);
+                  }}
+                  className={`flex-1 py-2 px-3 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-2 cursor-pointer ${
+                    creationMode === 'code'
+                      ? 'bg-brand-gold text-brand-navy shadow-sm'
+                      : 'text-slate-400 hover:text-slate-200'
+                  }`}
+                >
+                  <Code2 className="w-3.5 h-3.5" />
+                  <span>Pegar / Escribir Código HTML</span>
+                </button>
               </div>
+
+              {/* Mensaje de Error si ocurre */}
+              {formError && (
+                <div className="p-3 bg-red-500/15 border border-red-500/40 rounded-xl text-red-300 text-xs flex items-center gap-2">
+                  <AlertCircle className="w-4 h-4 shrink-0 text-red-400" />
+                  <span>{formError}</span>
+                </div>
+              )}
+
+              {creationMode === 'file' ? (
+                /* Zona Drag & Drop de Archivo */
+                <div
+                  onDragEnter={handleDrag}
+                  onDragLeave={handleDrag}
+                  onDragOver={handleDrag}
+                  onDrop={handleDrop}
+                  className={`border-2 border-dashed rounded-2xl p-7 text-center transition-all flex flex-col items-center justify-center gap-2.5 cursor-pointer ${
+                    dragActive
+                      ? 'border-brand-gold bg-brand-gold/10'
+                      : droppedFile
+                        ? 'border-emerald-500/50 bg-emerald-500/10'
+                        : 'border-brand-gold/25 hover:border-brand-gold/50 bg-slate-950/40'
+                  }`}
+                  onClick={() => document.getElementById('html-file-upload-input')?.click()}
+                >
+                  <input
+                    id="html-file-upload-input"
+                    type="file"
+                    accept=".html,.htm"
+                    onChange={handleFileInput}
+                    className="hidden"
+                  />
+
+                  <div className="p-3 rounded-full bg-brand-gold/10 border border-brand-gold/30 text-brand-gold">
+                    <Upload className="w-5 h-5" />
+                  </div>
+
+                  {droppedFile ? (
+                    <div>
+                      <p className="font-bold text-sm text-emerald-400 flex items-center justify-center gap-1.5">
+                        <Check className="w-4 h-4" /> {droppedFile.name}
+                      </p>
+                      <p className="text-[11px] text-slate-400 mt-0.5">
+                        {(droppedFile.size / 1024).toFixed(1)} KB &bull; Haz clic para cambiar archivo
+                      </p>
+                    </div>
+                  ) : (
+                    <div>
+                      <p className="font-semibold text-xs sm:text-sm text-slate-200">
+                        Arrastra tu archivo <span className="text-brand-gold font-mono">.html</span> aquí o haz clic para explorar
+                      </p>
+                      <p className="text-[11px] text-slate-400 mt-0.5">
+                        Compatible con Mailchimp, BEE Free, Stripo, Figma o plantillas personalizadas.
+                      </p>
+                    </div>
+                  )}
+                </div>
+              ) : (
+                /* Editor / Textarea Directo para HTML */
+                <div className="space-y-1.5">
+                  <div className="flex items-center justify-between">
+                    <label className="text-xs text-brand-gold font-medium uppercase tracking-wider block">
+                      Código HTML de la Plantilla
+                    </label>
+                    <span className="text-[10px] text-slate-400">
+                      Usa variables como <code className="text-amber-300">{'{{nombre}}'}</code>, <code className="text-amber-300">[SOLO_WHATSAPP]</code>, etc.
+                    </span>
+                  </div>
+                  <textarea
+                    rows={8}
+                    required
+                    placeholder="<!DOCTYPE html>&#10;<html>&#10;<body>&#10;  <h2>Hola {{nombre}},</h2>&#10;  <p>Te invitamos a conocer nuestras oportunidades...</p>&#10;  <p>[SOLO_WHATSAPP]</p>&#10;</body>&#10;</html>"
+                    value={rawHtmlCode}
+                    onChange={(e) => setRawHtmlCode(e.target.value)}
+                    className="w-full px-3.5 py-2.5 bg-brand-navy-dark border border-brand-gold/20 rounded-xl text-xs text-slate-100 placeholder-slate-600 outline-none focus:border-brand-gold font-mono resize-y"
+                  />
+                </div>
+              )}
 
               {/* Formulario de Metadatos */}
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                 <div className="space-y-1.5">
                   <label className="text-xs text-brand-gold font-medium uppercase tracking-wider block">
-                    Nombre de la Plantilla
+                    Nombre de la Plantilla <span className="text-red-400">*</span>
                   </label>
                   <input
                     type="text"
@@ -371,7 +468,7 @@ export const TemplateManagerModal: React.FC<TemplateManagerModalProps> = ({
                   <select
                     value={templateActionType}
                     onChange={(e) => setTemplateActionType(e.target.value as any)}
-                    className="w-full px-3.5 py-2.5 bg-brand-navy-dark border border-brand-gold/20 rounded-xl text-xs text-slate-100 outline-none focus:border-brand-gold"
+                    className="w-full px-3.5 py-2.5 bg-brand-navy-dark border border-brand-gold/20 rounded-xl text-xs text-slate-100 outline-none focus:border-brand-gold cursor-pointer"
                   >
                     <option value="whatsapp_lead">💬 Captación WhatsApp (Sin slots)</option>
                     <option value="calendar_booking">📅 Agendamiento Cita 1 a 1</option>
@@ -385,7 +482,7 @@ export const TemplateManagerModal: React.FC<TemplateManagerModalProps> = ({
                   <select
                     value={templateCategory}
                     onChange={(e) => setTemplateCategory(e.target.value)}
-                    className="w-full px-3.5 py-2.5 bg-brand-navy-dark border border-brand-gold/20 rounded-xl text-xs text-slate-100 outline-none focus:border-brand-gold"
+                    className="w-full px-3.5 py-2.5 bg-brand-navy-dark border border-brand-gold/20 rounded-xl text-xs text-slate-100 outline-none focus:border-brand-gold cursor-pointer"
                   >
                     <option value="Inmobiliario">Inmobiliario</option>
                     <option value="Prospección">Prospección</option>
@@ -398,7 +495,7 @@ export const TemplateManagerModal: React.FC<TemplateManagerModalProps> = ({
 
               <div className="space-y-1.5">
                 <label className="text-xs text-brand-gold font-medium uppercase tracking-wider block">
-                  Asunto del Correo
+                  Asunto del Correo <span className="text-red-400">*</span>
                 </label>
                 <input
                   type="text"
@@ -415,14 +512,14 @@ export const TemplateManagerModal: React.FC<TemplateManagerModalProps> = ({
                 <button
                   type="button"
                   onClick={() => setActiveTab('catalog')}
-                  className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl text-xs font-semibold transition-all"
+                  className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl text-xs font-semibold transition-all cursor-pointer"
                 >
                   Cancelar
                 </button>
                 <button
                   type="submit"
-                  disabled={uploading || !droppedFile || !templateName.trim() || !templateSubject.trim()}
-                  className="px-6 py-2 bg-gradient-to-r from-brand-gold-dark to-brand-gold text-brand-navy font-bold rounded-xl text-xs shadow-lg hover:shadow-brand-gold/20 transition-all disabled:opacity-50 flex items-center gap-2"
+                  disabled={uploading}
+                  className="px-6 py-2.5 bg-gradient-to-r from-brand-gold-dark to-brand-gold hover:opacity-95 text-brand-navy font-bold rounded-xl text-xs shadow-lg hover:shadow-brand-gold/20 transition-all disabled:opacity-50 flex items-center gap-2 cursor-pointer active:scale-98"
                 >
                   {uploading ? (
                     <>
@@ -432,7 +529,7 @@ export const TemplateManagerModal: React.FC<TemplateManagerModalProps> = ({
                   ) : (
                     <>
                       <Plus className="w-4 h-4" />
-                      <span>Guardar y Previsualizar</span>
+                      <span>Guardar y Usar Plantilla</span>
                     </>
                   )}
                 </button>
@@ -444,3 +541,4 @@ export const TemplateManagerModal: React.FC<TemplateManagerModalProps> = ({
     </div>
   );
 };
+
