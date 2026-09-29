@@ -7,6 +7,9 @@ import {
   ConsultarClientesNuevosQueryDto,
   ConsultarClientesRegistradosQueryDto,
   ActualizarEstadoClienteAgentDto,
+  CrearCampanaAgentDto,
+  ConsultarCampanasQueryDto,
+  ReenviarCampanaDto,
 } from './agent.dto';
 
 @Controller('api/agent')
@@ -70,7 +73,28 @@ export class AgentController {
     return await this.agentService.registrarClientePotencial(dto);
   }
 
-  // 8. ESQUEMA DE TOOLS PARA AGENTES DE IA (OpenAI / Claude / n8n / LangChain)
+  // 8. GUARDAR Y/O LANZAR CAMPAÑA O EVENTO (AGENTE IA)
+  @Post('campanas')
+  async crearCampana(@Body() dto: CrearCampanaAgentDto) {
+    return await this.agentService.crearCampana(dto);
+  }
+
+  // 9. CONSULTAR CAMPAÑAS Y MENSAJES ANTERIORES
+  @Get('campanas')
+  async consultarCampanas(@Query() query: ConsultarCampanasQueryDto) {
+    return await this.agentService.consultarCampanas(query);
+  }
+
+  // 10. REENVIAR CAMPAÑA EXISTENTE
+  @Post('campanas/:id/reenviar')
+  async reenviarCampana(
+    @Param('id') id: string,
+    @Body() dto: ReenviarCampanaDto,
+  ) {
+    return await this.agentService.reenviarCampana(id, dto);
+  }
+
+  // 11. ESQUEMA DE TOOLS PARA AGENTES DE IA (OpenAI / Claude / n8n / LangChain)
   @Get('tools')
   obtenerToolsOpenAI() {
     return this.agentService.obtenerToolsOpenAI();

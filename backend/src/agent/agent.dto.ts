@@ -60,3 +60,27 @@ export class RegistrarClientePotencialAgentDto {
   persona_contacto?: string;
   evento_id?: string;
 }
+
+export class CrearCampanaAgentDto {
+  titulo_evento: string;
+  mensaje: string;
+  link_reunion?: string;
+  fecha_evento?: string; // ISO string
+  enviar_ahora?: boolean; // default: false
+  canal?: 'email' | 'whatsapp' | 'ambos' | string; // default: 'email'
+  filtro_destinatarios?: 'todos' | 'pendientes' | 'contactados' | 'agendados' | 'bio_link_tiktok' | string; // default: 'todos'
+  asunto_email?: string;
+}
+
+export class ConsultarCampanasQueryDto {
+  buscar?: string;
+  limite?: number; // default: 10
+  pagina?: number; // default: 1
+  estado?: string;
+}
+
+export class ReenviarCampanaDto {
+  filtro_destinatarios?: string;
+  canal?: 'email' | 'whatsapp' | 'ambos' | string;
+}
+

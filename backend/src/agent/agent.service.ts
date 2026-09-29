@@ -16,7 +16,11 @@ import {
   ConsultarClientesRegistradosQueryDto,
   ActualizarEstadoClienteAgentDto,
   RegistrarClientePotencialAgentDto,
+  CrearCampanaAgentDto,
+  ConsultarCampanasQueryDto,
+  ReenviarCampanaDto,
 } from './agent.dto';
+
 
 @Injectable()
 export class AgentService implements OnModuleInit {
@@ -900,8 +904,280 @@ export class AgentService implements OnModuleInit {
   }
 
   // =========================================================================
-  // 8. ESQUEMAS DE HERRAMIENTAS (TOOLS / FUNCTION CALLING PARA AGENTES DE IA)
+  // 8. GESTIÓN Y LANZAMIENTO DE CAMPAÑAS / CONVOCATORIAS (AGENTE IA)
   // =========================================================================
+  async crearCampana(dto: CrearCampanaAgentDto) {
+    if (!dto.titulo_evento || !dto.mensaje) {
+      throw new BadRequestException('titulo_evento y mensaje son campos obligatorios');
+    }
+
+    this.logger.log(`IA Agent: Procesando campaña "${dto.titulo_evento}" (enviar_ahora=${!!dto.enviar_ahora})`);
+
+    // 1. Obtener destinatarios según filtro_destinatarios
+    let destinatarios: any[] = [];
+    if (this.supabase) {
+      try {
+        let q = this.supabase
+          .from('asistentes_evento')
+          .select('id, nombre, correo, celular, evento_id, estado');
+
+        const filtro = (dto.filtro_destinatarios || 'todos').toLowerCase().trim();
+        if (filtro === 'pendientes' || filtro === 'pendiente') {
+          q = q.eq('estado', 'pendiente');
+        } else if (filtro === 'contactados' || filtro === 'contactado') {
+          q = q.eq('estado', 'contactado');
+        } else if (filtro === 'agendados' || filtro === 'agendado') {
+          q = q.or('estado.eq.agendado,estado.eq.reunion_agendada');
+        } else if (filtro === 'bio_link_tiktok' || filtro === 'tiktok') {
+          q = q.or('evento_id.eq.dr-finanzas-bio,evento_id.ilike.%tiktok%');
+        } else if (filtro !== 'todos' && filtro !== 'all') {
+          q = q.eq('evento_id', filtro);
+        }
+
+        const { data: contacts, error: contErr } = await q;
+        if (!contErr && contacts) {
+          destinatarios = contacts;
+        }
+      } catch (err: any) {
+        this.logger.warn(`No se pudieron cargar destinatarios de asistentes_evento: ${err.message}`);
+      }
+    }
+
+    const totalDestinatarios = destinatarios.length;
+    let destinatariosEnviados = 0;
+    let campanaId = `camp_${Date.now()}`;
+
+    // 2. Guardar en Supabase tabla afinitivebd.campanas_agente si está disponible
+    if (this.supabase) {
+      try {
+        const { data: createdCampana, error: insertErr } = await this.supabase
+          .from('campanas_agente')
+          .insert({
+            titulo_evento: dto.titulo_evento,
+            mensaje: dto.mensaje,
+            link_reunion: dto.link_reunion || null,
+            fecha_evento: dto.fecha_evento || null,
+            canal: dto.canal || 'email',
+            filtro_destinatarios: dto.filtro_destinatarios || 'todos',
+            estado_envio: dto.enviar_ahora ? 'en_proceso' : 'guardado',
+            total_destinatarios: totalDestinatarios,
+            destinatarios_enviados: 0,
+            metadata: {
+              asunto_email: dto.asunto_email || dto.titulo_evento,
+            },
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString(),
+          })
+          .select()
+          .single();
+
+        if (!insertErr && createdCampana) {
+          campanaId = createdCampana.id;
+        }
+      } catch (err: any) {
+        this.logger.warn(`Error guardando en campanas_agente: ${err.message}`);
+      }
+    }
+
+    // 3. Si enviar_ahora es true, realizar el envío
+    if (dto.enviar_ahora && totalDestinatarios > 0) {
+      const canal = dto.canal || 'email';
+      const senderEmail = this.configService.get<string>('RESEND_SENDER_EMAIL') || 'onboarding@resend.dev';
+      const emailSubject = dto.asunto_email || dto.titulo_evento;
+
+      for (const dest of destinatarios) {
+        const recipientEmail = (dest.correo || '').trim();
+        const recipientName = (dest.nombre || 'Estimado(a)').trim();
+
+        // Personalizar mensaje
+        const personalizedMessage = dto.mensaje
+          .replace(/{nombre}/gi, recipientName)
+          .replace(/{{nombre}}/gi, recipientName)
+          .replace(/{link}/gi, dto.link_reunion || '')
+          .replace(/{{link}}/gi, dto.link_reunion || '')
+          .replace(/{link_reunion}/gi, dto.link_reunion || '')
+          .replace(/{{link_reunion}}/gi, dto.link_reunion || '');
+
+        // Enviar por correo si aplica
+        if ((canal === 'email' || canal === 'ambos') && recipientEmail && recipientEmail.includes('@') && this.resend) {
+          try {
+            const htmlContent = `
+              <div style="font-family: Arial, sans-serif; color: #1e293b; max-width: 600px; margin: 0 auto; padding: 20px; line-height: 1.6;">
+                <div style="background-color: #0f172a; padding: 20px; text-align: center; border-radius: 8px 8px 0 0;">
+                  <h2 style="color: #ffffff; margin: 0; font-size: 20px;">${dto.titulo_evento}</h2>
+                </div>
+                <div style="background-color: #ffffff; padding: 25px; border: 1px solid #e2e8f0; border-radius: 0 0 8px 8px;">
+                  <p style="font-size: 16px; margin-top: 0;">${personalizedMessage.replace(/\n/g, '<br/>')}</p>
+                  ${
+                    dto.link_reunion
+                      ? `<div style="text-align: center; margin: 30px 0;">
+                          <a href="${dto.link_reunion}" target="_blank" style="background-color: #2563eb; color: #ffffff; padding: 12px 28px; text-decoration: none; border-radius: 6px; font-weight: bold; display: inline-block;">Acceder a la Reunión / Evento</a>
+                        </div>`
+                      : ''
+                  }
+                  <hr style="border: none; border-top: 1px solid #e2e8f0; margin: 20px 0;" />
+                  <p style="font-size: 12px; color: #64748b; text-align: center; margin: 0;">
+                    Afinitive Wealth Management &bull; Notificación enviada por el equipo de asesoría
+                  </p>
+                </div>
+              </div>
+            `;
+
+            await this.resend.emails.send({
+              from: senderEmail,
+              to: recipientEmail,
+              subject: emailSubject,
+              html: htmlContent,
+            });
+
+            destinatariosEnviados++;
+          } catch (err: any) {
+            this.logger.error(`Error enviando correo de campaña a ${recipientEmail}: ${err.message}`);
+          }
+        }
+      }
+
+      // Actualizar estado en Supabase
+      if (this.supabase && campanaId) {
+        try {
+          await this.supabase
+            .from('campanas_agente')
+            .update({
+              estado_envio: destinatariosEnviados === totalDestinatarios ? 'enviado' : 'parcial',
+              destinatarios_enviados: destinatariosEnviados,
+              updated_at: new Date().toISOString(),
+            })
+            .eq('id', campanaId);
+        } catch (e: any) {
+          this.logger.warn(`Error actualizando campanas_agente tras envío: ${e.message}`);
+        }
+      }
+    }
+
+    return {
+      success: true,
+      campana_id: campanaId,
+      total_destinatarios: totalDestinatarios,
+      destinatarios_enviados: destinatariosEnviados,
+      estado: dto.enviar_ahora ? (destinatariosEnviados > 0 ? 'enviado' : 'fallido') : 'guardado',
+      mensaje: dto.enviar_ahora
+        ? `Campaña guardada y enviada a ${destinatariosEnviados} de ${totalDestinatarios} contactos registrados.`
+        : `Campaña "${dto.titulo_evento}" guardada exitosamente. Total de contactos elegibles: ${totalDestinatarios}.`,
+    };
+  }
+
+  // =========================================================================
+  // 9. CONSULTAR CAMPAÑAS ANTERIORES (AGENTE IA)
+  // =========================================================================
+  async consultarCampanas(query: ConsultarCampanasQueryDto) {
+    this.logger.log(`IA Agent: Consultando historial de campañas (buscar="${query.buscar || ''}")`);
+
+    if (!this.supabase) {
+      return {
+        success: true,
+        total_campanas: 0,
+        pagina_actual: Number(query.pagina) || 1,
+        limite: Number(query.limite) || 10,
+        campanas: [],
+      };
+    }
+
+    try {
+      const limite = Math.min(Math.max(Number(query.limite) || 10, 1), 50);
+      const pagina = Math.max(Number(query.pagina) || 1, 1);
+      const offset = (pagina - 1) * limite;
+
+      let q = this.supabase
+        .from('campanas_agente')
+        .select('*', { count: 'exact' });
+
+      if (query.buscar && query.buscar.trim()) {
+        const term = query.buscar.trim();
+        q = q.or(`titulo_evento.ilike.%${term}%,mensaje.ilike.%${term}%`);
+      }
+
+      if (query.estado && query.estado !== 'todos') {
+        q = q.eq('estado_envio', query.estado);
+      }
+
+      q = q.order('created_at', { ascending: false }).range(offset, offset + limite - 1);
+
+      const { data, count, error } = await q;
+
+      if (error) {
+        this.logger.warn(`Error en campanas_agente: ${error.message}`);
+        return {
+          success: true,
+          total_campanas: 0,
+          pagina_actual: pagina,
+          limite: limite,
+          campanas: [],
+        };
+      }
+
+      return {
+        success: true,
+        total_campanas: count !== null ? count : (data || []).length,
+        pagina_actual: pagina,
+        limite: limite,
+        campanas: (data || []).map((c: any) => ({
+          id: c.id,
+          titulo_evento: c.titulo_evento,
+          mensaje: c.mensaje,
+          link_reunion: c.link_reunion,
+          fecha_evento: c.fecha_evento,
+          canal: c.canal || 'email',
+          filtro_destinatarios: c.filtro_destinatarios || 'todos',
+          estado_envio: c.estado_envio || 'guardado',
+          total_destinatarios: c.total_destinatarios || 0,
+          destinatarios_enviados: c.destinatarios_enviados || 0,
+          created_at: c.created_at,
+        })),
+      };
+    } catch (err: any) {
+      this.logger.error(`Error consultando campañas: ${err.message}`);
+      return {
+        success: false,
+        total_campanas: 0,
+        pagina_actual: Number(query.pagina) || 1,
+        limite: Number(query.limite) || 10,
+        campanas: [],
+        error: err.message,
+      };
+    }
+  }
+
+  // =========================================================================
+  // 10. REENVIAR CAMPAÑA EXISTENTE (AGENTE IA)
+  // =========================================================================
+  async reenviarCampana(id: string, dto: ReenviarCampanaDto) {
+    if (!this.supabase) throw new BadRequestException('Supabase no disponible');
+
+    const { data: campana, error } = await this.supabase
+      .from('campanas_agente')
+      .select('*')
+      .eq('id', id)
+      .single();
+
+    if (error || !campana) {
+      throw new NotFoundException(`No se encontró la campaña con ID ${id}`);
+    }
+
+    return await this.crearCampana({
+      titulo_evento: campana.titulo_evento,
+      mensaje: campana.mensaje,
+      link_reunion: campana.link_reunion,
+      fecha_evento: campana.fecha_evento,
+      canal: dto.canal || campana.canal,
+      filtro_destinatarios: dto.filtro_destinatarios || campana.filtro_destinatarios,
+      enviar_ahora: true,
+    });
+  }
+
+  // =========================================================================
+  // 11. ESQUEMAS DE HERRAMIENTAS (TOOLS / FUNCTION CALLING PARA AGENTES DE IA)
+  // =========================================================================
+
   obtenerToolsOpenAI() {
     return {
       tools: [
@@ -953,6 +1229,96 @@ export class AgentService implements OnModuleInit {
                   description: 'Número de página para paginación (por defecto 1).',
                 },
               },
+            },
+          },
+        },
+        {
+          type: 'function',
+          function: {
+            name: 'guardar_o_lanzar_campana',
+            description:
+              'Guarda un evento, taller, convocatoria o mensaje masivo con su link de reunión (Zoom/Meet), fecha y texto; y opcionalmente lo envía inmediatamente a los contactos registrados.',
+            parameters: {
+              type: 'object',
+              properties: {
+                titulo_evento: {
+                  type: 'string',
+                  description: 'Título o nombre del evento / taller (ej: "Taller Automatización IA con Zoom").',
+                },
+                mensaje: {
+                  type: 'string',
+                  description: 'Texto del mensaje a guardar y/o enviar a los contactos. Puede incluir placeholders como {nombre} o {link}.',
+                },
+                link_reunion: {
+                  type: 'string',
+                  description: 'Enlace de la sala de reunión (ej: Zoom, Google Meet o Teams).',
+                },
+                fecha_evento: {
+                  type: 'string',
+                  description: 'Fecha y hora del evento en formato ISO (ej: "2026-10-25T17:00:00-05:00").',
+                },
+                enviar_ahora: {
+                  type: 'boolean',
+                  description: 'Si es true, envía el mensaje inmediatamente a los contactos registrados. Si es false, solo lo guarda.',
+                },
+                canal: {
+                  type: 'string',
+                  enum: ['email', 'whatsapp', 'ambos'],
+                  description: 'Canal de envío del mensaje (por defecto "email").',
+                },
+                filtro_destinatarios: {
+                  type: 'string',
+                  description: 'Segmento a enviar: "todos", "pendientes", "contactados", "agendados", "bio_link_tiktok", o un ID de evento.',
+                },
+              },
+              required: ['titulo_evento', 'mensaje'],
+            },
+          },
+        },
+        {
+          type: 'function',
+          function: {
+            name: 'consultar_campanas_anteriores',
+            description:
+              'Consulta el historial de campañas, talleres y mensajes guardados previamente para recuperar enlaces de Zoom, fechas o contenidos enviados.',
+            parameters: {
+              type: 'object',
+              properties: {
+                buscar: {
+                  type: 'string',
+                  description: 'Palabra clave para buscar por título del evento o contenido del mensaje (ej: "Taller", "Zoom").',
+                },
+                limite: {
+                  type: 'number',
+                  description: 'Cantidad máxima de campañas a retornar (por defecto 10).',
+                },
+                pagina: {
+                  type: 'number',
+                  description: 'Número de página (por defecto 1).',
+                },
+              },
+            },
+          },
+        },
+        {
+          type: 'function',
+          function: {
+            name: 'reenviar_campana',
+            description:
+              'Reenvía una campaña o convocatoria existente por su ID a los contactos registrados o a un subconjunto específico.',
+            parameters: {
+              type: 'object',
+              properties: {
+                id: {
+                  type: 'string',
+                  description: 'UUID de la campaña que se desea reenviar.',
+                },
+                filtro_destinatarios: {
+                  type: 'string',
+                  description: 'Segmento de destinatarios: "todos", "pendientes", "contactados", "bio_link_tiktok", etc.',
+                },
+              },
+              required: ['id'],
             },
           },
         },
