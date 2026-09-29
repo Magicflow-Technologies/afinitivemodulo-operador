@@ -3103,7 +3103,7 @@ const deleteStoredTemplateSync = (id: string) => {
                   </div>
 
                   {/* Panel de Estado / Progreso de Envíos */}
-                  <div className="bg-slate-50 border border-slate-200 rounded-2xl p-6 space-y-4 flex flex-col justify-between">
+                  <div className="lg:col-span-5 xl:col-span-4 bg-slate-50 border border-slate-200 rounded-2xl p-6 space-y-4 flex flex-col justify-between w-full">
                     <div>
                       <h3 className="text-xs font-bold text-slate-700 uppercase tracking-wider">Estado de Cola de Envíos</h3>
                       
