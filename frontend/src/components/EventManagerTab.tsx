@@ -361,8 +361,9 @@ export default function EventManagerTab({ onUseAsCampaign }: EventManagerTabProp
         tipo: editingEvento.tipo || 'webinar',
         fecha_inicio: esWebinar ? editingEvento.fecha_inicio : null,
         generar_meet: esWebinar ? generarMeet : false,
-        link_reunion: esWebinar ? (editingEvento.link_reunion || (generarMeet ? 'Google Meet (Generación Automática)' : '')) : '',
+        link_reunion: (editingEvento.link_reunion || '').trim() || (esWebinar && generarMeet ? 'Google Meet (Generación Automática)' : ''),
       };
+
 
       const res = await fetch(url, {
         method: method,
@@ -1363,24 +1364,25 @@ export default function EventManagerTab({ onUseAsCampaign }: EventManagerTabProp
                           </span>
                         </div>
 
-                        {!esLeadForm && ev.link_reunion && (
+                        {ev.link_reunion && (
                           <div className="flex items-center justify-between text-slate-700 truncate">
                             <span className="flex items-center gap-1.5 text-slate-500 font-medium">
                               <Video className="w-3.5 h-3.5 text-purple-600" />
-                              Zoom:
+                              Sala / Link:
                             </span>
                             <a 
                               href={ev.link_reunion} 
                               target="_blank" 
                               rel="noreferrer"
-                              className="text-blue-600 hover:underline truncate max-w-[150px] font-mono"
+                              className="text-blue-600 hover:underline truncate max-w-[150px] font-mono font-medium"
+                              title={ev.link_reunion}
                             >
                               {ev.link_reunion}
                             </a>
                           </div>
                         )}
 
-                        {esLeadForm && (
+                        {esLeadForm && !ev.link_reunion && (
                           <div className="flex items-center justify-between text-slate-700">
                             <span className="flex items-center gap-1.5 text-slate-500 font-medium">
                               <Sparkles className="w-3.5 h-3.5 text-blue-600" />
@@ -1392,6 +1394,7 @@ export default function EventManagerTab({ onUseAsCampaign }: EventManagerTabProp
                           </div>
                         )}
                       </div>
+
 
                       {/* Action Buttons */}
                       <div className="space-y-2 pt-1">
@@ -3561,6 +3564,26 @@ export default function EventManagerTab({ onUseAsCampaign }: EventManagerTabProp
                 </small>
               </div>
 
+              {/* Campos para Formularios TikTok / Bio (link_reunion opcional) */}
+              {editingEvento.tipo === 'lead_form' && (
+                <div className="bg-slate-50 border border-slate-200 rounded-xl p-3.5 space-y-2">
+                  <div className="flex items-center gap-2 text-slate-800 font-bold text-xs">
+                    <Video className="w-4 h-4 text-blue-600" />
+                    <span>Enlace de Reunión Zoom / Meet Asociado (Opcional)</span>
+                  </div>
+                  <input
+                    type="url"
+                    value={editingEvento.link_reunion || ''}
+                    onChange={(e) => setEditingEvento({ ...editingEvento, link_reunion: e.target.value })}
+                    placeholder="https://zoom.us/j/123456789 o https://meet.google.com/abc-defg-hij"
+                    className="w-full bg-white border border-slate-300 rounded-xl py-2 px-3 text-xs text-slate-900 focus:outline-none focus:border-blue-600 font-mono"
+                  />
+                  <p className="text-[11px] text-slate-500 leading-snug">
+                    Pega aquí el enlace de Zoom o Meet si deseas vincular este formulario de registro a una sala o sesión virtual en específico.
+                  </p>
+                </div>
+              )}
+
               {/* Campos condicionales para Webinars */}
               {editingEvento.tipo !== 'lead_form' && (
                 <>
@@ -3627,7 +3650,7 @@ export default function EventManagerTab({ onUseAsCampaign }: EventManagerTabProp
                           value={editingEvento.link_reunion || ''}
                           onChange={(e) => setEditingEvento({ ...editingEvento, link_reunion: e.target.value })}
                           placeholder="https://us06web.zoom.us/j/1234567890 o https://teams.microsoft.com/..."
-                          className="w-full bg-white border border-slate-300 rounded-xl py-2 px-3 text-xs text-slate-900 focus:outline-none focus:border-blue-600"
+                          className="w-full bg-white border border-slate-300 rounded-xl py-2 px-3 text-xs text-slate-900 focus:outline-none focus:border-blue-600 font-mono"
                         />
                         <p className="text-[11px] text-slate-400">Pega aquí el enlace de la sala si prefieres utilizar otra plataforma distinta a Google Meet.</p>
                       </div>
@@ -3635,6 +3658,7 @@ export default function EventManagerTab({ onUseAsCampaign }: EventManagerTabProp
                   </div>
                 </>
               )}
+
 
               {/* Image Upload & Storage Section */}
               <div className="space-y-3 bg-slate-50 border border-slate-200 p-4 rounded-xl">
