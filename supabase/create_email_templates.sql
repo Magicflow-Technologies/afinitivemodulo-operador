@@ -59,3 +59,81 @@ ON CONFLICT (id) DO UPDATE SET
     name = EXCLUDED.name,
     subject = EXCLUDED.subject,
     html_content = EXCLUDED.html_content;
+
+-- B) Plantilla de Evento: Bonos vs Alquiler (Full HTML)
+INSERT INTO afinitivebd.email_templates (id, name, subject, type, html_content, category, created_by, is_active, action_type)
+VALUES (
+    '00000000-0000-0000-0000-000000000003',
+    'bonos vs alquiler',
+    'Invitación exclusiva -  ¿Comprar para alquilar? Hay una alternativa más rentable',
+    'full_html',
+    '<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml" lang="es">
+<head>
+  <meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="x-apple-disable-message-reformatting" />
+  <title>Invitación al Evento</title>
+  <style type="text/css">
+    body, table, td, a { -webkit-text-size-adjust: 100%; -ms-text-size-adjust: 100%; }
+    table, td { mso-table-lspace: 0pt; mso-table-rspace: 0pt; }
+    img { -ms-interpolation-mode: bicubic; border: 0; height: auto; line-height: 100%; outline: none; text-decoration: none; }
+    table { border-collapse: collapse !important; }
+    body { height: 100% !important; margin: 0 !important; padding: 0 !important; width: 100% !important; background-color: #0b111e; }
+  </style>
+</head>
+<body style="margin: 0; padding: 0; background-color: #0b111e; font-family: Arial, Helvetica, sans-serif;">
+
+  <!-- Contenedor Principal de Correo -->
+  <table border="0" cellpadding="0" cellspacing="0" width="100%" style="background-color: #0b111e;" role="presentation">
+    <tr>
+      <td align="center" style="padding: 24px 10px;">
+        
+        <!-- Tabla Central -->
+        <table border="0" cellpadding="0" cellspacing="0" width="100%" style="max-width: 600px; background-color: #0e172a; border-radius: 16px; overflow: hidden; border: 1px solid #1e293b;" role="presentation">
+          
+          <!-- Bloque de la Imagen / Flyer -->
+          <tr>
+            <td align="center" style="padding: 0; line-height: 0;">
+              <a href="{{whatsapp_link}}" target="_blank" style="text-decoration: none; display: block;">
+                <img 
+                  src="https://links.afinitive.com.pe/img/evento.jpeg" 
+                  alt="Invitación al Evento" 
+                  width="600" 
+                  style="display: block; width: 100%; max-width: 600px; height: auto; border: 0; outline: none; text-decoration: none;" 
+                />
+              </a>
+            </td>
+          </tr>
+
+          <!-- Bloque del Botón de Registro -->
+          <tr>
+            <td align="center" style="padding: 32px 20px 36px 20px;">
+              <table border="0" cellpadding="0" cellspacing="0" role="presentation">
+                <tr>
+                  <td align="center">
+                    <a href="{{whatsapp_link}}" target="_blank" style="background: linear-gradient(135deg, #D4AF37 0%, #F5E6BE 50%, #B38738 100%); background-color: #D4AF37; color: #080D1A; display: inline-block; font-family: Arial, Helvetica, sans-serif; font-size: 16px; font-weight: 800; line-height: 1.2; text-decoration: none; padding: 18px 36px; border-radius: 50px; text-transform: uppercase; letter-spacing: 1px; border: 2px solid #FFEBB5; text-align: center; box-shadow: 0 4px 20px rgba(212, 175, 55, 0.45); -webkit-text-size-adjust: none;">REGISTRARME AL EVENTO</a>
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+
+        </table>
+
+      </td>
+    </tr>
+  </table>
+
+</body>
+</html>',
+    'Eventos',
+    'system',
+    true,
+    'event_invitation'
+)
+ON CONFLICT (id) DO UPDATE SET 
+    name = EXCLUDED.name,
+    subject = EXCLUDED.subject,
+    html_content = EXCLUDED.html_content;
+
