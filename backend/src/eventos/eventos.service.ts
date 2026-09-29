@@ -12,6 +12,7 @@ export interface EventoData {
   tipo?: 'webinar' | 'lead_form';
   fecha_inicio?: string;
   link_reunion?: string;
+  plantilla_id?: string;
   generar_meet?: boolean;
   descripcion?: string;
   duracion_minutos?: number;
@@ -65,6 +66,7 @@ export class EventosService implements OnModuleInit {
   private parseEvent(ev: any): any {
     if (!ev) return ev;
     let imagen_url = ev.imagen_url;
+    let plantilla_id = ev.plantilla_id || '';
     let descripcion = ev.descripcion || '';
 
     if (!imagen_url && descripcion && descripcion.includes('[IMG_URL:')) {
@@ -75,13 +77,23 @@ export class EventosService implements OnModuleInit {
       }
     }
 
+    if (!plantilla_id && descripcion && descripcion.includes('[PLANTILLA_ID:')) {
+      const matchPl = descripcion.match(/\[PLANTILLA_ID:(.*?)\]/);
+      if (matchPl) {
+        plantilla_id = matchPl[1];
+        descripcion = descripcion.replace(/\[PLANTILLA_ID:.*?\]\n?/, '');
+      }
+    }
+
     return {
       ...ev,
       tipo: ev.tipo || 'webinar',
       imagen_url,
+      plantilla_id,
       descripcion,
     };
   }
+
 
   // 1. Obtener todos los eventos con conteo de asistentes
   async findAllEvents(): Promise<any[]> {
@@ -187,6 +199,7 @@ export class EventosService implements OnModuleInit {
       tipo: data.tipo || 'webinar',
       fecha_inicio: data.fecha_inicio || (esLeadForm ? null : new Date().toISOString()),
       link_reunion: finalLink,
+      plantilla_id: data.plantilla_id || null,
       descripcion: data.descripcion || '',
       duracion_minutos: Number(data.duracion_minutos) || 45,
       activo: data.activo !== false,
@@ -199,12 +212,19 @@ export class EventosService implements OnModuleInit {
       .select()
       .single();
 
-    if (error && (error.message?.includes('imagen_url') || error.code === 'PGRST204')) {
+    if (error && (error.message?.includes('imagen_url') || error.message?.includes('plantilla_id') || error.code === 'PGRST204')) {
       const imgUrl = (payload as any).imagen_url;
+      const plantId = (payload as any).plantilla_id;
       delete (payload as any).imagen_url;
-      if (imgUrl) {
-        payload.descripcion = `[IMG_URL:${imgUrl}]\n${payload.descripcion || ''}`;
+      delete (payload as any).plantilla_id;
+      
+      let extraMeta = '';
+      if (imgUrl) extraMeta += `[IMG_URL:${imgUrl}]\n`;
+      if (plantId) extraMeta += `[PLANTILLA_ID:${plantId}]\n`;
+      if (extraMeta) {
+        payload.descripcion = `${extraMeta}${payload.descripcion || ''}`;
       }
+
       const retry = await this.supabase
         .from('eventos')
         .insert(payload)
@@ -241,13 +261,21 @@ export class EventosService implements OnModuleInit {
       .select()
       .single();
 
-    if (error && (error.message?.includes('imagen_url') || error.code === 'PGRST204')) {
+    if (error && (error.message?.includes('imagen_url') || error.message?.includes('plantilla_id') || error.code === 'PGRST204')) {
       const imgUrl = updatePayload.imagen_url;
+      const plantId = updatePayload.plantilla_id;
       delete updatePayload.imagen_url;
-      if (imgUrl !== undefined) {
-        let cleanDesc = (updatePayload.descripcion || '').replace(/\[IMG_URL:.*?\]\n?/, '');
-        updatePayload.descripcion = imgUrl ? `[IMG_URL:${imgUrl}]\n${cleanDesc}` : cleanDesc;
-      }
+      delete updatePayload.plantilla_id;
+
+      let cleanDesc = (updatePayload.descripcion || '')
+        .replace(/\[IMG_URL:.*?\]\n?/, '')
+        .replace(/\[PLANTILLA_ID:.*?\]\n?/, '');
+
+      let extraMeta = '';
+      if (imgUrl) extraMeta += `[IMG_URL:${imgUrl}]\n`;
+      if (plantId) extraMeta += `[PLANTILLA_ID:${plantId}]\n`;
+      updatePayload.descripcion = `${extraMeta}${cleanDesc}`;
+
       const retry = await this.supabase
         .from('eventos')
         .update(updatePayload)
@@ -257,6 +285,7 @@ export class EventosService implements OnModuleInit {
       updated = retry.data;
       error = retry.error;
     }
+
 
     if (error) {
       throw new BadRequestException(`No se pudo actualizar el evento: ${error.message}`);

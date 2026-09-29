@@ -55,6 +55,7 @@ export interface Evento {
   tipo?: 'webinar' | 'lead_form';
   fecha_inicio?: string;
   link_reunion?: string;
+  plantilla_id?: string;
   generar_meet?: boolean;
   descripcion?: string;
   duracion_minutos?: number;
@@ -63,6 +64,7 @@ export interface Evento {
   asistentes_count?: number;
   created_at?: string;
 }
+
 
 export interface Asistente {
   id: string;
@@ -254,10 +256,36 @@ export default function EventManagerTab({ onUseAsCampaign }: EventManagerTabProp
     }
   };
 
+  // Plantillas disponibles para vincular con eventos/formularios
+  const [availableTemplates, setAvailableTemplates] = useState<{ id: string; name: string; category?: string }[]>([]);
+
   useEffect(() => {
     fetchEventos();
     fetchAllAttendees();
+    fetchTemplatesList();
   }, []);
+
+  const fetchTemplatesList = async () => {
+    try {
+      const res = await fetch(`${backendUrl}/api/templates`);
+      if (res.ok) {
+        const data = await res.json();
+        if (Array.isArray(data)) {
+          setAvailableTemplates(data);
+          return;
+        }
+      }
+    } catch (e) {
+      console.warn('Backend templates API no disponible:', e);
+    }
+    try {
+      const stored = localStorage.getItem('afinitive_custom_templates_store');
+      if (stored) {
+        setAvailableTemplates(JSON.parse(stored));
+      }
+    } catch {}
+  };
+
 
   const fetchEventos = async () => {
     setLoading(true);
@@ -302,6 +330,7 @@ export default function EventManagerTab({ onUseAsCampaign }: EventManagerTabProp
       duracion_minutos: 60,
       generar_meet: true, // Por defecto siempre crea con Google Meet
       link_reunion: '',
+      plantilla_id: '',
       descripcion: tipoPredeterminado === 'webinar' 
         ? `Una oportunidad de inversión inmobiliaria exclusiva con Afinitive Wealth Management.\n\n📈 Retorno proyectado: + 17%\n⏰ Hora Perú: 7:30 p.m.\n\nTe mostraremos el modelo financiero y sus números.`
         : `Completa tus datos para recibir asesoría personalizada y acceso exclusivo a nuestras oportunidades de inversión patrimonial.`,
@@ -327,6 +356,7 @@ export default function EventManagerTab({ onUseAsCampaign }: EventManagerTabProp
       tipo: evento.tipo || 'webinar',
       fecha_inicio: formattedDate,
       generar_meet: evento.generar_meet !== false, // Por defecto true
+      plantilla_id: evento.plantilla_id || '',
     });
     setIsEditModalOpen(true);
   };
@@ -362,7 +392,9 @@ export default function EventManagerTab({ onUseAsCampaign }: EventManagerTabProp
         fecha_inicio: esWebinar ? editingEvento.fecha_inicio : null,
         generar_meet: esWebinar ? generarMeet : false,
         link_reunion: (editingEvento.link_reunion || '').trim() || (esWebinar && generarMeet ? 'Google Meet (Generación Automática)' : ''),
+        plantilla_id: editingEvento.plantilla_id?.trim() || null,
       };
+
 
 
       const res = await fetch(url, {
@@ -1379,6 +1411,18 @@ export default function EventManagerTab({ onUseAsCampaign }: EventManagerTabProp
                             >
                               {ev.link_reunion}
                             </a>
+                          </div>
+                        )}
+
+                        {ev.plantilla_id && (
+                          <div className="flex items-center justify-between text-slate-700">
+                            <span className="flex items-center gap-1.5 text-slate-500 font-medium">
+                              <Mail className="w-3.5 h-3.5 text-amber-600" />
+                              Plantilla Email:
+                            </span>
+                            <span className="text-amber-800 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded font-semibold text-[11px] truncate max-w-[160px]" title={availableTemplates.find(t => t.id === ev.plantilla_id)?.name || ev.plantilla_id}>
+                              ✉️ {availableTemplates.find(t => t.id === ev.plantilla_id)?.name || ev.plantilla_id}
+                            </span>
                           </div>
                         )}
 
@@ -3659,6 +3703,35 @@ export default function EventManagerTab({ onUseAsCampaign }: EventManagerTabProp
                 </>
               )}
 
+              {/* Selector de Plantilla de Correo Vinculada */}
+              <div className="bg-slate-50 border border-slate-200 rounded-xl p-3.5 space-y-2">
+                <div className="flex items-center justify-between">
+                  <label className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
+                    <Mail className="w-4 h-4 text-amber-600" />
+                    <span>Plantilla de Correo Vinculada (Opcional)</span>
+                  </label>
+                  {editingEvento.plantilla_id && (
+                    <span className="text-[10px] font-bold px-2 py-0.5 bg-amber-100 text-amber-900 border border-amber-300 rounded-full">
+                      ✓ Vinculada
+                    </span>
+                  )}
+                </div>
+                <select
+                  value={editingEvento.plantilla_id || ''}
+                  onChange={(e) => setEditingEvento({ ...editingEvento, plantilla_id: e.target.value })}
+                  className="w-full bg-white border border-slate-300 rounded-xl py-2 px-3 text-xs text-slate-900 focus:outline-none focus:border-blue-600 cursor-pointer font-medium"
+                >
+                  <option value="">-- Ninguna (Sin plantilla vinculada) --</option>
+                  {availableTemplates.map((t) => (
+                    <option key={t.id} value={t.id}>
+                      ✉️ {t.name} {t.category ? `(${t.category})` : ''}
+                    </option>
+                  ))}
+                </select>
+                <p className="text-[11px] text-slate-500">
+                  Selecciona la plantilla de correo pre-creada para amarrar este formulario/evento y enviar invitaciones o confirmaciones personalizadas.
+                </p>
+              </div>
 
               {/* Image Upload & Storage Section */}
               <div className="space-y-3 bg-slate-50 border border-slate-200 p-4 rounded-xl">
