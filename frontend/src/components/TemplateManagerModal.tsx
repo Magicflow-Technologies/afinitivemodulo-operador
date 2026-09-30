@@ -88,8 +88,6 @@ export const TemplateManagerModal: React.FC<TemplateManagerModalProps> = ({
   const imageAlt = 'Oportunidad de Inversión Afinitive';
   const [textContent, setTextContent] = useState('Estimado/a {{nombre}}:\n\nLe escribimos para extenderle una invitación exclusiva a nuestra próxima presentación privada sobre oportunidades de inversión y optimización patrimonial.');
 
-  const [themeMode, setThemeMode] = useState<'light' | 'dark'>('dark');
-
   // Botones Interactivos
   const [buttons, setButtons] = useState<CustomButtonConfig[]>([
     {
@@ -153,40 +151,51 @@ export const TemplateManagerModal: React.FC<TemplateManagerModalProps> = ({
     setButtons(buttons.map((b) => (b.id === id ? { ...b, ...updates } : b)));
   };
 
-  // Generador de HTML Automático en base a la selección
+  // Generador de HTML Automático en base a la selección (Siempre fondo blanco con letras oscuras)
   const generatedHtml = useMemo(() => {
-    const isDark = themeMode === 'dark';
-    const bgOuter = isDark ? '#0b111e' : '#f1f5f9';
-    const bgCard = isDark ? '#0e172a' : '#ffffff';
-    const textColor = isDark ? '#f8fafc' : '#1e293b';
-    const cardBorder = isDark ? '#1e293b' : '#e2e8f0';
+    const bgOuter = '#F0F4F8';
+    const bgCard = '#FFFFFF';
+    const textColor = '#334155';
+    const cardBorder = '#E2E8F0';
 
     const hasHeader = layoutMode === 'header_image_sig' || layoutMode === 'header_text_sig';
     const hasImage = layoutMode !== 'header_text_sig' && !!imageUrl;
     const hasText = (layoutMode === 'header_text_sig' || textContent.trim().length > 0) && layoutMode !== 'image_only';
     const hasSignature = layoutMode !== 'image_only';
 
-    // 1. Encabezado HTML
+    // 1. Encabezado Corporativo Oficial Afinitive
     const headerHtml = hasHeader ? `
-      <!-- Encabezado Corporativo Afinitive -->
+      <!-- Encabezado Corporativo Oficial Afinitive -->
       <tr>
-        <td align="center" style="padding: 26px 20px 18px 20px; border-bottom: 1px solid ${cardBorder}; background-color: ${isDark ? '#080d1a' : '#ffffff'};">
-          <img src="https://links.afinitive.com.pe/img/afinitive_logo.png" alt="Afinitive" width="165" style="display: block; margin: 0 auto; max-width: 165px; height: auto;" />
+        <td style="padding: 26px 35px 20px 35px; border-bottom: 1px solid #F1F5F9; background-color: #FFFFFF;">
+          <table cellpadding="0" cellspacing="0" border="0">
+            <tr>
+              <td valign="middle" style="padding-right: 15px; line-height: 0;">
+                <img src="https://links.afinitive.com.pe/img/afinitive_logo.png" alt="Afinitive Logo" width="60" style="display: block; border: none; max-width: 60px; height: auto;" />
+              </td>
+              <td valign="middle" style="line-height: 1.15;">
+                <div style="font-family: Arial, sans-serif;">
+                  <span style="font-size: 10px; color: #5B728A; letter-spacing: 2px; text-transform: uppercase; display: block; margin-bottom: 1px; font-weight: 600;">AFINITIVE</span>
+                  <span style="font-size: 16px; color: #0F2942; font-weight: bold; letter-spacing: 0.5px; text-transform: uppercase; display: block;">WEALTH MANAGEMENT</span>
+                </div>
+              </td>
+            </tr>
+          </table>
         </td>
       </tr>
     ` : '';
 
-    // 2. Imagen HTML
+    // 2. Imagen / Flyer de la Campaña
     const imageBlockHtml = hasImage ? `
       <!-- Flyer / Imagen de Campaña -->
       <tr>
-        <td align="center" style="padding: ${layoutMode === 'image_only' ? '0' : '20px 20px 10px 20px'}; line-height: 0;">
+        <td align="center" style="padding: ${layoutMode === 'image_only' ? '0' : '20px 35px 12px 35px'}; background-color: #FFFFFF; line-height: 0;">
           ${imageClickUrl ? `<a href="${imageClickUrl}" target="_blank" style="text-decoration: none; display: block;">` : ''}
             <img 
               src="${imageUrl}" 
               alt="${imageAlt}" 
-              width="600" 
-              style="display: block; width: 100%; max-width: 600px; height: auto; border-radius: ${layoutMode === 'image_only' ? '12px' : '8px'}; border: 0; outline: none; text-decoration: none;" 
+              width="530" 
+              style="display: block; width: 100%; max-width: 530px; height: auto; border-radius: ${layoutMode === 'image_only' ? '10px' : '8px'}; border: 0; outline: none; text-decoration: none;" 
             />
           ${imageClickUrl ? `</a>` : ''}
         </td>
@@ -196,13 +205,13 @@ export const TemplateManagerModal: React.FC<TemplateManagerModalProps> = ({
     // 3. Texto HTML
     const formattedParagraphs = textContent
       .split('\n\n')
-      .map(p => `<p style="margin: 0 0 14px 0; line-height: 1.6;">${p.replace(/\n/g, '<br/>')}</p>`)
+      .map(p => `<p style="margin: 0 0 14px 0; line-height: 1.65;">${p.replace(/\n/g, '<br/>')}</p>`)
       .join('');
 
     const textBlockHtml = hasText ? `
       <!-- Cuerpo de Texto -->
       <tr>
-        <td style="padding: 24px 28px 12px 28px; color: ${textColor}; font-family: Arial, Helvetica, sans-serif; font-size: 15px; line-height: 1.6;">
+        <td style="padding: 24px 35px 14px 35px; color: ${textColor}; font-family: Arial, Helvetica, sans-serif; font-size: 14.5px; line-height: 1.65; background-color: #FFFFFF;">
           ${formattedParagraphs}
         </td>
       </tr>
@@ -212,22 +221,22 @@ export const TemplateManagerModal: React.FC<TemplateManagerModalProps> = ({
     const buttonsHtml = buttons.length > 0 ? `
       <!-- Botones de Acción (CTAs) -->
       <tr>
-        <td align="center" style="padding: 18px 20px 28px 20px;">
+        <td align="center" style="padding: 14px 35px 24px 35px; background-color: #FFFFFF;">
           <table border="0" cellpadding="0" cellspacing="0" role="presentation" style="margin: 0 auto;">
             ${buttons.map(btn => {
-              let btnBg = 'background-color: #d4af37; background: linear-gradient(135deg, #d4af37 0%, #b38738 100%); color: #080d1a !important; border: 2px solid #ffebb5;';
+              let btnBg = 'background-color: #0D1B2A; color: #ffffff !important;';
               if (btn.color === 'green') {
-                btnBg = 'background-color: #25d366; background: linear-gradient(135deg, #25d366 0%, #128c7e 100%); color: #ffffff !important; border: 2px solid #86efac;';
+                btnBg = 'background-color: #25D366; color: #ffffff !important; box-shadow: 0 2px 6px rgba(37,211,102,0.25);';
               } else if (btn.color === 'blue') {
-                btnBg = 'background-color: #2563eb; background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%); color: #ffffff !important; border: 2px solid #93c5fd;';
-              } else if (btn.color === 'dark') {
-                btnBg = 'background-color: #0f172a; color: #ffffff !important; border: 1px solid #334155;';
+                btnBg = 'background-color: #2563EB; color: #ffffff !important;';
+              } else if (btn.color === 'gold') {
+                btnBg = 'background-color: #B48A3C; background: linear-gradient(135deg, #C9A050 0%, #9E742A 100%); color: #ffffff !important;';
               }
 
               return `
                 <tr>
                   <td align="center" style="padding: 6px 0;">
-                    <a href="${btn.url || '{{whatsapp_link}}'}" target="_blank" style="${btnBg} display: inline-block; font-family: Arial, Helvetica, sans-serif; font-size: 15px; font-weight: 800; line-height: 1.2; text-decoration: none; padding: 15px 32px; border-radius: 35px; text-transform: uppercase; letter-spacing: 0.5px; text-align: center; box-shadow: 0 4px 14px rgba(0,0,0,0.25); -webkit-text-size-adjust: none;">
+                    <a href="${btn.url || '{{whatsapp_link}}'}" target="_blank" style="${btnBg} display: inline-block; font-family: Arial, Helvetica, sans-serif; font-size: 14px; font-weight: bold; line-height: 1.2; text-decoration: none; padding: 13px 30px; border-radius: 6px; letter-spacing: 0.5px; text-align: center; box-shadow: 0 2px 8px rgba(0,0,0,0.12); -webkit-text-size-adjust: none;">
                       ${btn.texto}
                     </a>
                   </td>
@@ -239,34 +248,38 @@ export const TemplateManagerModal: React.FC<TemplateManagerModalProps> = ({
       </tr>
     ` : '';
 
-    // 5. Firma de Ricardo Bertalmio HTML
+    // 5. Firma Oficial Ricardo Bertalmio
     const signatureHtml = hasSignature ? `
       <!-- Firma Oficial de Ricardo Bertalmio -->
       <tr>
-        <td style="padding: 20px 28px 26px 28px; border-top: 1px solid ${cardBorder}; background-color: ${isDark ? '#080d1a' : '#fafafa'};">
-          <table cellpadding="0" cellspacing="0" border="0" style="font-family: Arial, Helvetica, sans-serif; width: 100%;">
+        <td style="padding: 20px 35px 26px 35px; border-top: 1px solid #F1F5F9; background-color: #FFFFFF;">
+          <table cellpadding="0" cellspacing="0" border="0" style="font-family: Arial, Helvetica, sans-serif; width: 100%; background-color: #FFFFFF;">
             <tr>
               <td valign="middle" style="padding-right: 15px; width: 75px;">
-                <img src="https://dashbportal.com/afinitive/rbertalmio.png" alt="Ricardo Bertalmio Ruibal" width="68" style="display: block; border-radius: 50%; border: 2px solid #d4af37;" />
+                <img src="https://dashbportal.com/afinitive/rbertalmio.png" alt="Ricardo Bertalmio Ruibal" width="68" style="display: block; border-radius: 50%; border: 2px solid #E2E8F0; box-shadow: 0 2px 6px rgba(0,0,0,0.06);" />
               </td>
               <td valign="middle">
-                <div style="font-size: 15px; color: ${isDark ? '#ffffff' : '#0f172a'}; font-weight: bold; margin: 0; line-height: 1.2;">Ricardo Bertalmio Ruibal</div>
-                <div style="font-size: 12px; color: ${isDark ? '#94a3b8' : '#64748b'}; margin: 2px 0 6px 0;">CEO Afinitive Wealth Management</div>
-                <table cellpadding="0" cellspacing="0" border="0" style="font-size: 11px; color: ${isDark ? '#cbd5e1' : '#334155'};">
+                <div style="font-size: 16px; color: #000000; font-weight: bold; margin: 0; line-height: 1.15; font-family: Arial, sans-serif;">Ricardo Bertalmio Ruibal</div>
+                <div style="font-size: 12.5px; color: #555555; margin: 2px 0 6px 0; font-family: Arial, sans-serif;">CEO Afinitive Wealth Management</div>
+                <table cellpadding="0" cellspacing="0" border="0" style="font-size: 11px; color: #333333; font-family: Arial, sans-serif;">
                   <tr>
-                    <td style="padding-right: 12px; padding-bottom: 3px;">
-                      📞 <span style="font-weight: 500;">(511) 982100208</span>
+                    <td valign="middle" style="padding-right: 14px; padding-bottom: 3px; white-space: nowrap;">
+                      <span style="vertical-align: middle;">📞 (511) 982100208</span>
                     </td>
-                    <td style="padding-bottom: 3px;">
-                      📍 <span>San Isidro, Lima</span>
+                    <td valign="middle" style="padding-bottom: 3px; white-space: nowrap;">
+                      <span style="vertical-align: middle;">📍 San Isidro, Lima</span>
                     </td>
                   </tr>
                   <tr>
-                    <td style="padding-right: 12px;">
-                      🌐 <a href="https://afinitive.com.pe" target="_blank" style="color: #60a5fa; text-decoration: none;">afinitive.com.pe</a>
+                    <td valign="middle" style="padding-right: 14px; white-space: nowrap;">
+                      <a href="https://afinitive.com.pe" target="_blank" style="color: #0284c7; text-decoration: none;">
+                        <span style="vertical-align: middle;">🌐 afinitive.com.pe</span>
+                      </a>
                     </td>
-                    <td>
-                      💼 <a href="https://www.linkedin.com/in/ricardo-bertalmio" target="_blank" style="color: #60a5fa; text-decoration: none;">LinkedIn</a>
+                    <td valign="middle" style="white-space: nowrap;">
+                      <a href="https://www.linkedin.com/in/ricardo-bertalmio" target="_blank" style="color: #0284c7; text-decoration: none;">
+                        <span style="vertical-align: middle;">💼 in/ricardo-bertalmio</span>
+                      </a>
                     </td>
                   </tr>
                 </table>
@@ -289,28 +302,24 @@ export const TemplateManagerModal: React.FC<TemplateManagerModalProps> = ({
     table, td { mso-table-lspace: 0pt; mso-table-rspace: 0pt; }
     img { -ms-interpolation-mode: bicubic; border: 0; height: auto; line-height: 100%; outline: none; text-decoration: none; }
     table { border-collapse: collapse !important; }
-    body { height: 100% !important; margin: 0 !important; padding: 0 !important; width: 100% !important; background-color: ${bgOuter}; }
+    body { height: 100% !important; margin: 0 !important; padding: 0 !important; width: 100% !important; background-color: ${bgOuter}; color: #1e293b; }
   </style>
 </head>
 <body style="margin: 0; padding: 0; background-color: ${bgOuter}; font-family: Arial, Helvetica, sans-serif;">
 
-  <table border="0" cellpadding="0" cellspacing="0" width="100%" style="background-color: ${bgOuter};" role="presentation">
-    <tr>
-      <td align="center" style="padding: 20px 10px;">
-        <table border="0" cellpadding="0" cellspacing="0" width="100%" style="max-width: 600px; background-color: ${bgCard}; border-radius: 14px; overflow: hidden; border: 1px solid ${cardBorder}; box-shadow: 0 10px 30px rgba(0,0,0,0.25);" role="presentation">
-          ${headerHtml}
-          ${imageBlockHtml}
-          ${textBlockHtml}
-          ${buttonsHtml}
-          ${signatureHtml}
-        </table>
-      </td>
-    </tr>
-  </table>
+  <div style="background-color: ${bgOuter}; padding: 25px 15px; width: 100%; box-sizing: border-box;">
+    <table border="0" cellpadding="0" cellspacing="0" width="100%" style="max-width: 600px; margin: 0 auto; background-color: ${bgCard}; border-radius: 10px; overflow: hidden; border: 1px solid ${cardBorder}; box-shadow: 0 4px 14px rgba(0,0,0,0.06);" role="presentation">
+      ${headerHtml}
+      ${imageBlockHtml}
+      ${textBlockHtml}
+      ${buttonsHtml}
+      ${signatureHtml}
+    </table>
+  </div>
 
 </body>
 </html>`.trim();
-  }, [layoutMode, templateSubject, imageUrl, imageClickUrl, imageAlt, textContent, themeMode, buttons]);
+  }, [layoutMode, templateSubject, imageUrl, imageClickUrl, imageAlt, textContent, buttons]);
 
   // Guardar plantilla creada
   const handleSaveVisualTemplate = async (e: React.FormEvent) => {
@@ -846,29 +855,12 @@ export const TemplateManagerModal: React.FC<TemplateManagerModalProps> = ({
                     )}
                   </div>
 
-                  {/* Selector de Estilo de Fondo (Claro / Oscuro) */}
+                  {/* Estilo de Fondo Oficial (Siempre Fondo Blanco / Letras Oscuras) */}
                   <div className="flex items-center justify-between p-3 bg-[#08121D] rounded-xl border border-brand-gold/15 text-xs text-slate-300">
-                    <span>Estilo de Fondo del Correo:</span>
-                    <div className="flex gap-2">
-                      <button
-                        type="button"
-                        onClick={() => setThemeMode('dark')}
-                        className={`px-3 py-1 rounded-lg font-bold text-xs cursor-pointer ${
-                          themeMode === 'dark' ? 'bg-brand-gold text-brand-navy' : 'bg-slate-800 text-slate-400'
-                        }`}
-                      >
-                        🌙 Modo Oscuro (Exclusivo)
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setThemeMode('light')}
-                        className={`px-3 py-1 rounded-lg font-bold text-xs cursor-pointer ${
-                          themeMode === 'light' ? 'bg-brand-gold text-brand-navy' : 'bg-slate-800 text-slate-400'
-                        }`}
-                      >
-                        ☀️ Modo Claro (Clásico)
-                      </button>
-                    </div>
+                    <span className="font-semibold text-slate-200">☀️ Formato Oficial Afinitive:</span>
+                    <span className="px-3 py-1 rounded-lg font-bold text-xs bg-emerald-500/20 text-emerald-300 border border-emerald-400/30">
+                      ✓ Fondo Blanco / Letras Negras
+                    </span>
                   </div>
 
                 </div>
