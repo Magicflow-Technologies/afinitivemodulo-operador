@@ -536,12 +536,16 @@ export default function EventManagerTab({ onUseAsCampaign }: EventManagerTabProp
       const method = isUpdating ? 'PUT' : 'POST';
 
       const payload = {
-        ...editingEvento,
+        nombre: (editingEvento.nombre || '').trim(),
         tipo: editingEvento.tipo || 'webinar',
         fecha_inicio: esWebinar ? editingEvento.fecha_inicio : null,
+        duracion_minutos: Number(editingEvento.duracion_minutos) || 60,
         generar_meet: esWebinar ? generarMeet : false,
         link_reunion: (editingEvento.link_reunion || '').trim() || (esWebinar && generarMeet ? 'Google Meet (Generación Automática)' : ''),
         plantilla_id: editingEvento.plantilla_id?.trim() || null,
+        descripcion: editingEvento.descripcion || '',
+        imagen_url: editingEvento.imagen_url || null,
+        activo: editingEvento.activo !== false,
       };
 
 

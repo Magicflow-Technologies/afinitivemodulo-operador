@@ -23,6 +23,7 @@ export class CreateEventoDto {
   fecha_inicio?: string;
   link_reunion?: string;
   generar_meet?: boolean;
+  plantilla_id?: string;
   descripcion?: string;
   duracion_minutos?: number;
   activo?: boolean;

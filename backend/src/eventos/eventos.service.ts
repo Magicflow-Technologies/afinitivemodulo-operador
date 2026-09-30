@@ -251,13 +251,16 @@ export class EventosService implements OnModuleInit {
   async updateEvent(id: string, data: Partial<EventoData>): Promise<any> {
     if (!this.supabase) throw new BadRequestException('Supabase no disponible');
 
-    const updatePayload: any = { ...data };
-    delete updatePayload.id;
-    delete updatePayload.created_at;
-
-    if (updatePayload.duracion_minutos) {
-      updatePayload.duracion_minutos = Number(updatePayload.duracion_minutos);
-    }
+    const updatePayload: any = {};
+    if (data.nombre !== undefined) updatePayload.nombre = typeof data.nombre === 'string' ? data.nombre.trim() : data.nombre;
+    if (data.tipo !== undefined) updatePayload.tipo = data.tipo;
+    if (data.fecha_inicio !== undefined) updatePayload.fecha_inicio = data.fecha_inicio;
+    if (data.link_reunion !== undefined) updatePayload.link_reunion = data.link_reunion;
+    if (data.descripcion !== undefined) updatePayload.descripcion = data.descripcion;
+    if (data.duracion_minutos !== undefined) updatePayload.duracion_minutos = Number(data.duracion_minutos) || 60;
+    if (data.activo !== undefined) updatePayload.activo = data.activo;
+    if (data.imagen_url !== undefined) updatePayload.imagen_url = data.imagen_url;
+    if (data.plantilla_id !== undefined) updatePayload.plantilla_id = data.plantilla_id;
 
     let { data: updated, error } = await this.supabase
       .from('eventos')
@@ -266,7 +269,8 @@ export class EventosService implements OnModuleInit {
       .select()
       .single();
 
-    if (error && (error.message?.includes('imagen_url') || error.message?.includes('plantilla_id') || error.code === 'PGRST204')) {
+    if (error) {
+      this.logger.warn(`Primer intento de update falló (${error.message}), reintentando con fallback de columnas...`);
       const imgUrl = updatePayload.imagen_url;
       const plantId = updatePayload.plantilla_id;
       delete updatePayload.imagen_url;
@@ -291,8 +295,8 @@ export class EventosService implements OnModuleInit {
       error = retry.error;
     }
 
-
     if (error) {
+      this.logger.error(`Error final al actualizar evento: ${error.message}`);
       throw new BadRequestException(`No se pudo actualizar el evento: ${error.message}`);
     }
 
