@@ -90,7 +90,7 @@ export class EmailTrackingService {
     const supabaseUrl = this.configService.get<string>('SUPABASE_URL');
     const supabaseKey = this.configService.get<string>('SUPABASE_SERVICE_ROLE_KEY') || this.configService.get<string>('SUPABASE_ANON_KEY');
     const resendApiKey = this.configService.get<string>('RESEND_API_KEY');
-    this.senderEmail = this.configService.get<string>('RESEND_SENDER_EMAIL') || 'onboarding@resend.dev';
+    this.senderEmail = this.configService.get<string>('RESEND_SENDER_EMAIL') || 'rbertalmio@afinitive.com.pe';
 
     if (!supabaseUrl || !supabaseKey) {
       this.logger.error('Falta la configuración de Supabase (SUPABASE_URL o SUPABASE_SERVICE_ROLE_KEY/SUPABASE_ANON_KEY).');

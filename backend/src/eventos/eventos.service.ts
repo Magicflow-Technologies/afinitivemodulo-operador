@@ -49,7 +49,7 @@ export class EventosService implements OnModuleInit {
       this.configService.get<string>('SUPABASE_ANON_KEY');
     const resendApiKey = this.configService.get<string>('RESEND_API_KEY');
     this.senderEmail =
-      this.configService.get<string>('RESEND_SENDER_EMAIL') || 'onboarding@resend.dev';
+      this.configService.get<string>('RESEND_SENDER_EMAIL') || 'rbertalmio@afinitive.com.pe';
 
     if (supabaseUrl && supabaseKey) {
       this.supabase = createClient(supabaseUrl, supabaseKey, {

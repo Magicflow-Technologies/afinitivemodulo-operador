@@ -990,7 +990,7 @@ export class AgentService implements OnModuleInit {
     // 3. Si enviar_ahora es true, realizar el envío
     if (dto.enviar_ahora && totalDestinatarios > 0) {
       const canal = dto.canal || 'email';
-      const senderEmail = this.configService.get<string>('RESEND_SENDER_EMAIL') || 'onboarding@resend.dev';
+      const senderEmail = this.configService.get<string>('RESEND_SENDER_EMAIL') || 'rbertalmio@afinitive.com.pe';
       const emailSubject = dto.asunto_email || dto.titulo_evento;
 
       for (const dest of destinatarios) {
@@ -1199,7 +1199,7 @@ export class AgentService implements OnModuleInit {
                 `;
 
                 await this.resend.emails.send({
-                  from: `Ricardo Bertalmio - Afinitive <${process.env.RESEND_SENDER_EMAIL || 'onboarding@resend.dev'}>`,
+                  from: `Ricardo Bertalmio - Afinitive <${this.configService.get<string>('RESEND_SENDER_EMAIL') || process.env.RESEND_SENDER_EMAIL || 'rbertalmio@afinitive.com.pe'}>`,
                   to: [ast.correo],
                   subject: asunto,
                   html: htmlContent,
