@@ -1398,36 +1398,51 @@ export class EventosService implements OnModuleInit {
     // Paso 1: Enviar al Webhook de la IA y esperar OK
     const webhookResult = await this.enviarWebhookIA(webhookPayload);
     if (!webhookResult.success) {
-      this.logger.warn(`[Automatización] Falló webhook IA para ${asistente.correo}: ${webhookResult.error}`);
+      const errorMsg = `❌ Falló Comunicación con Agente IA: ${webhookResult.error || 'No respondió'} | Correo: No enviado`;
+      this.logger.warn(`[Automatización] ${errorMsg} para ${asistente.correo}`);
+
+      await this.supabase
+        .from('asistentes_evento')
+        .update({
+          estado: 'en_proceso',
+          fecha_atencion: new Date().toISOString(),
+          notas: errorMsg,
+        })
+        .eq('id', asistenteId);
+
       return {
         success: false,
-        error: `Error en Webhook IA: ${webhookResult.error}`,
+        error: errorMsg,
       };
     }
 
     // Paso 2: Enviar Correo con Plantilla Vinculada
     const emailResult = await this.enviarCorreoConPlantilla(asistente, evento);
     if (!emailResult.success) {
-      this.logger.warn(`[Automatización] Falló envío de correo para ${asistente.correo}: ${emailResult.error}`);
-      // Registrar el intento fallido en las notas pero mantener el estado 'pendiente' para reintento automático
+      const errorMsg = `⚠️ Agente IA / WhatsApp OK ✓ | ❌ Falló Envío de Correo: ${emailResult.error || 'Error desconocido'}`;
+      this.logger.warn(`[Automatización] ${errorMsg} para ${asistente.correo}`);
+
       await this.supabase
         .from('asistentes_evento')
         .update({
-          notas: `Pendiente de reintento: Webhook IA OK ✓ | Correo falló: ${emailResult.error}`,
+          estado: 'en_proceso',
+          fecha_atencion: new Date().toISOString(),
+          notas: errorMsg,
         })
         .eq('id', asistenteId);
 
       return {
         success: false,
-        error: `Webhook IA enviado, pero el correo falló (${emailResult.error}). Permanece en cola para reintento.`,
+        error: errorMsg,
       };
     }
 
     // Paso 3: Ambos confirmados exitosos -> Cambiar estado a 'en_proceso'
+    const successMsg = `✅ Automatización OK: Agente IA / WhatsApp OK ✓ + Correo (${evento.plantilla_id || 'estándar'}) enviado ✓`;
     const updatePayload = {
       estado: 'en_proceso',
       fecha_atencion: new Date().toISOString(),
-      notas: `Automatización OK: Webhook IA enviado ✓ + Correo (${evento.plantilla_id || 'estándar'}) enviado ✓`,
+      notas: successMsg,
     };
 
     await this.supabase

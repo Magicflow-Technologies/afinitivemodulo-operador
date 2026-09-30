@@ -2133,8 +2133,39 @@ export default function EventManagerTab({ onUseAsCampaign }: EventManagerTabProp
                               </span>
                             </div>
 
+                            {/* Espacio de Diagnóstico de Error y Estado */}
+                            {a.notas && (
+                              <div className={`mt-1.5 text-[10.5px] leading-snug p-2 rounded-xl border max-w-[280px] shadow-2xs ${
+                                a.notas.includes('❌') || a.notas.toLowerCase().includes('falló') || a.notas.toLowerCase().includes('error')
+                                  ? 'bg-rose-50 border-rose-300/80 text-rose-950 font-medium'
+                                  : a.notas.includes('⚠️')
+                                  ? 'bg-amber-50 border-amber-300/80 text-amber-950 font-medium'
+                                  : 'bg-emerald-50/70 border-emerald-200/80 text-emerald-950 font-medium'
+                              }`}>
+                                <div className="flex items-start gap-1.5">
+                                  {a.notas.includes('❌') ? (
+                                    <AlertCircle className="w-3.5 h-3.5 text-rose-600 shrink-0 mt-0.5" />
+                                  ) : a.notas.includes('⚠️') ? (
+                                    <AlertTriangle className="w-3.5 h-3.5 text-amber-600 shrink-0 mt-0.5" />
+                                  ) : (
+                                    <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0 mt-0.5" />
+                                  )}
+                                  <div className="flex-1">
+                                    <span className="block text-[9.5px] uppercase font-bold tracking-wider mb-0.5 opacity-75">
+                                      {a.notas.includes('❌') 
+                                        ? '⚠️ Diagnóstico de Fallo:' 
+                                        : a.notas.includes('⚠️') 
+                                        ? 'Parcial:' 
+                                        : 'Automatización:'}
+                                    </span>
+                                    <span className="break-words">{a.notas}</span>
+                                  </div>
+                                </div>
+                              </div>
+                            )}
+
                             {a.fecha_atencion && (
-                              <span className="block text-[9px] text-slate-400 mt-0.5 font-mono">
+                              <span className="block text-[9px] text-slate-400 mt-1 font-mono">
                                 Atendido: {new Date(a.fecha_atencion).toLocaleDateString('es-PE', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}
                               </span>
                             )}
@@ -2246,22 +2277,40 @@ export default function EventManagerTab({ onUseAsCampaign }: EventManagerTabProp
                           {/* Agendar & Acciones */}
                           <td className="py-3.5 px-4 text-center">
                             <div className="flex items-center justify-center gap-1.5 flex-wrap">
-                              {(!a.estado || a.estado === 'pendiente') && (
-                                <button
-                                  type="button"
-                                  onClick={() => handleProcessIndividual(a)}
-                                  disabled={processingAstId === a.id}
-                                  className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-amber-50 hover:bg-amber-600 text-amber-900 hover:text-white border border-amber-300 hover:border-amber-600 text-xs font-bold transition-all shadow-2xs cursor-pointer active:scale-95 group"
-                                  title="Procesar ahora: Enviar Webhook IA y Correo con plantilla vinculada"
-                                >
-                                  {processingAstId === a.id ? (
-                                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                                  ) : (
-                                    <Zap className="w-3.5 h-3.5 text-amber-700 group-hover:text-white" />
-                                  )}
-                                  <span>{processingAstId === a.id ? 'Enviando...' : 'IA + Correo'}</span>
-                                </button>
-                              )}
+                              {/* Botón Inteligente IA + Correo / Reintentar */}
+                              <button
+                                type="button"
+                                onClick={() => handleProcessIndividual(a)}
+                                disabled={processingAstId === a.id}
+                                className={`inline-flex items-center gap-1 px-2.5 py-1.5 rounded-xl text-xs font-bold transition-all shadow-2xs cursor-pointer active:scale-95 group ${
+                                  a.notas && (a.notas.includes('❌') || a.notas.includes('⚠️'))
+                                    ? 'bg-rose-50 hover:bg-rose-600 text-rose-900 hover:text-white border border-rose-300 hover:border-rose-600'
+                                    : (!a.estado || a.estado === 'pendiente')
+                                    ? 'bg-amber-50 hover:bg-amber-600 text-amber-900 hover:text-white border border-amber-300 hover:border-amber-600'
+                                    : 'bg-slate-50 hover:bg-slate-700 text-slate-700 hover:text-white border border-slate-200 hover:border-slate-700'
+                                }`}
+                                title={
+                                  a.notas && (a.notas.includes('❌') || a.notas.includes('⚠️'))
+                                    ? 'Reintentar despacho al Webhook IA y envío de correo'
+                                    : 'Procesar ahora: Enviar Webhook IA y Correo con plantilla vinculada'
+                                }
+                              >
+                                {processingAstId === a.id ? (
+                                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                                ) : a.notas && (a.notas.includes('❌') || a.notas.includes('⚠️')) ? (
+                                  <RefreshCw className="w-3.5 h-3.5 text-rose-700 group-hover:text-white" />
+                                ) : (
+                                  <Zap className="w-3.5 h-3.5 text-amber-700 group-hover:text-white" />
+                                )}
+                                <span>
+                                  {processingAstId === a.id 
+                                    ? 'Enviando...' 
+                                    : a.notas && (a.notas.includes('❌') || a.notas.includes('⚠️'))
+                                    ? 'Reintentar Envío'
+                                    : 'IA + Correo'}
+                                </span>
+                              </button>
+
                               <button
                                 type="button"
                                 onClick={() => handleOpenScheduleModal(a)}
@@ -4191,6 +4240,7 @@ export default function EventManagerTab({ onUseAsCampaign }: EventManagerTabProp
                       <th className="py-2.5 px-3">País</th>
                       <th className="py-2.5 px-3">Interés</th>
                       <th className="py-2.5 px-3">Fecha</th>
+                      <th className="py-2.5 px-3 text-center">Acciones</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100">
@@ -4236,6 +4286,19 @@ export default function EventManagerTab({ onUseAsCampaign }: EventManagerTabProp
                                 <option value="en_proceso">🔵 En Proceso</option>
                                 <option value="no_responde">⚪ Descartado</option>
                               </select>
+
+                              {/* Espacio de Diagnóstico de Error y Estado */}
+                              {a.notas && (
+                                <div className={`mt-1.5 text-[10px] leading-snug p-1.5 rounded-lg border max-w-[200px] shadow-2xs ${
+                                  a.notas.includes('❌') || a.notas.toLowerCase().includes('falló') || a.notas.toLowerCase().includes('error')
+                                    ? 'bg-rose-50 border-rose-300 text-rose-950 font-medium'
+                                    : a.notas.includes('⚠️')
+                                    ? 'bg-amber-50 border-amber-300 text-amber-950 font-medium'
+                                    : 'bg-emerald-50/70 border-emerald-200 text-emerald-950'
+                                }`}>
+                                  <span className="break-words">{a.notas}</span>
+                                </div>
+                              )}
                             </td>
 
                             <td className="py-3 px-3 font-semibold text-slate-900">
@@ -4271,6 +4334,36 @@ export default function EventManagerTab({ onUseAsCampaign }: EventManagerTabProp
                             </td>
                             <td className="py-3 px-3 text-slate-500 font-mono text-[11px]">
                               {formattedCreatedAt}
+                            </td>
+                            <td className="py-3 px-3 text-center">
+                              <button
+                                type="button"
+                                onClick={() => handleProcessIndividual(a)}
+                                disabled={processingAstId === a.id}
+                                className={`inline-flex items-center gap-1 px-2 py-1 rounded-lg text-[11px] font-bold transition-all shadow-2xs cursor-pointer active:scale-95 ${
+                                  a.notas && (a.notas.includes('❌') || a.notas.includes('⚠️'))
+                                    ? 'bg-rose-50 hover:bg-rose-600 text-rose-900 hover:text-white border border-rose-300'
+                                    : (!a.estado || a.estado === 'pendiente')
+                                    ? 'bg-amber-50 hover:bg-amber-600 text-amber-900 hover:text-white border border-amber-300'
+                                    : 'bg-slate-50 hover:bg-slate-700 text-slate-700 hover:text-white border border-slate-200'
+                                }`}
+                                title="Procesar / Reintentar envío"
+                              >
+                                {processingAstId === a.id ? (
+                                  <Loader2 className="w-3 h-3 animate-spin" />
+                                ) : a.notas && (a.notas.includes('❌') || a.notas.includes('⚠️')) ? (
+                                  <RefreshCw className="w-3 h-3 text-rose-700" />
+                                ) : (
+                                  <Zap className="w-3 h-3 text-amber-700" />
+                                )}
+                                <span>
+                                  {processingAstId === a.id 
+                                    ? 'Enviando...' 
+                                    : a.notas && (a.notas.includes('❌') || a.notas.includes('⚠️'))
+                                    ? 'Reintentar'
+                                    : 'IA + Correo'}
+                                </span>
+                              </button>
                             </td>
                           </tr>
                         );

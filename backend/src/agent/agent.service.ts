@@ -1228,6 +1228,17 @@ export class AgentService implements OnModuleInit {
           } catch (sendErr: any) {
             this.logger.warn(`Error enviando recordatorio a ${ast.correo || ast.nombre}: ${sendErr.message}`);
             errores.push({ id: ast.id, nombre: ast.nombre, error: sendErr.message });
+            try {
+              await this.supabase
+                .from('asistentes_evento')
+                .update({
+                  estado: 'en_proceso',
+                  recordatorio_estado: 'en_proceso',
+                  fecha_atencion: new Date().toISOString(),
+                  notas: `❌ Falló Envío de Recordatorio: ${sendErr.message || 'Error de envío'}`
+                })
+                .eq('id', ast.id);
+            } catch {}
           }
         }
       }
