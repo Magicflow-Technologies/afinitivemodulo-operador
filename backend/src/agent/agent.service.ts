@@ -39,19 +39,19 @@ export class AgentService implements OnModuleInit {
     const supabaseUrl =
       this.configService.get<string>('SUPABASE_URL') ||
       process.env.SUPABASE_URL ||
-      'https://yomubswawogemujvcmem.supabase.co';
+      'https://mqsupabase.dashbportal.com';
     const supabaseKey =
-      this.configService.get<string>('SUPABASE_ANON_KEY') ||
       this.configService.get<string>('SUPABASE_SERVICE_ROLE_KEY') ||
-      process.env.SUPABASE_ANON_KEY ||
+      this.configService.get<string>('SUPABASE_ANON_KEY') ||
       process.env.SUPABASE_SERVICE_ROLE_KEY ||
+      process.env.SUPABASE_ANON_KEY ||
       '';
 
     if (supabaseUrl && supabaseKey) {
       this.supabase = createClient(supabaseUrl, supabaseKey, {
         db: { schema: 'afinitivebd' },
       });
-      this.logger.log('AgentService: Supabase inicializado');
+      this.logger.log('AgentService: Supabase inicializado con SERVICE_ROLE_KEY');
     }
 
     const resendApiKey =
@@ -451,19 +451,16 @@ export class AgentService implements OnModuleInit {
       const { hoy, semana, mes } = this.getLimaDateBoundaries();
 
       // 1. Consultas simultáneas a la tabla oficial afinitivebd.asistentes_evento
-      const [totalRes, hoyRes, semanaRes, mesRes, allRowsRes, ultimosRes] = await Promise.all([
-        this.supabase.from('asistentes_evento').select('*', { count: 'exact', head: true }),
-        this.supabase.from('asistentes_evento').select('*', { count: 'exact', head: true }).gte('created_at', hoy),
-        this.supabase.from('asistentes_evento').select('*', { count: 'exact', head: true }).gte('created_at', semana),
-        this.supabase.from('asistentes_evento').select('*', { count: 'exact', head: true }).gte('created_at', mes),
-        this.supabase.from('asistentes_evento').select('estado, evento_id, persona_contacto'),
+      const [allRowsRes, ultimosRes] = await Promise.all([
+        this.supabase.from('asistentes_evento').select('id, created_at, estado, evento_id, persona_contacto'),
         this.supabase.from('asistentes_evento').select('*').order('created_at', { ascending: false }).limit(10),
       ]);
 
-      const totalRegistrados = totalRes.count || 0;
-      const registradosHoy = hoyRes.count || 0;
-      const registradosEstaSemana = semanaRes.count || 0;
-      const registradosEsteMes = mesRes.count || 0;
+      const allRows = allRowsRes.data || [];
+      const totalRegistrados = allRows.length;
+      const registradosHoy = allRows.filter((r: any) => r.created_at && new Date(r.created_at) >= new Date(hoy)).length;
+      const registradosEstaSemana = allRows.filter((r: any) => r.created_at && new Date(r.created_at) >= new Date(semana)).length;
+      const registradosEsteMes = allRows.filter((r: any) => r.created_at && new Date(r.created_at) >= new Date(mes)).length;
 
       // 2. Desglose por Estado
       const porEstado: Record<string, number> = {
