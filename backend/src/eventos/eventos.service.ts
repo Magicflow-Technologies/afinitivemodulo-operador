@@ -1126,6 +1126,94 @@ export class EventosService implements OnModuleInit {
     }
   }
 
+  // Método auxiliar para obtener fecha, hora y Zoom link exactos sin fallback a 'por coordinar'
+  private async obtenerFechaHoraYZoomEvento(evento: any): Promise<{
+    fechaFormateada: string;
+    horaFormateada: string;
+    zoomLink: string;
+  }> {
+    let zoomLink = (evento?.link_reunion || '').trim();
+    if (!zoomLink || zoomLink.toLowerCase().includes('google meet (generación automática)')) {
+      zoomLink = 'https://us06web.zoom.us/j/89341125166?pwd=xU1Mcw6TygLry6yu0VToxpXD4KL3H0.1';
+    }
+
+    let targetDate: Date | null = null;
+    if (evento?.fecha_inicio) {
+      try {
+        const d = new Date(evento.fecha_inicio);
+        if (!isNaN(d.getTime())) {
+          targetDate = d;
+        }
+      } catch {}
+    }
+
+    // Si el evento no tiene fecha_inicio (ej. formularios de TikTok / bio link), buscar evento con fecha en Supabase
+    if (!targetDate && this.supabase) {
+      try {
+        const { data: proximoEvento } = await this.supabase
+          .from('eventos')
+          .select('fecha_inicio, link_reunion')
+          .not('fecha_inicio', 'is', null)
+          .eq('activo', true)
+          .order('fecha_inicio', { ascending: true })
+          .limit(1)
+          .maybeSingle();
+
+        if (proximoEvento?.fecha_inicio) {
+          const d = new Date(proximoEvento.fecha_inicio);
+          if (!isNaN(d.getTime())) {
+            targetDate = d;
+            if ((!evento?.link_reunion || evento.link_reunion.includes('Google Meet')) && proximoEvento.link_reunion) {
+              zoomLink = proximoEvento.link_reunion;
+            }
+          }
+        }
+      } catch {}
+    }
+
+    // Si aún no hay targetDate, calcular el próximo jueves a las 7:30 PM (19:30) en hora Lima
+    if (!targetDate) {
+      const now = new Date();
+      const currentDay = now.getDay(); // 0: dom, 4: jue
+      let daysUntilThursday = (4 - currentDay + 7) % 7;
+      if (daysUntilThursday === 0 && now.getHours() >= 20) {
+        daysUntilThursday = 7;
+      }
+      targetDate = new Date(now.getTime() + daysUntilThursday * 24 * 60 * 60 * 1000);
+      targetDate.setHours(19, 30, 0, 0);
+    }
+
+    let fechaFormateada = 'Jueves 1 de Octubre';
+    let horaFormateada = '7:30 PM';
+
+    try {
+      const diaSemana = targetDate.toLocaleDateString('es-PE', { weekday: 'long', timeZone: 'America/Lima' });
+      const diaNum = targetDate.toLocaleDateString('es-PE', { day: 'numeric', timeZone: 'America/Lima' });
+      const mesNombre = targetDate.toLocaleDateString('es-PE', { month: 'long', timeZone: 'America/Lima' });
+      
+      const diaCap = diaSemana.charAt(0).toUpperCase() + diaSemana.slice(1);
+      const mesCap = mesNombre.charAt(0).toUpperCase() + mesNombre.slice(1);
+      
+      fechaFormateada = `${diaCap} ${diaNum} de ${mesCap}`;
+
+      horaFormateada = targetDate.toLocaleTimeString('es-PE', {
+        hour: 'numeric',
+        minute: '2-digit',
+        hour12: true,
+        timeZone: 'America/Lima',
+      }).toUpperCase();
+    } catch {
+      fechaFormateada = 'Jueves 1 de Octubre';
+      horaFormateada = '7:30 PM';
+    }
+
+    return {
+      fechaFormateada,
+      horaFormateada,
+      zoomLink,
+    };
+  }
+
   // 2. Envío de Correo Electrónico usando la Plantilla Vinculada
   async enviarCorreoConPlantilla(asistente: any, evento: any): Promise<{ success: boolean; data?: any; error?: string }> {
     if (!this.resend) {
@@ -1134,29 +1222,8 @@ export class EventosService implements OnModuleInit {
 
     const cleanName = (asistente.nombre || 'Estimado(a)').trim();
     const firstName = cleanName.split(' ')[0] || cleanName;
-    const zoomLink = (evento.link_reunion || '').trim();
 
-    let fechaFormatted = 'Fecha por coordinar';
-    let horaFormatted = 'Por coordinar';
-
-    if (evento.fecha_inicio) {
-      try {
-        const d = new Date(evento.fecha_inicio);
-        fechaFormatted = d.toLocaleDateString('es-PE', {
-          weekday: 'long',
-          year: 'numeric',
-          month: 'long',
-          day: 'numeric',
-          timeZone: 'America/Lima',
-        });
-        horaFormatted = d.toLocaleTimeString('es-PE', {
-          hour: '2-digit',
-          minute: '2-digit',
-          hour12: true,
-          timeZone: 'America/Lima',
-        });
-      } catch {}
-    }
+    const { fechaFormateada, horaFormateada, zoomLink } = await this.obtenerFechaHoraYZoomEvento(evento);
 
     const backendBaseUrl = (this.configService.get<string>('BACKEND_PUBLIC_URL') || process.env.BACKEND_PUBLIC_URL || 'https://links.afinitive.com.pe').replace(/\/+$/, '');
 
@@ -1164,26 +1231,26 @@ export class EventosService implements OnModuleInit {
       recipientEmail: asistente.correo,
       recipientName: cleanName,
       recipientPhone: asistente.celular || '',
-      proposedTime: evento.fecha_inicio,
+      proposedTime: evento?.fecha_inicio,
       backendBaseUrl,
       customParams: {
-        evento: evento.nombre || 'Evento Afinitive',
-        evento_nombre: evento.nombre || 'Evento Afinitive',
+        evento: evento?.nombre || 'Evento Afinitive',
+        evento_nombre: evento?.nombre || 'Evento Afinitive',
         link_zoom: zoomLink,
         link_reunion: zoomLink,
         zoom_url: zoomLink,
-        fecha: fechaFormatted,
-        hora: horaFormatted,
+        fecha: fechaFormateada,
+        hora: horaFormateada,
         celular: asistente.celular || '',
         telefono: asistente.celular || '',
         correo: asistente.correo,
       },
     };
 
-    let renderedSubject = `Confirmación y Acceso: ${evento.nombre || 'Evento Afinitive'}`;
+    let renderedSubject = `Confirmación y Acceso: ${evento?.nombre || 'Evento Afinitive'}`;
     let renderedHtml = '';
 
-    const plantillaId = evento.plantilla_id;
+    const plantillaId = evento?.plantilla_id;
 
     if (plantillaId) {
       try {
@@ -1205,7 +1272,7 @@ export class EventosService implements OnModuleInit {
           <div style="margin-bottom: 24px; text-align: center;">
             <img src="https://links.afinitive.com.pe/img/afinitive_logo.png" alt="Afinitive" width="140" style="display: inline-block; margin-bottom: 8px;">
             <h2 style="color: #0f172a; margin: 8px 0 4px 0; font-size: 20px;">¡Confirmación de Registro!</h2>
-            <p style="color: #64748b; font-size: 14px; margin: 0;">${evento.nombre}</p>
+            <p style="color: #64748b; font-size: 14px; margin: 0;">${evento?.nombre || 'Masterclass Afinitive'}</p>
           </div>
 
           <p style="font-size: 15px; line-height: 1.6;">Hola <strong>${firstName}</strong>,</p>
@@ -1217,11 +1284,11 @@ export class EventosService implements OnModuleInit {
             <table style="width: 100%; font-size: 13px; color: #334155;">
               <tr>
                 <td style="padding: 4px 0; font-weight: bold; width: 110px;">📅 Fecha:</td>
-                <td style="padding: 4px 0;">${fechaFormatted}</td>
+                <td style="padding: 4px 0;">${fechaFormateada}</td>
               </tr>
               <tr>
                 <td style="padding: 4px 0; font-weight: bold;">⏰ Hora:</td>
-                <td style="padding: 4px 0;">${horaFormatted}</td>
+                <td style="padding: 4px 0;">${horaFormateada}</td>
               </tr>
               ${zoomLink ? `
               <tr>
@@ -1305,47 +1372,28 @@ export class EventosService implements OnModuleInit {
     } catch {
       evento = {
         id: asistente.evento_id,
-        nombre: 'Registro General Afinitive',
+        nombre: 'Masterclass Inversiones y Patrimonio',
         tipo: 'lead_form',
         link_reunion: '',
         plantilla_id: '',
       };
     }
 
-    let fechaFormateada = 'Fecha por coordinar';
-    let horaFormateada = 'Por coordinar';
-    if (evento.fecha_inicio) {
-      try {
-        const d = new Date(evento.fecha_inicio);
-        fechaFormateada = d.toLocaleDateString('es-PE', {
-          weekday: 'long',
-          year: 'numeric',
-          month: 'long',
-          day: 'numeric',
-          timeZone: 'America/Lima',
-        });
-        horaFormateada = d.toLocaleTimeString('es-PE', {
-          hour: '2-digit',
-          minute: '2-digit',
-          hour12: true,
-          timeZone: 'America/Lima',
-        });
-      } catch {}
-    }
+    const { fechaFormateada, horaFormateada, zoomLink } = await this.obtenerFechaHoraYZoomEvento(evento);
 
     const webhookPayload = {
       nombre: asistente.nombre,
       telefono: asistente.celular,
       email: asistente.correo,
-      evento: evento.nombre,
+      evento: evento.nombre || 'Masterclass Inversiones',
       fecha: fechaFormateada,
       hora: horaFormateada,
-      link_zoom: evento.link_reunion || '',
+      link_zoom: zoomLink,
       origen: asistente.persona_contacto || (evento.tipo === 'lead_form' ? 'bio_link_tiktok' : 'formulario_web'),
       plantilla_id: evento.plantilla_id || '',
     };
 
-    this.logger.log(`[Automatización] Procesando asistente ${asistente.nombre} (${asistente.correo})...`);
+    this.logger.log(`[Automatización] Procesando asistente ${asistente.nombre} (${asistente.correo}) -> Webhook IA [${fechaFormateada} a las ${horaFormateada}]...`);
 
     // Paso 1: Enviar al Webhook de la IA y esperar OK
     const webhookResult = await this.enviarWebhookIA(webhookPayload);
