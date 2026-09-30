@@ -234,7 +234,7 @@ export const TemplateManagerModal: React.FC<TemplateManagerModalProps> = ({
     const imageBlockHtml = hasImage ? `
       <!-- Flyer / Imagen de Campaña -->
       <tr>
-        <td align="center" style="padding: ${layoutMode === 'image_only' ? '0' : '20px 35px 12px 35px'}; background-color: #FFFFFF; line-height: 0;">
+        <td align="center" style="padding: ${layoutMode === 'image_only' ? '0' : '8px 35px 18px 35px'}; background-color: #FFFFFF; line-height: 0;">
           ${imageClickUrl ? `<a href="${imageClickUrl}" target="_blank" style="text-decoration: none; display: block;">` : ''}
             <img 
               src="${imageUrl}" 
@@ -247,7 +247,7 @@ export const TemplateManagerModal: React.FC<TemplateManagerModalProps> = ({
       </tr>
     ` : '';
 
-    // 3. Texto HTML
+    // 3. Texto HTML (Saludo y Cuerpo del Mensaje)
     const formattedParagraphs = textContent
       .split('\n\n')
       .map(p => `<p style="margin: 0 0 14px 0; line-height: 1.65;">${p.replace(/\n/g, '<br/>')}</p>`)
@@ -355,8 +355,8 @@ export const TemplateManagerModal: React.FC<TemplateManagerModalProps> = ({
   <div style="background-color: ${bgOuter}; padding: 25px 15px; width: 100%; box-sizing: border-box;">
     <table border="0" cellpadding="0" cellspacing="0" width="100%" style="max-width: 600px; margin: 0 auto; background-color: ${bgCard}; border-radius: 10px; overflow: hidden; border: 1px solid ${cardBorder}; box-shadow: 0 4px 14px rgba(0,0,0,0.06);" role="presentation">
       ${headerHtml}
-      ${imageBlockHtml}
       ${textBlockHtml}
+      ${imageBlockHtml}
       ${buttonsHtml}
       ${signatureHtml}
     </table>
@@ -632,11 +632,11 @@ export const TemplateManagerModal: React.FC<TemplateManagerModalProps> = ({
                     }`}
                   >
                     <div className="flex items-center justify-between mb-1.5">
-                      <span className="text-xs font-bold text-slate-100">Encabezado + Imagen + Firma</span>
+                      <span className="text-xs font-bold text-slate-100">Encabezado + Texto + Imagen + Firma</span>
                       {layoutMode === 'header_image_sig' && <Check className="w-4 h-4 text-brand-gold" />}
                     </div>
                     <p className="text-[11px] text-slate-400">
-                      Mantiene el logo superior de Afinitive, incrusta la imagen/flyer y la firma de Ricardo Bertalmio.
+                      Mantiene el logo superior de Afinitive, cuerpo de mensaje, flyer/imagen y la firma de Ricardo Bertalmio.
                     </p>
                   </div>
 
@@ -650,11 +650,11 @@ export const TemplateManagerModal: React.FC<TemplateManagerModalProps> = ({
                     }`}
                   >
                     <div className="flex items-center justify-between mb-1.5">
-                      <span className="text-xs font-bold text-slate-100">Sin Encabezado + Firma</span>
+                      <span className="text-xs font-bold text-slate-100">Texto + Imagen + Firma</span>
                       {layoutMode === 'image_sig' && <Check className="w-4 h-4 text-brand-gold" />}
                     </div>
                     <p className="text-[11px] text-slate-400">
-                      Oculta el logo superior, muestra la imagen/flyer y finaliza con la firma de Ricardo.
+                      Oculta el logo superior, muestra el mensaje, la imagen/flyer y finaliza con la firma de Ricardo.
                     </p>
                   </div>
 
@@ -753,12 +753,33 @@ export const TemplateManagerModal: React.FC<TemplateManagerModalProps> = ({
                     </div>
                   </div>
 
-                  {/* 2. ADJUNTAR IMAGEN (Si el layout lo soporta) */}
+                  {/* 2. REDACTAR TEXTO */}
+                  {layoutMode !== 'image_only' && (
+                    <div className="bg-[#08121D] p-3.5 rounded-xl border border-brand-gold/15 space-y-2">
+                      <div className="flex items-center justify-between">
+                        <label className="text-xs text-brand-gold font-bold uppercase tracking-wider flex items-center gap-2">
+                          <FileText className="w-4 h-4" /> 2. Texto del Mensaje:
+                        </label>
+                        <span className="text-[10px] text-slate-400">
+                          Usa <code className="text-amber-300">{'{{nombre}}'}</code> para personalizar
+                        </span>
+                      </div>
+                      <textarea
+                        rows={4}
+                        placeholder="Estimado/a {{nombre}}:&#10;&#10;Escribe aquí el cuerpo del mensaje..."
+                        value={textContent}
+                        onChange={(e) => setTextContent(e.target.value)}
+                        className="w-full px-3 py-2 bg-[#0D1B2A] border border-brand-gold/20 rounded-lg text-xs text-slate-100 placeholder-slate-600 outline-none focus:border-brand-gold resize-y"
+                      />
+                    </div>
+                  )}
+
+                  {/* 3. ADJUNTAR IMAGEN (Si el layout lo soporta) */}
                   {layoutMode !== 'header_text_sig' && (
                     <div className="bg-[#08121D] p-3.5 rounded-xl border border-brand-gold/15 space-y-3">
                       <div className="flex items-center justify-between">
                         <label className="text-xs text-brand-gold font-bold uppercase tracking-wider flex items-center gap-2">
-                          <ImageIcon className="w-4 h-4" /> 2. Adjuntar Imagen / Flyer:
+                          <ImageIcon className="w-4 h-4" /> 3. Adjuntar Imagen / Flyer:
                         </label>
                         {imageUrl && (
                           <span className="text-[10px] text-emerald-400 font-semibold flex items-center gap-1">
@@ -807,27 +828,6 @@ export const TemplateManagerModal: React.FC<TemplateManagerModalProps> = ({
                           className="w-full px-3 py-1.5 bg-[#0D1B2A] border border-brand-gold/15 rounded-lg text-xs text-slate-300 placeholder-slate-600 outline-none focus:border-brand-gold"
                         />
                       </div>
-                    </div>
-                  )}
-
-                  {/* 3. REDACTAR TEXTO */}
-                  {layoutMode !== 'image_only' && (
-                    <div className="bg-[#08121D] p-3.5 rounded-xl border border-brand-gold/15 space-y-2">
-                      <div className="flex items-center justify-between">
-                        <label className="text-xs text-brand-gold font-bold uppercase tracking-wider flex items-center gap-2">
-                          <FileText className="w-4 h-4" /> 3. Texto del Mensaje:
-                        </label>
-                        <span className="text-[10px] text-slate-400">
-                          Usa <code className="text-amber-300">{'{{nombre}}'}</code> para personalizar
-                        </span>
-                      </div>
-                      <textarea
-                        rows={4}
-                        placeholder="Estimado/a {{nombre}}:&#10;&#10;Escribe aquí el cuerpo del mensaje..."
-                        value={textContent}
-                        onChange={(e) => setTextContent(e.target.value)}
-                        className="w-full px-3 py-2 bg-[#0D1B2A] border border-brand-gold/20 rounded-lg text-xs text-slate-100 placeholder-slate-600 outline-none focus:border-brand-gold resize-y"
-                      />
                     </div>
                   )}
 
