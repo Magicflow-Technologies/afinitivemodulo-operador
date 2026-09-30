@@ -1359,16 +1359,27 @@ export class EventosService implements OnModuleInit {
 
     // Paso 2: Enviar Correo con Plantilla Vinculada
     const emailResult = await this.enviarCorreoConPlantilla(asistente, evento);
-    const emailOk = emailResult.success;
-    const notaCorreo = emailOk
-      ? `Correo (${evento.plantilla_id || 'estándar'}) enviado ✓`
-      : `Correo no enviado (${emailResult.error?.includes('testing emails') ? 'Dominio Resend requiere verificación' : emailResult.error})`;
+    if (!emailResult.success) {
+      this.logger.warn(`[Automatización] Falló envío de correo para ${asistente.correo}: ${emailResult.error}`);
+      // Registrar el intento fallido en las notas pero mantener el estado 'pendiente' para reintento automático
+      await this.supabase
+        .from('asistentes_evento')
+        .update({
+          notas: `Pendiente de reintento: Webhook IA OK ✓ | Correo falló: ${emailResult.error}`,
+        })
+        .eq('id', asistenteId);
 
-    // Paso 3: Actualizar estado a 'en_proceso' / 'atendido'
+      return {
+        success: false,
+        error: `Webhook IA enviado, pero el correo falló (${emailResult.error}). Permanece en cola para reintento.`,
+      };
+    }
+
+    // Paso 3: Ambos confirmados exitosos -> Cambiar estado a 'en_proceso'
     const updatePayload = {
       estado: 'en_proceso',
       fecha_atencion: new Date().toISOString(),
-      notas: `Automatización OK: Webhook IA enviado ✓ | ${notaCorreo}`,
+      notas: `Automatización OK: Webhook IA enviado ✓ + Correo (${evento.plantilla_id || 'estándar'}) enviado ✓`,
     };
 
     await this.supabase
