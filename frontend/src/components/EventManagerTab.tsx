@@ -115,6 +115,7 @@ export default function EventManagerTab({ onUseAsCampaign }: EventManagerTabProp
   const [cadenceFilter, setCadenceFilter] = useState<'todos' | 'urgente_dia2' | 'negociacion_dia5' | 'reactivacion_dia15'>('todos');
   const [trendDaysRange, setTrendDaysRange] = useState<7 | 14 | 30>(14);
   const [updatingStatusId, setUpdatingStatusId] = useState<string | null>(null);
+  const [expandedErrorAstId, setExpandedErrorAstId] = useState<string | null>(null);
 
   // Modals state
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
@@ -705,24 +706,40 @@ export default function EventManagerTab({ onUseAsCampaign }: EventManagerTabProp
     setTimeout(() => setCopiedWspId(null), 2500);
   };
 
-  const handleUpdateAttendeeStatus = async (attendeeId: string, newStatus: string) => {
+  const handleUpdateAttendeeStatus = async (attendeeId: string, newStatus: string, customNotas?: string) => {
     setUpdatingStatusId(attendeeId);
 
     // Optimistic UI update
     const nowIso = new Date().toISOString();
+    const updatedNotas = customNotas !== undefined ? customNotas : (newStatus === 'atendido' ? '' : undefined);
+
     setAllAttendees(prev =>
-      prev.map(a => (a.id === attendeeId ? { ...a, estado: newStatus, fecha_atencion: nowIso } : a))
+      prev.map(a => (a.id === attendeeId ? { 
+        ...a, 
+        estado: newStatus, 
+        fecha_atencion: nowIso,
+        ...(updatedNotas !== undefined ? { notas: updatedNotas } : {})
+      } : a))
     );
     setAttendeesList(prev =>
-      prev.map(a => (a.id === attendeeId ? { ...a, estado: newStatus, fecha_atencion: nowIso } : a))
+      prev.map(a => (a.id === attendeeId ? { 
+        ...a, 
+        estado: newStatus, 
+        fecha_atencion: nowIso,
+        ...(updatedNotas !== undefined ? { notas: updatedNotas } : {})
+      } : a))
     );
 
     try {
       if (backendUrl) {
+        const bodyPayload: any = { estado: newStatus };
+        if (updatedNotas !== undefined) {
+          bodyPayload.notas = updatedNotas;
+        }
         await fetch(`${backendUrl}/api/eventos/asistentes/${attendeeId}/estado`, {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ estado: newStatus }),
+          body: JSON.stringify(bodyPayload),
         });
       }
 
@@ -738,6 +755,29 @@ export default function EventManagerTab({ onUseAsCampaign }: EventManagerTabProp
       showToast('Se actualizó localmente', 'info');
     } finally {
       setUpdatingStatusId(null);
+    }
+  };
+
+  const handleClearAttendeeError = async (attendeeId: string) => {
+    setAllAttendees(prev =>
+      prev.map(a => (a.id === attendeeId ? { ...a, notas: '' } : a))
+    );
+    setAttendeesList(prev =>
+      prev.map(a => (a.id === attendeeId ? { ...a, notas: '' } : a))
+    );
+    setExpandedErrorAstId(null);
+
+    try {
+      if (backendUrl) {
+        await fetch(`${backendUrl}/api/eventos/asistentes/${attendeeId}/estado`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ notas: '' }),
+        });
+      }
+      showToast('Mensaje de error eliminado correctamente', 'success');
+    } catch (err) {
+      console.error('Error al limpiar notas:', err);
     }
   };
 
@@ -2133,34 +2173,89 @@ export default function EventManagerTab({ onUseAsCampaign }: EventManagerTabProp
                               </span>
                             </div>
 
-                            {/* Espacio de Diagnóstico de Error y Estado */}
+                            {/* Espacio Discreto de Diagnóstico con Punto Rojo / Popover Desplegable */}
                             {a.notas && (
-                              <div className={`mt-1.5 text-[10.5px] leading-snug p-2 rounded-xl border max-w-[280px] shadow-2xs ${
-                                a.notas.includes('❌') || a.notas.toLowerCase().includes('falló') || a.notas.toLowerCase().includes('error')
-                                  ? 'bg-rose-50 border-rose-300/80 text-rose-950 font-medium'
-                                  : a.notas.includes('⚠️')
-                                  ? 'bg-amber-50 border-amber-300/80 text-amber-950 font-medium'
-                                  : 'bg-emerald-50/70 border-emerald-200/80 text-emerald-950 font-medium'
-                              }`}>
-                                <div className="flex items-start gap-1.5">
-                                  {a.notas.includes('❌') ? (
-                                    <AlertCircle className="w-3.5 h-3.5 text-rose-600 shrink-0 mt-0.5" />
-                                  ) : a.notas.includes('⚠️') ? (
-                                    <AlertTriangle className="w-3.5 h-3.5 text-amber-600 shrink-0 mt-0.5" />
-                                  ) : (
-                                    <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0 mt-0.5" />
-                                  )}
-                                  <div className="flex-1">
-                                    <span className="block text-[9.5px] uppercase font-bold tracking-wider mb-0.5 opacity-75">
-                                      {a.notas.includes('❌') 
-                                        ? '⚠️ Diagnóstico de Fallo:' 
-                                        : a.notas.includes('⚠️') 
-                                        ? 'Parcial:' 
-                                        : 'Automatización:'}
-                                    </span>
-                                    <span className="break-words">{a.notas}</span>
+                              <div className="relative mt-1.5 inline-block">
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setExpandedErrorAstId(expandedErrorAstId === a.id ? null : a.id);
+                                  }}
+                                  className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10.5px] font-bold border transition-all cursor-pointer shadow-2xs active:scale-95 ${
+                                    a.notas.includes('❌') || a.notas.toLowerCase().includes('falló') || a.notas.toLowerCase().includes('error')
+                                      ? 'bg-rose-50 hover:bg-rose-100 text-rose-700 border-rose-300'
+                                      : a.notas.includes('⚠️')
+                                      ? 'bg-amber-50 hover:bg-amber-100 text-amber-800 border-amber-300'
+                                      : 'bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border-emerald-300'
+                                  }`}
+                                  title="Clic para ver detalle del error / quitar aviso"
+                                >
+                                  <span className={`w-2 h-2 rounded-full ${
+                                    a.notas.includes('❌') || a.notas.toLowerCase().includes('falló') || a.notas.toLowerCase().includes('error')
+                                      ? 'bg-rose-500 animate-pulse'
+                                      : a.notas.includes('⚠️')
+                                      ? 'bg-amber-500'
+                                      : 'bg-emerald-500'
+                                  }`}></span>
+                                  <span>
+                                    {a.notas.includes('❌') || a.notas.toLowerCase().includes('falló') || a.notas.toLowerCase().includes('error')
+                                      ? '🔴 Ver Error'
+                                      : a.notas.includes('⚠️')
+                                      ? '⚠️ Ver Aviso'
+                                      : '✓ Ver Info'}
+                                  </span>
+                                </button>
+
+                                {/* Popover Flotante de Diagnóstico */}
+                                {expandedErrorAstId === a.id && (
+                                  <div 
+                                    onClick={(e) => e.stopPropagation()}
+                                    className="absolute left-0 top-full mt-2 z-50 bg-white border border-slate-300 rounded-2xl p-4 shadow-2xl w-80 text-slate-800 animate-in fade-in zoom-in-95"
+                                  >
+                                    <div className="flex items-center justify-between gap-2 border-b border-slate-100 pb-2.5 mb-2.5">
+                                      <div className="flex items-center gap-1.5 text-rose-700 font-bold text-xs">
+                                        <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
+                                        <span>Diagnóstico del Sistema</span>
+                                      </div>
+                                      <button
+                                        type="button"
+                                        onClick={() => setExpandedErrorAstId(null)}
+                                        className="text-slate-400 hover:text-slate-700 p-1 rounded-lg hover:bg-slate-100 cursor-pointer"
+                                      >
+                                        <X className="w-3.5 h-3.5" />
+                                      </button>
+                                    </div>
+
+                                    <div className="text-[11px] text-slate-700 leading-relaxed bg-slate-50 p-2.5 rounded-xl border border-slate-200 font-mono break-words max-h-48 overflow-y-auto mb-3.5">
+                                      {a.notas}
+                                    </div>
+
+                                    <div className="flex items-center justify-between gap-2 pt-1 border-t border-slate-100">
+                                      <button
+                                        type="button"
+                                        onClick={() => handleClearAttendeeError(a.id)}
+                                        className="px-2.5 py-1.5 rounded-xl bg-slate-100 hover:bg-rose-50 text-slate-600 hover:text-rose-700 border border-slate-200 hover:border-rose-300 text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer"
+                                        title="Borra esta advertencia permanentemente"
+                                      >
+                                        <Trash2 className="w-3.5 h-3.5 text-slate-400" />
+                                        <span>Quitar este error</span>
+                                      </button>
+
+                                      <button
+                                        type="button"
+                                        onClick={() => {
+                                          handleProcessIndividual(a);
+                                          setExpandedErrorAstId(null);
+                                        }}
+                                        className="px-3 py-1.5 rounded-xl bg-amber-500 hover:bg-amber-600 text-slate-950 text-xs font-bold transition-all flex items-center gap-1.5 shadow-xs cursor-pointer"
+                                      >
+                                        <RefreshCw className="w-3.5 h-3.5" />
+                                        <span>Reintentar</span>
+                                      </button>
+                                    </div>
                                   </div>
-                                </div>
+                                )}
                               </div>
                             )}
 
@@ -4287,16 +4382,88 @@ export default function EventManagerTab({ onUseAsCampaign }: EventManagerTabProp
                                 <option value="no_responde">⚪ Descartado</option>
                               </select>
 
-                              {/* Espacio de Diagnóstico de Error y Estado */}
+                              {/* Espacio Discreto de Diagnóstico con Punto Rojo / Popover Desplegable */}
                               {a.notas && (
-                                <div className={`mt-1.5 text-[10px] leading-snug p-1.5 rounded-lg border max-w-[200px] shadow-2xs ${
-                                  a.notas.includes('❌') || a.notas.toLowerCase().includes('falló') || a.notas.toLowerCase().includes('error')
-                                    ? 'bg-rose-50 border-rose-300 text-rose-950 font-medium'
-                                    : a.notas.includes('⚠️')
-                                    ? 'bg-amber-50 border-amber-300 text-amber-950 font-medium'
-                                    : 'bg-emerald-50/70 border-emerald-200 text-emerald-950'
-                                }`}>
-                                  <span className="break-words">{a.notas}</span>
+                                <div className="relative mt-1 inline-block">
+                                  <button
+                                    type="button"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      setExpandedErrorAstId(expandedErrorAstId === a.id ? null : a.id);
+                                    }}
+                                    className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] font-bold border transition-all cursor-pointer shadow-2xs active:scale-95 ${
+                                      a.notas.includes('❌') || a.notas.toLowerCase().includes('falló') || a.notas.toLowerCase().includes('error')
+                                        ? 'bg-rose-50 hover:bg-rose-100 text-rose-700 border-rose-300'
+                                        : a.notas.includes('⚠️')
+                                        ? 'bg-amber-50 hover:bg-amber-100 text-amber-800 border-amber-300'
+                                        : 'bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border-emerald-300'
+                                    }`}
+                                    title="Clic para ver detalle y quitar aviso"
+                                  >
+                                    <span className={`w-1.5 h-1.5 rounded-full ${
+                                      a.notas.includes('❌') || a.notas.toLowerCase().includes('falló') || a.notas.toLowerCase().includes('error')
+                                        ? 'bg-rose-500 animate-pulse'
+                                        : a.notas.includes('⚠️')
+                                        ? 'bg-amber-500'
+                                        : 'bg-emerald-500'
+                                    }`}></span>
+                                    <span>
+                                      {a.notas.includes('❌') || a.notas.toLowerCase().includes('falló') || a.notas.toLowerCase().includes('error')
+                                        ? '🔴 Error'
+                                        : a.notas.includes('⚠️')
+                                        ? '⚠️ Aviso'
+                                        : '✓ Info'}
+                                    </span>
+                                  </button>
+
+                                  {/* Popover Flotante Modal */}
+                                  {expandedErrorAstId === a.id && (
+                                    <div 
+                                      onClick={(e) => e.stopPropagation()}
+                                      className="absolute left-0 top-full mt-1.5 z-50 bg-white border border-slate-300 rounded-2xl p-3.5 shadow-2xl w-72 text-slate-800 animate-in fade-in zoom-in-95"
+                                    >
+                                      <div className="flex items-center justify-between gap-2 border-b border-slate-100 pb-2 mb-2">
+                                        <div className="flex items-center gap-1 text-rose-700 font-bold text-xs">
+                                          <AlertCircle className="w-3.5 h-3.5 text-rose-600" />
+                                          <span>Diagnóstico</span>
+                                        </div>
+                                        <button
+                                          type="button"
+                                          onClick={() => setExpandedErrorAstId(null)}
+                                          className="text-slate-400 hover:text-slate-700 p-0.5 rounded"
+                                        >
+                                          <X className="w-3.5 h-3.5" />
+                                        </button>
+                                      </div>
+
+                                      <div className="text-[10.5px] text-slate-700 leading-relaxed bg-slate-50 p-2 rounded-xl border border-slate-200 font-mono break-words max-h-40 overflow-y-auto mb-3">
+                                        {a.notas}
+                                      </div>
+
+                                      <div className="flex items-center justify-between gap-2 pt-1 border-t border-slate-100">
+                                        <button
+                                          type="button"
+                                          onClick={() => handleClearAttendeeError(a.id)}
+                                          className="text-[10px] font-bold text-slate-600 hover:text-rose-700 hover:underline flex items-center gap-1 cursor-pointer"
+                                        >
+                                          <Trash2 className="w-3 h-3 text-slate-400" />
+                                          <span>Quitar error</span>
+                                        </button>
+
+                                        <button
+                                          type="button"
+                                          onClick={() => {
+                                            handleProcessIndividual(a);
+                                            setExpandedErrorAstId(null);
+                                          }}
+                                          className="px-2 py-1 rounded-lg bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold text-[10px] flex items-center gap-1 shadow-xs cursor-pointer"
+                                        >
+                                          <RefreshCw className="w-3 h-3" />
+                                          <span>Reintentar</span>
+                                        </button>
+                                      </div>
+                                    </div>
+                                  )}
                                 </div>
                               )}
                             </td>
