@@ -690,7 +690,8 @@ const deleteStoredTemplateSync = (id: string) => {
     name: string, 
     subj: string, 
     category: string, 
-    actionType?: string
+    actionType?: string,
+    existingId?: string
   ) => {
     let text = '';
     if (typeof fileOrContent === 'string') {
@@ -703,8 +704,10 @@ const deleteStoredTemplateSync = (id: string) => {
       throw new Error('El contenido HTML de la plantilla no puede estar vacío');
     }
 
+    const tplId = existingId || `custom-${Date.now()}`;
+
     const newTpl: EmailTemplateItem = {
-      id: `custom-${Date.now()}`,
+      id: tplId,
       name: name.trim(),
       subject: subj.trim(),
       type: 'full_html',
@@ -734,6 +737,7 @@ const deleteStoredTemplateSync = (id: string) => {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
+          id: newTpl.id,
           name: newTpl.name,
           subject: newTpl.subject,
           htmlContent: text,
@@ -745,7 +749,7 @@ const deleteStoredTemplateSync = (id: string) => {
       }).catch(() => {});
     } catch (e) {}
 
-    setSuccessMsg(`¡Plantilla "${name}" guardada y lista para usar!`);
+    setSuccessMsg(existingId ? `¡Plantilla "${name}" actualizada correctamente!` : `¡Plantilla "${name}" guardada y lista para usar!`);
   };
 
   const handleDeleteTemplate = async (id: string) => {

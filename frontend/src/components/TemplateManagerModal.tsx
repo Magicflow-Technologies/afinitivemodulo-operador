@@ -16,7 +16,8 @@ import {
   Calendar,
   Ticket,
   Link2,
-  Eye
+  Eye,
+  Edit3
 } from 'lucide-react';
 
 export interface EmailTemplateItem {
@@ -51,7 +52,7 @@ interface TemplateManagerModalProps {
   templates: EmailTemplateItem[];
   selectedTemplateId: string | null;
   onSelectTemplate: (template: EmailTemplateItem) => void;
-  onUploadHtml: (fileOrContent: File | string, name: string, subject: string, category: string, actionType?: string) => Promise<void>;
+  onUploadHtml: (fileOrContent: File | string, name: string, subject: string, category: string, actionType?: string, existingId?: string) => Promise<void>;
   onDeleteTemplate: (id: string) => Promise<void>;
 }
 
@@ -68,13 +69,9 @@ export const TemplateManagerModal: React.FC<TemplateManagerModalProps> = ({
   const [searchQuery, setSearchQuery] = useState('');
   const [uploading, setUploading] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
+  const [editingTemplateId, setEditingTemplateId] = useState<string | null>(null);
 
   // Estados del Creador Visual de Plantillas
-  // Modos de diseño solicitados:
-  // 1: header_image_sig (Encabezado Afinitive + Imagen/Texto + Firma Ricardo)
-  // 2: image_sig (Sin Encabezado + Imagen/Texto + Firma Ricardo)
-  // 3: image_only (Solo Imagen / Flyer limpio, sin encabezado ni firma)
-  // 4: header_text_sig (Encabezado Afinitive + Texto redactado + Firma Ricardo)
   const [layoutMode, setLayoutMode] = useState<'header_image_sig' | 'image_sig' | 'image_only' | 'header_text_sig'>('header_image_sig');
 
   // Metadatos
@@ -98,6 +95,54 @@ export const TemplateManagerModal: React.FC<TemplateManagerModalProps> = ({
       color: 'gold',
     }
   ]);
+
+  // Iniciar edición de una plantilla existente
+  const handleStartEditTemplate = (tpl: EmailTemplateItem) => {
+    setEditingTemplateId(tpl.id);
+    setTemplateName(tpl.name || '');
+    setTemplateSubject(tpl.subject || '');
+    setTemplateCategory(tpl.category || 'Inmobiliario');
+
+    const html = tpl.html_content || tpl.htmlContent || '';
+    if (html) {
+      // Intentar extraer imagen
+      const imgMatch = html.match(/<img[^>]+src=["']([^"']+)["']/i);
+      if (imgMatch && imgMatch[1] && !imgMatch[1].includes('afinitive_logo') && !imgMatch[1].includes('rbertalmio')) {
+        setImageUrl(imgMatch[1]);
+      }
+
+      // Intentar extraer enlace de imagen si existe
+      const linkMatch = html.match(/<a[^>]+href=["']([^"']+)["'][^>]*>\s*<img/i);
+      if (linkMatch && linkMatch[1]) {
+        setImageClickUrl(linkMatch[1]);
+      }
+    }
+
+    setFormError(null);
+    setActiveTab('builder');
+  };
+
+  // Iniciar creación de nueva plantilla limpia
+  const handleStartCreateNew = () => {
+    setEditingTemplateId(null);
+    setTemplateName('');
+    setTemplateSubject('');
+    setTemplateCategory('Inmobiliario');
+    setImageUrl('https://links.afinitive.com.pe/img/evento.jpeg');
+    setImageClickUrl('');
+    setTextContent('Estimado/a {{nombre}}:\n\nLe escribimos para extenderle una invitación exclusiva a nuestra próxima presentación privada sobre oportunidades de inversión y optimización patrimonial.');
+    setButtons([
+      {
+        id: 'btn-1',
+        tipo: 'whatsapp',
+        texto: '💬 Contactar por WhatsApp',
+        url: 'https://wa.me/51982100208?text=Hola%20Ricardo,%20deseo%20m%C3%A1s%20informaci%C3%B3n',
+        color: 'gold',
+      }
+    ]);
+    setFormError(null);
+    setActiveTab('builder');
+  };
 
   // Manejador de subida de imagen local (Convierte a Data URL)
   const handleImageFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -339,9 +384,10 @@ export const TemplateManagerModal: React.FC<TemplateManagerModalProps> = ({
     setUploading(true);
     try {
       const actionType = buttons.some(b => b.tipo === 'whatsapp') ? 'whatsapp_lead' : 'event_invitation';
-      await onUploadHtml(generatedHtml, templateName.trim(), templateSubject.trim(), templateCategory, actionType);
+      await onUploadHtml(generatedHtml, templateName.trim(), templateSubject.trim(), templateCategory, actionType, editingTemplateId || undefined);
       
       // Limpiar y regresar
+      setEditingTemplateId(null);
       setFormError(null);
       setActiveTab('catalog');
     } catch (err: any) {
@@ -399,18 +445,15 @@ export const TemplateManagerModal: React.FC<TemplateManagerModalProps> = ({
             <span>Biblioteca de Plantillas ({templates.length})</span>
           </button>
           <button
-            onClick={() => {
-              setActiveTab('builder');
-              setFormError(null);
-            }}
+            onClick={handleStartCreateNew}
             className={`py-3 px-4 text-xs font-bold border-b-2 transition-all flex items-center gap-2 cursor-pointer ${
               activeTab === 'builder'
                 ? 'border-brand-gold text-brand-gold'
                 : 'border-transparent text-slate-400 hover:text-slate-200'
             }`}
           >
-            <Plus className="w-4 h-4" />
-            <span>+ Crear Nueva Plantilla Visual</span>
+            {editingTemplateId ? <Edit3 className="w-4 h-4" /> : <Plus className="w-4 h-4" />}
+            <span>{editingTemplateId ? 'Editando Plantilla' : '+ Crear Nueva Plantilla Visual'}</span>
           </button>
         </div>
 
@@ -502,21 +545,36 @@ export const TemplateManagerModal: React.FC<TemplateManagerModalProps> = ({
                       <div className="flex items-center justify-between border-t border-brand-gold/10 mt-3 pt-2 text-[11px] text-slate-500">
                         <span>{template.created_at ? new Date(template.created_at).toLocaleDateString() : 'Sistema'}</span>
                         
-                        {(template.createdBy || template.created_by) !== 'system' && (
+                        <div className="flex items-center gap-1.5">
                           <button
                             type="button"
                             onClick={(e) => {
                               e.stopPropagation();
-                              if (confirm(`¿Eliminar la plantilla "${template.name}"?`)) {
-                                onDeleteTemplate(template.id);
-                              }
+                              handleStartEditTemplate(template);
                             }}
-                            className="text-red-400 hover:text-red-300 p-1 hover:bg-red-500/10 rounded transition-all cursor-pointer"
-                            title="Eliminar plantilla"
+                            className="text-brand-gold hover:text-amber-300 p-1 hover:bg-brand-gold/10 rounded transition-all cursor-pointer flex items-center gap-1 text-[11px] font-semibold"
+                            title="Editar esta plantilla"
                           >
-                            <Trash2 className="w-3.5 h-3.5" />
+                            <Edit3 className="w-3.5 h-3.5" />
+                            <span>Editar</span>
                           </button>
-                        )}
+
+                          {(template.createdBy || template.created_by) !== 'system' && (
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                if (confirm(`¿Eliminar la plantilla "${template.name}"?`)) {
+                                  onDeleteTemplate(template.id);
+                                }
+                              }}
+                              className="text-red-400 hover:text-red-300 p-1 hover:bg-red-500/10 rounded transition-all cursor-pointer"
+                              title="Eliminar plantilla"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          )}
+                        </div>
                       </div>
                     </div>
                   );
@@ -533,6 +591,22 @@ export const TemplateManagerModal: React.FC<TemplateManagerModalProps> = ({
             /* Tab: Creador Visual de Plantillas */
             <form onSubmit={handleSaveVisualTemplate} className="space-y-5">
               
+              {editingTemplateId && (
+                <div className="p-3 bg-brand-gold/15 border border-brand-gold/40 rounded-xl text-brand-gold text-xs flex items-center justify-between shadow-sm">
+                  <span className="flex items-center gap-2 font-medium">
+                    <Edit3 className="w-4 h-4 text-brand-gold shrink-0" />
+                    <span>Modo Edición: Modificando la plantilla <strong>"{templateName}"</strong></span>
+                  </span>
+                  <button
+                    type="button"
+                    onClick={handleStartCreateNew}
+                    className="text-[11px] underline text-slate-300 hover:text-white cursor-pointer ml-3 shrink-0"
+                  >
+                    Crear como nueva en su lugar
+                  </button>
+                </div>
+              )}
+
               {formError && (
                 <div className="p-3 bg-red-500/15 border border-red-500/40 rounded-xl text-red-300 text-xs flex items-center gap-2">
                   <AlertCircle className="w-4 h-4 shrink-0 text-red-400" />
@@ -904,12 +978,12 @@ export const TemplateManagerModal: React.FC<TemplateManagerModalProps> = ({
                   {uploading ? (
                     <>
                       <div className="w-3.5 h-3.5 border-2 border-brand-navy border-t-transparent rounded-full animate-spin"></div>
-                      <span>Guardando en Biblioteca...</span>
+                      <span>{editingTemplateId ? 'Actualizando Plantilla...' : 'Guardando en Biblioteca...'}</span>
                     </>
                   ) : (
                     <>
                       <Check className="w-4 h-4" />
-                      <span>Guardar y Usar Plantilla</span>
+                      <span>{editingTemplateId ? 'Guardar Cambios en la Plantilla' : 'Guardar y Usar Plantilla'}</span>
                     </>
                   )}
                 </button>
