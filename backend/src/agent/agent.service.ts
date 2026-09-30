@@ -771,12 +771,22 @@ export class AgentService implements OnModuleInit {
       updatePayload.notas = dto.notas;
     }
 
-    const { data, error } = await this.supabase
+    let q = this.supabase
       .from('asistentes_evento')
-      .update(updatePayload)
-      .eq('id', id)
+      .update(updatePayload);
+
+    const cleanIdentifier = id.trim();
+    if (cleanIdentifier.includes('@')) {
+      q = q.eq('correo', cleanIdentifier.toLowerCase());
+    } else if (cleanIdentifier.length > 30 && cleanIdentifier.includes('-')) {
+      q = q.eq('id', cleanIdentifier);
+    } else {
+      q = q.or(`id.eq.${cleanIdentifier},celular.eq.${cleanIdentifier},celular.ilike.%${cleanIdentifier.replace(/[^0-9]/g, '')}%`);
+    }
+
+    const { data, error } = await q
       .select()
-      .single();
+      .maybeSingle();
 
     if (error) {
       throw new BadRequestException(`Error al actualizar estado del cliente: ${error.message}`);
