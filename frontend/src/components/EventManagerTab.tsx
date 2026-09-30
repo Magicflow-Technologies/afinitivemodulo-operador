@@ -40,7 +40,8 @@ import {
   ChevronRight,
   Repeat,
   Target,
-  Bot
+  Bot,
+  RefreshCw
 } from 'lucide-react';
 import type { BioButtonItem } from '../utils/bioLinkConfig';
 import { 
@@ -364,26 +365,74 @@ export default function EventManagerTab({ onUseAsCampaign }: EventManagerTabProp
   };
 
   const fetchTemplatesList = async () => {
+    let combined: { id: string; name: string; category?: string }[] = [];
+
+    // 1. Cargar del backend /api/templates
     try {
       const res = await fetch(`${backendUrl}/api/templates`);
       if (res.ok) {
         const data = await res.json();
         if (Array.isArray(data)) {
-          setAvailableTemplates(data);
-          return;
+          combined = data.map((t: any) => ({
+            id: t.id,
+            name: t.name || t.nombre || 'Plantilla',
+            category: t.category || t.categoria || 'General',
+          }));
         }
       }
     } catch (e) {
       console.warn('Backend templates API no disponible:', e);
     }
+
+    // 2. Fusionar con plantillas guardadas en localStorage (afinitive_custom_templates_store)
     try {
       const stored = localStorage.getItem('afinitive_custom_templates_store');
       if (stored) {
-        setAvailableTemplates(JSON.parse(stored));
+        const localList = JSON.parse(stored);
+        if (Array.isArray(localList)) {
+          for (const loc of localList) {
+            const exists = combined.some(
+              (c) => c.id === loc.id || c.name.toLowerCase().trim() === (loc.name || '').toLowerCase().trim()
+            );
+            if (!exists) {
+              combined.push({
+                id: loc.id,
+                name: loc.name,
+                category: loc.category || 'Personalizada',
+              });
+            }
+          }
+        }
       }
-    } catch {}
-  };
+    } catch (err) {
+      console.warn('Error leyendo plantillas de localStorage:', err);
+    }
 
+    // 3. Asegurar que las plantillas oficiales predeterminadas siempre existan
+    const defaultTemplates = [
+      {
+        id: '00000000-0000-0000-0000-000000000001',
+        name: 'Bonos vs Alquiler (Registro & WhatsApp)',
+        category: 'Eventos & Landings',
+      },
+      {
+        id: 'bonos-vs-alquiler-oficial',
+        name: 'Bonos vs Alquiler - Versión Oficial',
+        category: 'Eventos & Landings',
+      }
+    ];
+
+    for (const defTpl of defaultTemplates) {
+      const alreadyIn = combined.some(
+        (c) => c.id === defTpl.id || c.name.toLowerCase().trim() === defTpl.name.toLowerCase().trim()
+      );
+      if (!alreadyIn) {
+        combined.push(defTpl);
+      }
+    }
+
+    setAvailableTemplates(combined);
+  };
 
   const fetchEventos = async () => {
     setLoading(true);
@@ -420,6 +469,7 @@ export default function EventManagerTab({ onUseAsCampaign }: EventManagerTabProp
   };
 
   const handleOpenCreate = (tipoPredeterminado: 'webinar' | 'lead_form' = 'webinar') => {
+    fetchTemplatesList();
     setEditingEvento({
       id: '',
       nombre: '',
@@ -439,6 +489,7 @@ export default function EventManagerTab({ onUseAsCampaign }: EventManagerTabProp
   };
 
   const handleOpenEdit = (evento: Evento) => {
+    fetchTemplatesList();
     let formattedDate = '';
     if (evento.fecha_inicio) {
       try {
@@ -3895,11 +3946,22 @@ export default function EventManagerTab({ onUseAsCampaign }: EventManagerTabProp
                     <Mail className="w-4 h-4 text-amber-600" />
                     <span>Plantilla de Correo Vinculada (Opcional)</span>
                   </label>
-                  {editingEvento.plantilla_id && (
-                    <span className="text-[10px] font-bold px-2 py-0.5 bg-amber-100 text-amber-900 border border-amber-300 rounded-full">
-                      ✓ Vinculada
-                    </span>
-                  )}
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => fetchTemplatesList()}
+                      title="Actualizar lista de plantillas"
+                      className="text-[11px] font-medium text-blue-600 hover:text-blue-800 hover:underline flex items-center gap-1 cursor-pointer"
+                    >
+                      <RefreshCw className="w-3 h-3" />
+                      Recargar
+                    </button>
+                    {editingEvento.plantilla_id && (
+                      <span className="text-[10px] font-bold px-2 py-0.5 bg-amber-100 text-amber-900 border border-amber-300 rounded-full">
+                        ✓ Vinculada
+                      </span>
+                    )}
+                  </div>
                 </div>
                 <select
                   value={editingEvento.plantilla_id || ''}
