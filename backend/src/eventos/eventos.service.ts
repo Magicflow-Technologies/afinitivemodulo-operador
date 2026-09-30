@@ -1357,21 +1357,18 @@ export class EventosService implements OnModuleInit {
       };
     }
 
-    // Paso 2: Enviar Correo con Plantilla Vinculada y esperar OK
+    // Paso 2: Enviar Correo con Plantilla Vinculada
     const emailResult = await this.enviarCorreoConPlantilla(asistente, evento);
-    if (!emailResult.success) {
-      this.logger.warn(`[Automatización] Falló envío de correo para ${asistente.correo}: ${emailResult.error}`);
-      return {
-        success: false,
-        error: `Webhook IA OK, pero falló envío de correo: ${emailResult.error}`,
-      };
-    }
+    const emailOk = emailResult.success;
+    const notaCorreo = emailOk
+      ? `Correo (${evento.plantilla_id || 'estándar'}) enviado ✓`
+      : `Correo no enviado (${emailResult.error?.includes('testing emails') ? 'Dominio Resend requiere verificación' : emailResult.error})`;
 
-    // Paso 3: Ambos confirmados OK -> Cambiar estado a 'en_proceso'
+    // Paso 3: Actualizar estado a 'en_proceso' / 'atendido'
     const updatePayload = {
       estado: 'en_proceso',
       fecha_atencion: new Date().toISOString(),
-      notas: `Automatización OK: Webhook IA enviado ✓ + Correo (${evento.plantilla_id || 'estándar'}) enviado ✓`,
+      notas: `Automatización OK: Webhook IA enviado ✓ | ${notaCorreo}`,
     };
 
     await this.supabase
