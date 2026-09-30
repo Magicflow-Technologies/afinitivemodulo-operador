@@ -19,6 +19,7 @@ import {
   CrearCampanaAgentDto,
   ConsultarCampanasQueryDto,
   ReenviarCampanaDto,
+  ProcesarRecordatoriosCampanaDto,
 } from './agent.dto';
 
 
@@ -1061,6 +1062,183 @@ export class AgentService implements OnModuleInit {
         ? `Campaña guardada y enviada a ${destinatariosEnviados} de ${totalDestinatarios} contactos registrados.`
         : `Campaña "${dto.titulo_evento}" guardada exitosamente. Total de contactos elegibles: ${totalDestinatarios}.`,
     };
+  }
+
+  // =========================================================================
+  // 8.1. PROCESAMIENTO INTELIGENTE DE RECORDATORIOS (AGENTE IA)
+  // =========================================================================
+  async procesarRecordatorios(dto: ProcesarRecordatoriosCampanaDto) {
+    this.logger.log(`IA Agent: Procesando recordatorios automáticos (evento=${dto.evento_id || 'todos'}, tipo=${dto.tipo_recordatorio || '24h'})...`);
+
+    if (!this.supabase) {
+      throw new BadRequestException('Supabase no disponible');
+    }
+
+    try {
+      // 1. Obtener eventos activos
+      let eventosQuery = this.supabase
+        .from('eventos')
+        .select('*')
+        .eq('activo', true);
+
+      if (dto.evento_id && dto.evento_id !== 'todos') {
+        eventosQuery = eventosQuery.eq('id', dto.evento_id);
+      }
+
+      const { data: eventos, error: evError } = await eventosQuery;
+      if (evError) {
+        throw new BadRequestException(`Error al consultar eventos: ${evError.message}`);
+      }
+
+      const eventosMap = new Map<string, any>();
+      (eventos || []).forEach((ev: any) => eventosMap.set(ev.id, ev));
+
+      // 2. Obtener asistentes que requieren recordatorio
+      let asistentesQuery = this.supabase
+        .from('asistentes_evento')
+        .select('*');
+
+      if (dto.evento_id && dto.evento_id !== 'todos') {
+        asistentesQuery = asistentesQuery.eq('evento_id', dto.evento_id);
+      }
+
+      if (!dto.forzar_reenvio) {
+        // Solo pendientes de recordatorio
+        asistentesQuery = asistentesQuery.or('recordatorio_estado.is.null,recordatorio_estado.eq.pendiente');
+      }
+
+      const limite = Math.min(Math.max(Number(dto.limite) || 50, 1), 200);
+      asistentesQuery = asistentesQuery.limit(limite);
+
+      const { data: asistentes, error: astError } = await asistentesQuery;
+      if (astError) {
+        throw new BadRequestException(`Error al consultar asistentes para recordatorio: ${astError.message}`);
+      }
+
+      const asistentesList = asistentes || [];
+      const totalPendientes = asistentesList.length;
+      let enviadosCount = 0;
+      const detallesEnviados: any[] = [];
+      const errores: any[] = [];
+
+      for (const ast of asistentesList) {
+        const ev = eventosMap.get(ast.evento_id) || {
+          nombre: 'Evento Exclusivo Afinitive',
+          fecha_inicio: new Date().toISOString(),
+          link_reunion: '',
+        };
+
+        const fechaFormateada = ev.fecha_inicio
+          ? new Date(ev.fecha_inicio).toLocaleDateString('es-PE', {
+              weekday: 'long',
+              day: 'numeric',
+              month: 'long',
+              timeZone: 'America/Lima',
+            })
+          : 'Pronto';
+
+        const horaFormateada = ev.fecha_inicio
+          ? new Date(ev.fecha_inicio).toLocaleTimeString('es-PE', {
+              hour: '2-digit',
+              minute: '2-digit',
+              hour12: true,
+              timeZone: 'America/Lima',
+            })
+          : 'Por coordinar';
+
+        try {
+          // Si el canal incluye email y el asistente tiene correo
+          if (ast.correo && (dto.canal === 'email' || dto.canal === 'ambos' || !dto.canal)) {
+            if (this.resend) {
+              const asunto = `Recordatorio: ${ev.nombre} - ${fechaFormateada} (${horaFormateada})`;
+              const zoomLink = ev.link_reunion || '';
+              const htmlContent = `
+                <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 24px; color: #1e293b; background-color: #ffffff; border: 1px solid #e2e8f0; border-radius: 10px;">
+                  <div style="text-align: center; margin-bottom: 20px;">
+                    <img src="https://links.afinitive.com.pe/img/afinitive_logo.png" alt="Afinitive" width="130" style="display: inline-block;">
+                    <h2 style="color: #0f172a; margin: 12px 0 4px 0; font-size: 19px;">¡Recordatorio de tu Sesión!</h2>
+                    <p style="color: #64748b; font-size: 13px; margin: 0;">${ev.nombre}</p>
+                  </div>
+                  <p>Hola <strong>${ast.nombre || 'Estimado(a)'}</strong>,</p>
+                  <p>Te recordamos que tu sesión privada de inversión está próxima a comenzar:</p>
+                  <div style="background-color: #f8fafc; border: 1px solid #cbd5e1; border-radius: 8px; padding: 14px; margin: 16px 0;">
+                    <p style="margin: 4px 0;">📅 <strong>Fecha:</strong> ${fechaFormateada}</p>
+                    <p style="margin: 4px 0;">⏰ <strong>Hora:</strong> ${horaFormateada}</p>
+                    ${zoomLink ? `<p style="margin: 4px 0;">💻 <strong>Acceso Virtual:</strong> <a href="${zoomLink}" target="_blank" style="color: #2563eb; font-weight: bold;">${zoomLink}</a></p>` : ''}
+                  </div>
+                  ${zoomLink ? `<div style="text-align: center; margin: 20px 0;"><a href="${zoomLink}" target="_blank" style="background-color: #0f172a; color: #ffffff; padding: 12px 24px; text-decoration: none; border-radius: 6px; font-weight: bold; display: inline-block;">Unirme a la Reunión</a></div>` : ''}
+                  <p style="font-size: 12px; color: #64748b; margin-top: 24px;">Si necesitas reprogramar, responde a este correo o escríbenos directamente.</p>
+                </div>
+              `;
+
+              await this.resend.emails.send({
+                from: `Ricardo Bertalmio - Afinitive <${process.env.RESEND_SENDER_EMAIL || 'onboarding@resend.dev'}>`,
+                to: [ast.correo],
+                subject: asunto,
+                html: htmlContent,
+              });
+            }
+          }
+
+          // Actualizar estado en asistentes_evento
+          const nuevoEstado = dto.tipo_recordatorio === '1h' ? 'enviado_1h' : (dto.tipo_recordatorio === '24h' ? 'enviado_24h' : 'completado');
+          await this.supabase
+            .from('asistentes_evento')
+            .update({
+              recordatorio_estado: nuevoEstado,
+            })
+            .eq('id', ast.id);
+
+          enviadosCount++;
+          detallesEnviados.push({
+            id: ast.id,
+            nombre: ast.nombre,
+            correo: ast.correo,
+            celular: ast.celular,
+            evento: ev.nombre,
+            estado_recordatorio: nuevoEstado,
+          });
+        } catch (itemErr: any) {
+          this.logger.warn(`Error enviando recordatorio a ${ast.correo}: ${itemErr.message}`);
+          errores.push({ id: ast.id, correo: ast.correo, error: itemErr.message });
+        }
+      }
+
+      // Registrar la campaña de recordatorio en campanas_agente
+      if (enviadosCount > 0) {
+        try {
+          await this.supabase.from('campanas_agente').insert({
+            titulo_evento: `Recordatorio: ${dto.tipo_recordatorio || '24h'}`,
+            mensaje: dto.mensaje_personalizado || `Recordatorio automatizado de evento procesado por Agente IA`,
+            canal: dto.canal || 'email',
+            filtro_destinatarios: dto.evento_id || 'todos',
+            estado_envio: 'completado',
+            total_destinatarios: totalPendientes,
+            destinatarios_enviados: enviadosCount,
+            recordatorio_estado: 'completado',
+            metadata: {
+              tipo_recordatorio: dto.tipo_recordatorio || '24h',
+            },
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString(),
+          });
+        } catch (campErr: any) {
+          this.logger.warn(`No se pudo registrar en campanas_agente: ${campErr.message}`);
+        }
+      }
+
+      return {
+        success: true,
+        total_evaluados: totalPendientes,
+        recordatorios_enviados: enviadosCount,
+        detalles: detallesEnviados,
+        errores: errores.length > 0 ? errores : undefined,
+        mensaje_para_ia: `Se procesaron exitosamente ${enviadosCount} recordatorios de un total de ${totalPendientes} prospectos pendientes.`,
+      };
+    } catch (err: any) {
+      this.logger.error(`Error en procesarRecordatorios: ${err.message}`);
+      throw new BadRequestException(`Error al procesar recordatorios: ${err.message}`);
+    }
   }
 
   // =========================================================================

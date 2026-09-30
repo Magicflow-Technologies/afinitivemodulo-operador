@@ -10,6 +10,7 @@ import {
   CrearCampanaAgentDto,
   ConsultarCampanasQueryDto,
   ReenviarCampanaDto,
+  ProcesarRecordatoriosCampanaDto,
 } from './agent.dto';
 
 @Controller('api/agent')
@@ -77,6 +78,12 @@ export class AgentController {
   @Post('campanas')
   async crearCampana(@Body() dto: CrearCampanaAgentDto) {
     return await this.agentService.crearCampana(dto);
+  }
+
+  // 8.1. PROCESAR RECORDATORIOS DE EVENTOS Y CAMPAÑAS
+  @Post('campanas/procesar-recordatorios')
+  async procesarRecordatorios(@Body() dto: ProcesarRecordatoriosCampanaDto) {
+    return await this.agentService.procesarRecordatorios(dto);
   }
 
   // 9. CONSULTAR CAMPAÑAS Y MENSAJES ANTERIORES

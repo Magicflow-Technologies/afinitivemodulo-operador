@@ -84,3 +84,12 @@ export class ReenviarCampanaDto {
   canal?: 'email' | 'whatsapp' | 'ambos' | string;
 }
 
+export class ProcesarRecordatoriosCampanaDto {
+  evento_id?: string;
+  tipo_recordatorio?: '24h' | '1h' | 'mismo_dia' | 'todos' | string;
+  canal?: 'email' | 'whatsapp' | 'ambos' | string;
+  limite?: number;
+  mensaje_personalizado?: string;
+  forzar_reenvio?: boolean;
+}
+
