@@ -105,16 +105,99 @@ export const TemplateManagerModal: React.FC<TemplateManagerModalProps> = ({
 
     const html = tpl.html_content || tpl.htmlContent || '';
     if (html) {
-      // Intentar extraer imagen
-      const imgMatch = html.match(/<img[^>]+src=["']([^"']+)["']/i);
-      if (imgMatch && imgMatch[1] && !imgMatch[1].includes('afinitive_logo') && !imgMatch[1].includes('rbertalmio')) {
-        setImageUrl(imgMatch[1]);
+      // 1. Detectar Layout
+      const hasHdr = html.includes('afinitive_logo') || (html.includes('AFINITIVE') && html.includes('WEALTH MANAGEMENT'));
+      const hasSig = html.includes('rbertalmio') || html.includes('Ricardo Bertalmio');
+      
+      // Buscar imagen publicitaria (descartando logo corporativo y avatar de ricardo)
+      const allImgs = Array.from(html.matchAll(/<img[^>]+src=["']([^"']+)["'][^>]*>/gi));
+      const flyerImg = allImgs.find(m => !m[1].includes('afinitive_logo') && !m[1].includes('rbertalmio') && !m[1].includes('logo'));
+      
+      if (flyerImg) {
+        setImageUrl(flyerImg[1]);
+        // Buscar link contenedor
+        const linkMatch = html.match(new RegExp(`<a[^>]+href=["']([^"']+)["'][^>]*>\\s*<img[^>]+src=["']${flyerImg[1].replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}`, 'i'));
+        if (linkMatch && linkMatch[1]) {
+          setImageClickUrl(linkMatch[1]);
+        } else {
+          setImageClickUrl('');
+        }
+      } else {
+        setImageUrl('');
+        setImageClickUrl('');
       }
 
-      // Intentar extraer enlace de imagen si existe
-      const linkMatch = html.match(/<a[^>]+href=["']([^"']+)["'][^>]*>\s*<img/i);
-      if (linkMatch && linkMatch[1]) {
-        setImageClickUrl(linkMatch[1]);
+      if (hasHdr && flyerImg && hasSig) {
+        setLayoutMode('header_image_sig');
+      } else if (!hasHdr && flyerImg && hasSig) {
+        setLayoutMode('image_sig');
+      } else if (flyerImg && !hasHdr && !hasSig) {
+        setLayoutMode('image_only');
+      } else {
+        setLayoutMode('header_text_sig');
+      }
+
+      // 2. Extraer texto del cuerpo (descartando encabezado y firma)
+      let extractedText = '';
+      const textBlockMatch = html.match(/<!--\s*Cuerpo de Texto\s*-->[\s\S]*?<td[^>]*>([\s\S]*?)<\/td>/i);
+      if (textBlockMatch && textBlockMatch[1]) {
+        const rawP = textBlockMatch[1]
+          .replace(/<p[^>]*>/gi, '')
+          .replace(/<\/p>/gi, '\n\n')
+          .replace(/<br\s*\/?>/gi, '\n')
+          .replace(/<[^>]+>/g, '')
+          .trim();
+        extractedText = rawP;
+      } else {
+        // Fallback: extraer <p> que no pertenezcan a la firma ni a botones
+        const pMatches = Array.from(html.matchAll(/<p[^>]*>([\s\S]*?)<\/p>/gi));
+        const cleanPs = pMatches
+          .map(m => m[1].replace(/<br\s*\/?>/gi, '\n').replace(/<[^>]+>/g, '').trim())
+          .filter(t => t.length > 0 && !t.includes('Ricardo Bertalmio') && !t.includes('CEO Afinitive') && !t.includes('San Isidro'));
+        if (cleanPs.length > 0) {
+          extractedText = cleanPs.join('\n\n');
+        }
+      }
+      if (extractedText) {
+        setTextContent(extractedText);
+      }
+
+      // 3. Extraer Botones CTAs
+      const btnBlockMatch = html.match(/<!--\s*Botones de Acción[\s\S]*?<td[^>]*>([\s\S]*?)<\/td>/i);
+      const searchScope = btnBlockMatch ? btnBlockMatch[1] : html;
+      const btnMatches = Array.from(searchScope.matchAll(/<a[^>]+href=["']([^"']+)["'][^>]*style=["']([^"']*)["'][^>]*>([\s\S]*?)<\/a>/gi));
+      
+      const parsedButtons = btnMatches
+        .filter(m => !m[1].includes('afinitive.com.pe') && !m[1].includes('linkedin') && !m[0].includes('<img'))
+        .map((m, idx) => {
+          const url = m[1];
+          const style = m[2];
+          const rawLabel = m[3].replace(/<[^>]+>/g, '').trim();
+          let color: 'gold' | 'green' | 'blue' | 'dark' = 'gold';
+          let tipo: 'whatsapp' | 'registro' | 'agenda' | 'personalizado' = 'personalizado';
+
+          if (url.includes('wa.me') || url.includes('whatsapp') || style.includes('#25D366') || rawLabel.toLowerCase().includes('whatsapp')) {
+            color = 'green';
+            tipo = 'whatsapp';
+          } else if (url.includes('calendly') || url.includes('agenda') || style.includes('#2563EB') || rawLabel.toLowerCase().includes('agend')) {
+            color = 'blue';
+            tipo = 'agenda';
+          } else if (style.includes('#D4AF37') || style.includes('#B48A3C') || style.includes('#C9A050') || rawLabel.toLowerCase().includes('regist')) {
+            color = 'gold';
+            tipo = 'registro';
+          }
+
+          return {
+            id: `btn-${idx + 1}-${Date.now()}`,
+            tipo,
+            texto: rawLabel || 'Hacer clic aquí',
+            url,
+            color,
+          };
+        });
+
+      if (parsedButtons.length > 0) {
+        setButtons(parsedButtons);
       }
     }
 

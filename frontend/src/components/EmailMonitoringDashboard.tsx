@@ -637,9 +637,9 @@ const deleteStoredTemplateSync = (id: string) => {
       }
     }
 
-    // 4. Asegurar que la plantilla fija 'bonos vs alquiler' siempre esté presente
-    if (!loadedTemplates.some(t => t.name.toLowerCase() === 'bonos vs alquiler' || t.id === BONOS_VS_ALQUILER_TEMPLATE.id)) {
-      loadedTemplates = [BONOS_VS_ALQUILER_TEMPLATE, ...loadedTemplates];
+    // 4. Asegurar que haya al menos una plantilla por defecto si la base de datos está vacía
+    if (loadedTemplates.length === 0) {
+      loadedTemplates = [BONOS_VS_ALQUILER_TEMPLATE];
     }
 
     if (loadedTemplates.length > 0) {
@@ -647,6 +647,9 @@ const deleteStoredTemplateSync = (id: string) => {
       const current = loadedTemplates.find((t) => t.id === selectedTemplateId) || loadedTemplates[0];
       setSelectedTemplate(current);
       setSelectedTemplateId(current.id);
+      setSubject(current.subject || 'Invitación Exclusiva - Afinitive');
+      const content = current.html_content || current.htmlContent || '';
+      setEmailBody(content);
     }
   }, [BACKEND_URL, selectedTemplateId]);
 
@@ -657,7 +660,7 @@ const deleteStoredTemplateSync = (id: string) => {
   const handleSelectTemplate = (tpl: EmailTemplateItem) => {
     setSelectedTemplateId(tpl.id);
     setSelectedTemplate(tpl);
-    setSubject(tpl.subject);
+    setSubject(tpl.subject || 'Invitación Exclusiva - Afinitive');
     const content = tpl.html_content || tpl.htmlContent || '';
     setEmailBody(content);
   };
@@ -2474,9 +2477,6 @@ const deleteStoredTemplateSync = (id: string) => {
                     value={proposedTime}
                     onChange={(e) => {
                       setProposedTime(e.target.value);
-                      if (e.target.value) {
-                        setEmailBody(buildEmailTemplate(recipientName, e.target.value));
-                      }
                     }}
                     className="w-full px-3 py-2 bg-white border border-slate-300 hover:border-slate-400 focus:border-slate-800 rounded-xl text-slate-800 text-xs font-sans"
                   />
@@ -2540,7 +2540,6 @@ const deleteStoredTemplateSync = (id: string) => {
                                 onClick={() => {
                                   const formattedValue = `${selectedDayIndividual}T${time}:00-05:00`;
                                   setProposedTime(formattedValue);
-                                  setEmailBody(buildEmailTemplate(recipientName, formattedValue));
                                   setShowIndividualSlotPicker(false);
                                 }}
                                 className="py-1 px-2 text-xs font-mono bg-slate-50 hover:bg-slate-900 hover:text-white border border-slate-200 rounded-lg text-slate-700 text-center transition-all cursor-pointer font-semibold"
@@ -2571,15 +2570,20 @@ const deleteStoredTemplateSync = (id: string) => {
                 {/* Cuerpo del Mensaje */}
                 <div className="space-y-1">
                   <div className="flex items-center justify-between">
-                    <label className="text-xs text-slate-600 font-bold uppercase tracking-wider">Mensaje</label>
+                    <label className="text-xs text-slate-600 font-bold uppercase tracking-wider">Mensaje (HTML o Texto)</label>
                     <button
                       type="button"
-                      onClick={() => setEmailBody(buildEmailTemplate(recipientName, proposedTime))}
+                      onClick={() => {
+                        if (selectedTemplate) {
+                          setEmailBody(selectedTemplate.html_content || selectedTemplate.htmlContent || '');
+                          setSubject(selectedTemplate.subject || 'Invitación Exclusiva - Afinitive');
+                        }
+                      }}
                       className="text-[11px] text-amber-700 hover:text-amber-900 font-semibold flex items-center gap-1 cursor-pointer"
-                      title="Regenerar texto con variables"
+                      title="Restablecer contenido original de la plantilla"
                     >
                       <RefreshCw className="w-3 h-3" />
-                      <span>Regenerar variables</span>
+                      <span>Restablecer plantilla</span>
                     </button>
                   </div>
                   <textarea
