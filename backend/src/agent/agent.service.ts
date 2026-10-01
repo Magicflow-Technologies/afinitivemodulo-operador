@@ -106,7 +106,7 @@ export class AgentService implements OnModuleInit {
         success: true,
         zona_horaria: 'America/Lima (UTC-5 - Hora de Perú)',
         asesor: 'Ricardo Bertalmio Ruibal (Afinitive Wealth Management)',
-        asesor_email: 'ricardo@afinitive.pe',
+        asesor_email: 'rbertalmio@afinitive.com.pe',
         duracion_estandar_minutos: 45,
         total_slots_libres: totalSlots,
         proximo_slot_disponible: primerSlot,
@@ -161,7 +161,7 @@ export class AgentService implements OnModuleInit {
           scopes: ['https://www.googleapis.com/auth/calendar', 'https://www.googleapis.com/auth/calendar.events'],
         });
         const calendar = google.calendar({ version: 'v3', auth });
-        const ricardoEmail = 'ricardo@afinitive.pe';
+        const ricardoEmail = 'rbertalmio@afinitive.com.pe';
 
         const eventPayload: any = {
           summary: `${titulo} [Afinitive]`,
@@ -378,9 +378,9 @@ export class AgentService implements OnModuleInit {
 
     // 3. Enviar vía Resend
     const resendRes = await this.resend.emails.send({
-      from: 'Ricardo Bertalmio - Afinitive <ricardo@afinitive.pe>',
+      from: 'Ricardo Bertalmio - Afinitive <rbertalmio@afinitive.com.pe>',
       to: [cleanEmail],
-      replyTo: 'ricardo@afinitive.pe',
+      replyTo: 'rbertalmio@afinitive.com.pe',
       subject: subject,
       html: html,
     });

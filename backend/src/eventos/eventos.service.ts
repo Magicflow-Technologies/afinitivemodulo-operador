@@ -569,7 +569,7 @@ export class EventosService implements OnModuleInit {
     });
 
     const calendar = google.calendar({ version: 'v3', auth });
-    const ricardoEmail = 'ricardo@afinitive.pe';
+    const ricardoEmail = 'rbertalmio@afinitive.com.pe';
 
     const fechaInicio = new Date(evento.fecha_inicio);
     const duracion = Number(evento.duracion_minutos) || 45;
@@ -820,7 +820,7 @@ export class EventosService implements OnModuleInit {
     )}&dates=${gStart}/${gEnd}&details=${encodeURIComponent(
       `${evento.descripcion || ''}\n\nEnlace de acceso: ${evento.link_reunion}\nOrganizador: Ricardo Bertalmio (Afinitive)`,
     )}&location=${encodeURIComponent(evento.link_reunion)}&add=${encodeURIComponent(
-      'ricardo@afinitive.pe',
+      'rbertalmio@afinitive.com.pe',
     )}`;
 
     return {
@@ -848,7 +848,7 @@ export class EventosService implements OnModuleInit {
     const icsDTStamp = formatDateToICS(new Date());
     const icsDTStart = formatDateToICS(fechaInicio);
     const icsDTEnd = formatDateToICS(fechaFin);
-    const uid = `afinitive-evento-${evento.id}-${Date.now()}@afinitive.pe`;
+    const uid = `afinitive-evento-${evento.id}-${Date.now()}@afinitive.com.pe`;
 
     return [
       'BEGIN:VCALENDAR',
@@ -864,7 +864,7 @@ export class EventosService implements OnModuleInit {
       `SUMMARY:${evento.nombre}`,
       `DESCRIPTION:${(evento.descripcion || '').replace(/\n/g, '\\n')}\\n\\nEnlace Zoom: ${evento.link_reunion}`,
       `LOCATION:${evento.link_reunion}`,
-      `ORGANIZER;CN="Ricardo Bertalmio - Afinitive":mailto:ricardo@afinitive.pe`,
+      `ORGANIZER;CN="Ricardo Bertalmio - Afinitive":mailto:rbertalmio@afinitive.com.pe`,
       asistente.correo
         ? `ATTENDEE;CUTYPE=INDIVIDUAL;ROLE=REQ-PARTICIPANT;PARTSTAT=ACCEPTED;CN="${asistente.nombre || 'Invitado'}":mailto:${asistente.correo}`
         : '',
@@ -977,7 +977,7 @@ export class EventosService implements OnModuleInit {
           scopes: ['https://www.googleapis.com/auth/calendar', 'https://www.googleapis.com/auth/calendar.events'],
         });
         const calendar = google.calendar({ version: 'v3', auth });
-        const ricardoEmail = 'ricardo@afinitive.pe';
+        const ricardoEmail = 'rbertalmio@afinitive.com.pe';
 
         const eventPayload: any = {
           summary: `${titulo} [Afinitive]`,
