@@ -1463,7 +1463,7 @@ export class EventosService implements OnModuleInit {
       }
     }
 
-    // Paso 3: Confirmado exitoso según canal -> Cambiar estado a 'en_proceso'
+    // Paso 3: Confirmado exitoso según canal -> Cambiar estado a 'atendido'
     let successMsg = '';
     if (canalEfectivo === 'whatsapp') {
       successMsg = `✅ Agente IA / WhatsApp enviado ✓ [${fechaFormateada} - ${horaFormateada}]`;
@@ -1474,7 +1474,7 @@ export class EventosService implements OnModuleInit {
     }
 
     const updatePayload = {
-      estado: 'en_proceso',
+      estado: 'atendido',
       fecha_atencion: new Date().toISOString(),
       notas: successMsg,
     };
@@ -1484,7 +1484,7 @@ export class EventosService implements OnModuleInit {
       .update(updatePayload)
       .eq('id', asistenteId);
 
-    this.logger.log(`[Automatización] Asistente ${asistente.nombre} procesado con éxito [Canal: ${canalEfectivo}] (Estado: en_proceso)`);
+    this.logger.log(`[Automatización] Asistente ${asistente.nombre} procesado con éxito [Canal: ${canalEfectivo}] (Estado: atendido)`);
 
     return {
       success: true,
@@ -1495,7 +1495,7 @@ export class EventosService implements OnModuleInit {
         canal: canalEfectivo,
         webhook: webhookResult,
         email: emailResult,
-        nuevo_estado: 'en_proceso',
+        nuevo_estado: 'atendido',
       },
     };
   }
