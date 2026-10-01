@@ -49,8 +49,12 @@ export class EventosService implements OnModuleInit {
       this.configService.get<string>('SUPABASE_SERVICE_ROLE_KEY') ||
       this.configService.get<string>('SUPABASE_ANON_KEY');
     const resendApiKey = this.configService.get<string>('RESEND_API_KEY');
-    this.senderEmail =
-      this.configService.get<string>('RESEND_SENDER_EMAIL') || 'rbertalmio@afinitive.com.pe';
+    const envSender = this.configService.get<string>('RESEND_SENDER_EMAIL');
+    if (!envSender || envSender.includes('resend.dev') || envSender.includes('onboarding@')) {
+      this.senderEmail = 'rbertalmio@afinitive.com.pe';
+    } else {
+      this.senderEmail = envSender;
+    }
 
     if (supabaseUrl && supabaseKey) {
       this.supabase = createClient(supabaseUrl, supabaseKey, {
@@ -1336,24 +1340,27 @@ export class EventosService implements OnModuleInit {
       `;
     }
 
+    const fromAddress = `Ricardo Bertalmio - Afinitive <${this.senderEmail}>`;
+    this.logger.log(`[Resend] Enviando correo a ${asistente.correo} desde "${fromAddress}" (Evento: ${evento.nombre || evento.id})...`);
+
     try {
       const sendResult = await this.resend.emails.send({
-        from: `Ricardo Bertalmio - Afinitive <${this.senderEmail}>`,
+        from: fromAddress,
         to: [asistente.correo],
         subject: renderedSubject,
         html: renderedHtml,
       });
 
       if (sendResult.error) {
-        this.logger.warn(`Error al enviar correo a ${asistente.correo}: ${sendResult.error.message}`);
-        return { success: false, error: sendResult.error.message };
+        this.logger.warn(`[Resend Error] Falló envío a ${asistente.correo} desde "${fromAddress}": ${sendResult.error.message}`);
+        return { success: false, error: `${sendResult.error.message} (Desde: ${fromAddress})` };
       }
 
-      this.logger.log(`Correo enviado con éxito a ${asistente.correo} (ID: ${sendResult.data?.id})`);
+      this.logger.log(`[Resend OK] Correo enviado exitosamente a ${asistente.correo} (ID: ${sendResult.data?.id})`);
       return { success: true, data: sendResult.data };
     } catch (err: any) {
-      this.logger.error(`Error al enviar correo con Resend a ${asistente.correo}: ${err.message}`);
-      return { success: false, error: err.message };
+      this.logger.error(`[Resend Excepción] Error enviando a ${asistente.correo} desde "${fromAddress}": ${err.message}`);
+      return { success: false, error: `${err.message} (Desde: ${fromAddress})` };
     }
   }
 
