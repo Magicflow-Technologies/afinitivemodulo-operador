@@ -1463,18 +1463,30 @@ export class EventosService implements OnModuleInit {
       }
     }
 
-    // Paso 3: Confirmado exitoso según canal -> Cambiar estado a 'atendido'
+    // Paso 3: Evaluar condición estricta (Y / AND) -> Ambos canales (WhatsApp Y Correo) deben ser exitosos para 'atendido'
+    const notasPrevias = asistente.notas || '';
+    const previoWhatsappOk = notasPrevias.includes('WhatsApp') && notasPrevias.includes('✓') && !notasPrevias.includes('❌ Falló Comunicación con Agente IA');
+    const previoEmailOk = notasPrevias.includes('Correo') && notasPrevias.includes('✓') && !notasPrevias.includes('❌ Falló Envío de Correo');
+
+    const whatsappOk = (webhookResult.success && !webhookResult.skipped) || previoWhatsappOk;
+    const emailOk = (emailResult.success && !emailResult.skipped) || previoEmailOk;
+
+    const ambosCompletados = whatsappOk && emailOk;
+    const nuevoEstado = ambosCompletados ? 'atendido' : 'en_proceso';
+
     let successMsg = '';
-    if (canalEfectivo === 'whatsapp') {
-      successMsg = `✅ Agente IA / WhatsApp enviado ✓ [${fechaFormateada} - ${horaFormateada}]`;
-    } else if (canalEfectivo === 'email') {
-      successMsg = `✅ Correo con plantilla (${evento.plantilla_id || 'estándar'}) enviado ✓`;
+    if (ambosCompletados) {
+      successMsg = `✅ Atendido: Agente IA / WhatsApp OK ✓ + Correo (${evento.plantilla_id || 'estándar'}) enviado ✓`;
+    } else if (whatsappOk && !emailOk) {
+      successMsg = `⏳ En Proceso: WhatsApp enviado ✓ (Falta Correo Electrónico)`;
+    } else if (!whatsappOk && emailOk) {
+      successMsg = `⏳ En Proceso: Correo (${evento.plantilla_id || 'estándar'}) enviado ✓ (Falta WhatsApp / Agente IA)`;
     } else {
-      successMsg = `✅ Automatización OK: Agente IA / WhatsApp OK ✓ + Correo (${evento.plantilla_id || 'estándar'}) enviado ✓`;
+      successMsg = `⏳ En Proceso: Acción ejecutada correctamente`;
     }
 
     const updatePayload = {
-      estado: 'atendido',
+      estado: nuevoEstado,
       fecha_atencion: new Date().toISOString(),
       notas: successMsg,
     };
@@ -1484,7 +1496,7 @@ export class EventosService implements OnModuleInit {
       .update(updatePayload)
       .eq('id', asistenteId);
 
-    this.logger.log(`[Automatización] Asistente ${asistente.nombre} procesado con éxito [Canal: ${canalEfectivo}] (Estado: atendido)`);
+    this.logger.log(`[Automatización] Asistente ${asistente.nombre} procesado [Canal: ${canalEfectivo}] -> Estado: ${nuevoEstado} (WhatsApp: ${whatsappOk ? 'OK' : 'Pendiente'}, Email: ${emailOk ? 'OK' : 'Pendiente'})`);
 
     return {
       success: true,
@@ -1495,7 +1507,9 @@ export class EventosService implements OnModuleInit {
         canal: canalEfectivo,
         webhook: webhookResult,
         email: emailResult,
-        nuevo_estado: 'atendido',
+        whatsappOk,
+        emailOk,
+        nuevo_estado: nuevoEstado,
       },
     };
   }
