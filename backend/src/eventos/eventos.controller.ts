@@ -65,24 +65,30 @@ export class EventosController {
     return { success: true, data: status };
   }
 
-  // Activar / Desactivar la automatización de procesamiento
+  // Activar / Desactivar la automatización de procesamiento y configurar canal
   @Post('automatizacion/toggle')
-  async toggleAutomatizacion(@Body() body: { activa: boolean }) {
-    const result = this.eventosService.setAutomatizacionActiva(body.activa);
+  async toggleAutomatizacion(@Body() body: { activa?: boolean; canal?: 'ambos' | 'whatsapp' | 'email' }) {
+    const result = this.eventosService.setAutomatizacionActiva(
+      body.activa !== undefined ? body.activa : true,
+      body.canal
+    );
     return { success: true, data: result };
   }
 
-  // Procesar cola de asistentes pendientes secuencialmente (Webhook IA + Correo con Plantilla)
+  // Procesar cola de asistentes pendientes secuencialmente (Webhook IA / Correo / Ambos)
   @Post('automatizacion/procesar-pendientes')
-  async procesarColaPendientes(@Body() body: { limite?: number }) {
-    const result = await this.eventosService.procesarColaPendientes(body.limite || 50);
+  async procesarColaPendientes(@Body() body: { limite?: number; canal?: 'ambos' | 'whatsapp' | 'email' }) {
+    const result = await this.eventosService.procesarColaPendientes(body.limite || 50, body.canal);
     return { success: true, data: result };
   }
 
-  // Procesar un asistente individual específico
+  // Procesar un asistente individual específico (opcionalmente indicando canal)
   @Post('automatizacion/procesar/:asistenteId')
-  async procesarAsistenteIndividual(@Param('asistenteId') asistenteId: string) {
-    const result = await this.eventosService.procesarAsistenteIndividual(asistenteId);
+  async procesarAsistenteIndividual(
+    @Param('asistenteId') asistenteId: string,
+    @Body() body?: { canal?: 'ambos' | 'whatsapp' | 'email' }
+  ) {
+    const result = await this.eventosService.procesarAsistenteIndividual(asistenteId, body?.canal);
     return result;
   }
 

@@ -38,6 +38,7 @@ export class EventosService implements OnModuleInit {
   private resend: Resend;
   private senderEmail: string;
   private automatizacionActiva: boolean = true;
+  private canalAutomatico: 'ambos' | 'whatsapp' | 'email' = 'ambos';
 
   constructor(
     private configService: ConfigService,
@@ -1053,7 +1054,7 @@ export class EventosService implements OnModuleInit {
   // ==========================================
 
   // Estado del interruptor de automatización
-  async getAutomatizacionStatus(): Promise<{ activa: boolean; totalPendientes: number }> {
+  async getAutomatizacionStatus(): Promise<{ activa: boolean; canal: 'ambos' | 'whatsapp' | 'email'; totalPendientes: number }> {
     let totalPendientes = 0;
     if (this.supabase) {
       const { count } = await this.supabase
@@ -1064,14 +1065,18 @@ export class EventosService implements OnModuleInit {
     }
     return {
       activa: this.automatizacionActiva,
+      canal: this.canalAutomatico,
       totalPendientes,
     };
   }
 
-  setAutomatizacionActiva(activa: boolean): { success: boolean; activa: boolean } {
+  setAutomatizacionActiva(activa: boolean, canal?: 'ambos' | 'whatsapp' | 'email'): { success: boolean; activa: boolean; canal: 'ambos' | 'whatsapp' | 'email' } {
     this.automatizacionActiva = !!activa;
-    this.logger.log(`Automatización de nuevos registros ${this.automatizacionActiva ? 'ACTIVADA' : 'DESACTIVADA'}`);
-    return { success: true, activa: this.automatizacionActiva };
+    if (canal) {
+      this.canalAutomatico = canal;
+    }
+    this.logger.log(`Automatización de nuevos registros ${this.automatizacionActiva ? 'ACTIVADA' : 'DESACTIVADA'} (Canal: ${this.canalAutomatico})`);
+    return { success: true, activa: this.automatizacionActiva, canal: this.canalAutomatico };
   }
 
   // 1. Envío al Webhook de la IA
@@ -1352,9 +1357,14 @@ export class EventosService implements OnModuleInit {
     }
   }
 
-  // 3. Procesar un asistente individual (Webhook IA + Correo con Plantilla -> Estado 'en_proceso')
-  async procesarAsistenteIndividual(asistenteId: string): Promise<{ success: boolean; data?: any; error?: string }> {
+  // 3. Procesar un asistente individual (Canal: 'ambos' | 'whatsapp' | 'email' -> Estado 'en_proceso')
+  async procesarAsistenteIndividual(
+    asistenteId: string,
+    canal?: 'ambos' | 'whatsapp' | 'email'
+  ): Promise<{ success: boolean; data?: any; error?: string }> {
     if (!this.supabase) throw new BadRequestException('Supabase no disponible');
+
+    const canalEfectivo = canal || this.canalAutomatico || 'ambos';
 
     const { data: asistente, error: astErr } = await this.supabase
       .from('asistentes_evento')
@@ -1393,52 +1403,69 @@ export class EventosService implements OnModuleInit {
       plantilla_id: evento.plantilla_id || '',
     };
 
-    this.logger.log(`[Automatización] Procesando asistente ${asistente.nombre} (${asistente.correo}) -> Webhook IA [${fechaFormateada} a las ${horaFormateada}]...`);
+    this.logger.log(`[Automatización] Procesando asistente ${asistente.nombre} (${asistente.correo}) [Canal: ${canalEfectivo}]...`);
 
-    // Paso 1: Enviar al Webhook de la IA y esperar OK
-    const webhookResult = await this.enviarWebhookIA(webhookPayload);
-    if (!webhookResult.success) {
-      const errorMsg = `❌ Falló Comunicación con Agente IA: ${webhookResult.error || 'No respondió'} | Correo: No enviado`;
-      this.logger.warn(`[Automatización] ${errorMsg} para ${asistente.correo}`);
+    let webhookResult: any = { success: true, skipped: true };
+    let emailResult: any = { success: true, skipped: true };
 
-      await this.supabase
-        .from('asistentes_evento')
-        .update({
-          estado: 'en_proceso',
-          fecha_atencion: new Date().toISOString(),
-          notas: errorMsg,
-        })
-        .eq('id', asistenteId);
+    // Paso 1: Enviar al Webhook de la IA si el canal lo requiere
+    if (canalEfectivo === 'whatsapp' || canalEfectivo === 'ambos') {
+      webhookResult = await this.enviarWebhookIA(webhookPayload);
+      if (!webhookResult.success) {
+        const errorMsg = `❌ Falló Comunicación con Agente IA / WhatsApp: ${webhookResult.error || 'No respondió'}`;
+        this.logger.warn(`[Automatización] ${errorMsg} para ${asistente.correo}`);
 
-      return {
-        success: false,
-        error: errorMsg,
-      };
+        await this.supabase
+          .from('asistentes_evento')
+          .update({
+            estado: 'en_proceso',
+            fecha_atencion: new Date().toISOString(),
+            notas: errorMsg,
+          })
+          .eq('id', asistenteId);
+
+        return {
+          success: false,
+          error: errorMsg,
+        };
+      }
     }
 
-    // Paso 2: Enviar Correo con Plantilla Vinculada
-    const emailResult = await this.enviarCorreoConPlantilla(asistente, evento);
-    if (!emailResult.success) {
-      const errorMsg = `⚠️ Agente IA / WhatsApp OK ✓ | ❌ Falló Envío de Correo: ${emailResult.error || 'Error desconocido'}`;
-      this.logger.warn(`[Automatización] ${errorMsg} para ${asistente.correo}`);
+    // Paso 2: Enviar Correo con Plantilla Vinculada si el canal lo requiere
+    if (canalEfectivo === 'email' || canalEfectivo === 'ambos') {
+      emailResult = await this.enviarCorreoConPlantilla(asistente, evento);
+      if (!emailResult.success) {
+        const errorMsg = canalEfectivo === 'ambos'
+          ? `⚠️ Agente IA / WhatsApp OK ✓ | ❌ Falló Envío de Correo: ${emailResult.error || 'Error desconocido'}`
+          : `❌ Falló Envío de Correo: ${emailResult.error || 'Error desconocido'}`;
+        this.logger.warn(`[Automatización] ${errorMsg} para ${asistente.correo}`);
 
-      await this.supabase
-        .from('asistentes_evento')
-        .update({
-          estado: 'en_proceso',
-          fecha_atencion: new Date().toISOString(),
-          notas: errorMsg,
-        })
-        .eq('id', asistenteId);
+        await this.supabase
+          .from('asistentes_evento')
+          .update({
+            estado: 'en_proceso',
+            fecha_atencion: new Date().toISOString(),
+            notas: errorMsg,
+          })
+          .eq('id', asistenteId);
 
-      return {
-        success: false,
-        error: errorMsg,
-      };
+        return {
+          success: false,
+          error: errorMsg,
+        };
+      }
     }
 
-    // Paso 3: Ambos confirmados exitosos -> Cambiar estado a 'en_proceso'
-    const successMsg = `✅ Automatización OK: Agente IA / WhatsApp OK ✓ + Correo (${evento.plantilla_id || 'estándar'}) enviado ✓`;
+    // Paso 3: Confirmado exitoso según canal -> Cambiar estado a 'en_proceso'
+    let successMsg = '';
+    if (canalEfectivo === 'whatsapp') {
+      successMsg = `✅ Agente IA / WhatsApp enviado ✓ [${fechaFormateada} - ${horaFormateada}]`;
+    } else if (canalEfectivo === 'email') {
+      successMsg = `✅ Correo con plantilla (${evento.plantilla_id || 'estándar'}) enviado ✓`;
+    } else {
+      successMsg = `✅ Automatización OK: Agente IA / WhatsApp OK ✓ + Correo (${evento.plantilla_id || 'estándar'}) enviado ✓`;
+    }
+
     const updatePayload = {
       estado: 'en_proceso',
       fecha_atencion: new Date().toISOString(),
@@ -1450,7 +1477,7 @@ export class EventosService implements OnModuleInit {
       .update(updatePayload)
       .eq('id', asistenteId);
 
-    this.logger.log(`[Automatización] Asistente ${asistente.nombre} procesado con éxito (Estado: en_proceso)`);
+    this.logger.log(`[Automatización] Asistente ${asistente.nombre} procesado con éxito [Canal: ${canalEfectivo}] (Estado: en_proceso)`);
 
     return {
       success: true,
@@ -1458,6 +1485,7 @@ export class EventosService implements OnModuleInit {
         asistenteId,
         nombre: asistente.nombre,
         correo: asistente.correo,
+        canal: canalEfectivo,
         webhook: webhookResult,
         email: emailResult,
         nuevo_estado: 'en_proceso',
@@ -1466,13 +1494,15 @@ export class EventosService implements OnModuleInit {
   }
 
   // 4. Procesar la Cola de Contactos con estado 'pendiente'
-  async procesarColaPendientes(limite = 50): Promise<{
+  async procesarColaPendientes(limite = 50, canal?: 'ambos' | 'whatsapp' | 'email'): Promise<{
     total: number;
     procesados: number;
     fallidos: number;
     resultados: any[];
   }> {
     if (!this.supabase) throw new BadRequestException('Supabase no disponible');
+
+    const canalAUsar = canal || this.canalAutomatico || 'ambos';
 
     const { data: pendientes, error } = await this.supabase
       .from('asistentes_evento')
@@ -1486,7 +1516,7 @@ export class EventosService implements OnModuleInit {
     }
 
     const items = pendientes || [];
-    this.logger.log(`[Cola Automatización] Iniciando procesamiento de ${items.length} pendientes...`);
+    this.logger.log(`[Cola Automatización] Iniciando procesamiento de ${items.length} pendientes [Canal: ${canalAUsar}]...`);
 
     const resultados: any[] = [];
     let procesados = 0;
@@ -1494,7 +1524,7 @@ export class EventosService implements OnModuleInit {
 
     for (const ast of items) {
       try {
-        const res = await this.procesarAsistenteIndividual(ast.id);
+        const res = await this.procesarAsistenteIndividual(ast.id, canalAUsar);
         if (res.success) {
           procesados++;
           resultados.push({

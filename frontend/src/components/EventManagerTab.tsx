@@ -41,7 +41,8 @@ import {
   Repeat,
   Target,
   Bot,
-  RefreshCw
+  RefreshCw,
+  ChevronDown
 } from 'lucide-react';
 import type { BioButtonItem } from '../utils/bioLinkConfig';
 import { 
@@ -264,8 +265,10 @@ export default function EventManagerTab({ onUseAsCampaign }: EventManagerTabProp
 
   // Estado de Automatización (Webhook IA + Correo con Plantilla Vinculada)
   const [autoProcessActive, setAutoProcessActive] = useState<boolean>(true);
+  const [autoProcessChannel, setAutoProcessChannel] = useState<'ambos' | 'whatsapp' | 'email'>('ambos');
   const [queueProcessing, setQueueProcessing] = useState<boolean>(false);
   const [processingAstId, setProcessingAstId] = useState<string | null>(null);
+  const [activeActionDropdownId, setActiveActionDropdownId] = useState<string | null>(null);
 
   useEffect(() => {
     fetchEventos();
@@ -280,7 +283,10 @@ export default function EventManagerTab({ onUseAsCampaign }: EventManagerTabProp
       if (res.ok) {
         const json = await res.json();
         if (json.success && json.data) {
-          setAutoProcessActive(json.data.activa);
+          setAutoProcessActive(json.data.activa !== false);
+          if (json.data.canal) {
+            setAutoProcessChannel(json.data.canal);
+          }
         }
       }
     } catch (e) {
@@ -294,12 +300,13 @@ export default function EventManagerTab({ onUseAsCampaign }: EventManagerTabProp
       const res = await fetch(`${backendUrl}/api/eventos/automatizacion/toggle`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ activa: active }),
+        body: JSON.stringify({ activa: active, canal: autoProcessChannel }),
       });
       if (res.ok) {
+        const canalText = autoProcessChannel === 'whatsapp' ? 'Solo WhatsApp' : autoProcessChannel === 'email' ? 'Solo Correo' : 'WhatsApp + Correo';
         showToast(
           active 
-            ? '🤖 Automatización ACTIVADA: Nuevos registros enviarán Webhook IA y correo automáticamente' 
+            ? `🤖 Automatización ACTIVADA (Canal de salida: ${canalText})` 
             : '⏸️ Automatización PAUSADA: Los registros se acumularán como pendientes',
           active ? 'success' : 'info'
         );
@@ -309,12 +316,34 @@ export default function EventManagerTab({ onUseAsCampaign }: EventManagerTabProp
     }
   };
 
+  const handleChangeAutomationChannel = async (newChannel: 'ambos' | 'whatsapp' | 'email') => {
+    try {
+      setAutoProcessChannel(newChannel);
+      const res = await fetch(`${backendUrl}/api/eventos/automatizacion/toggle`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ activa: autoProcessActive, canal: newChannel }),
+      });
+      if (res.ok) {
+        const labels: Record<string, string> = {
+          whatsapp: '📱 Solo WhatsApp (Agente IA)',
+          email: '✉️ Solo Correo Electrónico (Plantilla)',
+          ambos: '📲✉️ Ambos (WhatsApp + Correo)',
+        };
+        showToast(`Canal automático actualizado: ${labels[newChannel]}`, 'success');
+      }
+    } catch (err: any) {
+      showToast('Error al actualizar canal automático', 'error');
+    }
+  };
+
   const handleProcessQueue = async () => {
     if (totalPendientesCount === 0) {
       showToast('No hay contactos en estado pendiente para procesar', 'info');
       return;
     }
-    if (!window.confirm(`¿Deseas procesar secuencialmente los ${totalPendientesCount} contactos pendientes (Webhook IA + Correo con plantilla)?`)) {
+    const canalText = autoProcessChannel === 'whatsapp' ? 'Solo WhatsApp' : autoProcessChannel === 'email' ? 'Solo Correo' : 'WhatsApp + Correo';
+    if (!window.confirm(`¿Deseas procesar secuencialmente los ${totalPendientesCount} contactos pendientes vía [${canalText}]?`)) {
       return;
     }
 
@@ -323,7 +352,7 @@ export default function EventManagerTab({ onUseAsCampaign }: EventManagerTabProp
       const res = await fetch(`${backendUrl}/api/eventos/automatizacion/procesar-pendientes`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ limite: 50 }),
+        body: JSON.stringify({ limite: 50, canal: autoProcessChannel }),
       });
 
       const data = await res.json();
@@ -342,17 +371,20 @@ export default function EventManagerTab({ onUseAsCampaign }: EventManagerTabProp
     }
   };
 
-  const handleProcessIndividual = async (ast: Asistente) => {
+  const handleProcessIndividual = async (ast: Asistente, canal: 'ambos' | 'whatsapp' | 'email' = 'ambos') => {
     setProcessingAstId(ast.id);
+    setActiveActionDropdownId(null);
     try {
       const res = await fetch(`${backendUrl}/api/eventos/automatizacion/procesar/${ast.id}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ canal }),
       });
 
       const data = await res.json();
       if (res.ok && data.success) {
-        showToast(`✅ Contacto ${ast.nombre} procesado con éxito (Webhook IA ✓ + Correo ✓)`, 'success');
+        const canalLabel = canal === 'whatsapp' ? 'WhatsApp ✓' : canal === 'email' ? 'Correo ✓' : 'WhatsApp ✓ + Correo ✓';
+        showToast(`✅ Contacto ${ast.nombre} procesado con éxito (${canalLabel})`, 'success');
         await fetchAllAttendees();
       } else {
         throw new Error(data.message || data.error || 'Error al procesar contacto');
@@ -1771,8 +1803,8 @@ export default function EventManagerTab({ onUseAsCampaign }: EventManagerTabProp
             </button>
           </div>
 
-          {/* Panel de Control de Automatización de Registros (Webhook IA + Envío de Correo) */}
-          <div className="bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 border border-indigo-500/30 rounded-2xl p-4 sm:p-5 text-white shadow-lg flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+          {/* Panel de Control de Automatización de Registros (Canal Automático: WhatsApp, Correo, Ambos) */}
+          <div className="bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 border border-indigo-500/30 rounded-2xl p-4 sm:p-5 text-white shadow-lg flex flex-col xl:flex-row items-start xl:items-center justify-between gap-4">
             <div className="flex items-start gap-3.5">
               <div className="w-10 h-10 rounded-xl bg-indigo-600/30 border border-indigo-400/40 flex items-center justify-center shrink-0 shadow-inner mt-0.5">
                 <Bot className="w-5 h-5 text-indigo-300" />
@@ -1782,7 +1814,7 @@ export default function EventManagerTab({ onUseAsCampaign }: EventManagerTabProp
                   <h4 className="text-sm font-black tracking-tight text-white flex items-center gap-1.5">
                     <span>Automatización de Nuevos Registros</span>
                     <span className="text-slate-400 font-normal">|</span>
-                    <span className="text-xs text-indigo-300 font-semibold">Webhook IA & Correo Plantilla</span>
+                    <span className="text-xs text-indigo-300 font-semibold">Regla de Salida</span>
                   </h4>
                   <span className={`px-2 py-0.5 rounded-full text-[10px] font-extrabold border ${
                     autoProcessActive 
@@ -1794,16 +1826,65 @@ export default function EventManagerTab({ onUseAsCampaign }: EventManagerTabProp
                 </div>
                 <p className="text-xs text-slate-300 leading-relaxed max-w-2xl">
                   {autoProcessActive 
-                    ? 'Cada nuevo registro envía los datos al Webhook de la IA y el correo con la plantilla asignada, pasando automáticamente a "En Negociación".'
+                    ? (autoProcessChannel === 'whatsapp' 
+                        ? '📱 Cada nuevo registro enviará los datos únicamente al Agente de IA para contacto vía WhatsApp.' 
+                        : autoProcessChannel === 'email'
+                        ? '✉️ Cada nuevo registro enviará únicamente el correo electrónico con la plantilla vinculada al evento.'
+                        : '📲✉️ Cada nuevo registro enviará tanto el Webhook de la IA (WhatsApp) como el Correo de confirmación en tiempo real.')
                     : 'La automatización está pausada. Los registros quedan en estado "Pendiente" y pueden procesarse en lote con el botón de la derecha.'}
                 </p>
               </div>
             </div>
 
-            <div className="flex items-center gap-3 w-full md:w-auto shrink-0 justify-end flex-wrap">
+            <div className="flex items-center gap-3 w-full xl:w-auto shrink-0 justify-end flex-wrap">
+              {/* Selector de Canal Automático */}
+              <div className="flex items-center gap-1 bg-slate-800/90 p-1 rounded-xl border border-slate-700/80 shadow-xs">
+                <button
+                  type="button"
+                  onClick={() => handleChangeAutomationChannel('whatsapp')}
+                  className={`px-2.5 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer ${
+                    autoProcessChannel === 'whatsapp'
+                      ? 'bg-emerald-500 text-slate-950 shadow-xs'
+                      : 'text-slate-300 hover:text-white hover:bg-slate-700/60'
+                  }`}
+                  title="Enviar automáticamente solo por WhatsApp (Agente IA)"
+                >
+                  <MessageCircle className="w-3.5 h-3.5" />
+                  <span>Solo WhatsApp</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => handleChangeAutomationChannel('email')}
+                  className={`px-2.5 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer ${
+                    autoProcessChannel === 'email'
+                      ? 'bg-blue-600 text-white shadow-xs'
+                      : 'text-slate-300 hover:text-white hover:bg-slate-700/60'
+                  }`}
+                  title="Enviar automáticamente solo Correo Electrónico con Plantilla"
+                >
+                  <Mail className="w-3.5 h-3.5" />
+                  <span>Solo Correo</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => handleChangeAutomationChannel('ambos')}
+                  className={`px-2.5 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer ${
+                    autoProcessChannel === 'ambos'
+                      ? 'bg-gradient-to-r from-amber-400 to-amber-500 text-slate-950 font-black shadow-xs'
+                      : 'text-slate-300 hover:text-white hover:bg-slate-700/60'
+                  }`}
+                  title="Enviar automáticamente por Ambos Canales (WhatsApp + Correo)"
+                >
+                  <Zap className="w-3.5 h-3.5 text-amber-950" />
+                  <span>Ambos</span>
+                </button>
+              </div>
+
               {/* Switch Activar / Desactivar */}
               <label className="flex items-center gap-2 cursor-pointer bg-slate-800/80 hover:bg-slate-800 px-3 py-1.5 rounded-xl border border-slate-700 transition-colors">
-                <span className="text-xs font-bold text-slate-300">Auto-envío:</span>
+                <span className="text-xs font-bold text-slate-300">Auto:</span>
                 <input
                   type="checkbox"
                   checked={autoProcessActive}
@@ -1823,17 +1904,17 @@ export default function EventManagerTab({ onUseAsCampaign }: EventManagerTabProp
                     ? 'bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-600 hover:to-orange-700 text-slate-950 active:scale-95'
                     : 'bg-slate-800 text-slate-500 border border-slate-700 cursor-not-allowed'
                 }`}
-                title="Procesa secuencialmente todos los contactos pendientes (Webhook IA + Correo con plantilla)"
+                title={`Procesa secuencialmente todos los contactos pendientes usando el canal [${autoProcessChannel === 'whatsapp' ? 'Solo WhatsApp' : autoProcessChannel === 'email' ? 'Solo Correo' : 'WhatsApp + Correo'}]`}
               >
                 {queueProcessing ? (
                   <>
                     <Loader2 className="w-4 h-4 animate-spin text-slate-950" />
-                    <span>Procesando Cola ({totalPendientesCount})...</span>
+                    <span>Procesando ({totalPendientesCount})...</span>
                   </>
                 ) : (
                   <>
                     <Zap className="w-4 h-4 text-slate-950" />
-                    <span>Procesar Cola ({totalPendientesCount} pendientes)</span>
+                    <span>Procesar Cola ({totalPendientesCount})</span>
                   </>
                 )}
               </button>
@@ -2372,39 +2453,125 @@ export default function EventManagerTab({ onUseAsCampaign }: EventManagerTabProp
                           {/* Agendar & Acciones */}
                           <td className="py-3.5 px-4 text-center">
                             <div className="flex items-center justify-center gap-1.5 flex-wrap">
-                              {/* Botón Inteligente IA + Correo / Reintentar */}
-                              <button
-                                type="button"
-                                onClick={() => handleProcessIndividual(a)}
-                                disabled={processingAstId === a.id}
-                                className={`inline-flex items-center gap-1 px-2.5 py-1.5 rounded-xl text-xs font-bold transition-all shadow-2xs cursor-pointer active:scale-95 group ${
-                                  a.notas && (a.notas.includes('❌') || a.notas.includes('⚠️'))
-                                    ? 'bg-rose-50 hover:bg-rose-600 text-rose-900 hover:text-white border border-rose-300 hover:border-rose-600'
-                                    : (!a.estado || a.estado === 'pendiente')
-                                    ? 'bg-amber-50 hover:bg-amber-600 text-amber-900 hover:text-white border border-amber-300 hover:border-amber-600'
-                                    : 'bg-slate-50 hover:bg-slate-700 text-slate-700 hover:text-white border border-slate-200 hover:border-slate-700'
-                                }`}
-                                title={
-                                  a.notas && (a.notas.includes('❌') || a.notas.includes('⚠️'))
-                                    ? 'Reintentar despacho al Webhook IA y envío de correo'
-                                    : 'Procesar ahora: Enviar Webhook IA y Correo con plantilla vinculada'
-                                }
-                              >
-                                {processingAstId === a.id ? (
-                                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                                ) : a.notas && (a.notas.includes('❌') || a.notas.includes('⚠️')) ? (
-                                  <RefreshCw className="w-3.5 h-3.5 text-rose-700 group-hover:text-white" />
-                                ) : (
-                                  <Zap className="w-3.5 h-3.5 text-amber-700 group-hover:text-white" />
+                              {/* Botón Inteligente de Envío Manual con Selector de Canal */}
+                              <div className="relative inline-flex items-center rounded-xl shadow-2xs">
+                                <button
+                                  type="button"
+                                  onClick={() => handleProcessIndividual(a, 'ambos')}
+                                  disabled={processingAstId === a.id}
+                                  className={`inline-flex items-center gap-1 px-2.5 py-1.5 rounded-l-xl text-xs font-bold transition-all cursor-pointer active:scale-95 group ${
+                                    a.notas && (a.notas.includes('❌') || a.notas.includes('⚠️'))
+                                      ? 'bg-rose-50 hover:bg-rose-600 text-rose-900 hover:text-white border border-rose-300 hover:border-rose-600'
+                                      : (!a.estado || a.estado === 'pendiente')
+                                      ? 'bg-amber-50 hover:bg-amber-600 text-amber-900 hover:text-white border border-amber-300 hover:border-amber-600'
+                                      : 'bg-slate-50 hover:bg-slate-700 text-slate-700 hover:text-white border border-slate-200 hover:border-slate-700'
+                                  }`}
+                                  title={
+                                    a.notas && (a.notas.includes('❌') || a.notas.includes('⚠️'))
+                                      ? 'Reintentar despacho (WhatsApp + Correo)'
+                                      : 'Enviar por Ambos canales (WhatsApp + Correo)'
+                                  }
+                                >
+                                  {processingAstId === a.id ? (
+                                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                                  ) : a.notas && (a.notas.includes('❌') || a.notas.includes('⚠️')) ? (
+                                    <RefreshCw className="w-3.5 h-3.5 text-rose-700 group-hover:text-white" />
+                                  ) : (
+                                    <Zap className="w-3.5 h-3.5 text-amber-700 group-hover:text-white" />
+                                  )}
+                                  <span>
+                                    {processingAstId === a.id 
+                                      ? 'Enviando...' 
+                                      : a.notas && (a.notas.includes('❌') || a.notas.includes('⚠️'))
+                                      ? 'Reintentar'
+                                      : 'IA + Correo'}
+                                  </span>
+                                </button>
+
+                                {/* Botón Dropdown para Elegir Canal Específico */}
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setActiveActionDropdownId(activeActionDropdownId === a.id ? null : a.id);
+                                  }}
+                                  disabled={processingAstId === a.id}
+                                  className={`px-1.5 py-1.5 rounded-r-xl border-l-0 text-xs font-bold transition-all cursor-pointer ${
+                                    a.notas && (a.notas.includes('❌') || a.notas.includes('⚠️'))
+                                      ? 'bg-rose-100 hover:bg-rose-200 text-rose-900 border border-rose-300'
+                                      : (!a.estado || a.estado === 'pendiente')
+                                      ? 'bg-amber-100 hover:bg-amber-200 text-amber-900 border border-amber-300'
+                                      : 'bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200'
+                                  }`}
+                                  title="Elegir canal de envío manual: Solo WhatsApp, Solo Correo o Ambos"
+                                >
+                                  <ChevronDown className="w-3.5 h-3.5" />
+                                </button>
+
+                                {/* Popover Menú Flotante de Canales */}
+                                {activeActionDropdownId === a.id && (
+                                  <div 
+                                    onClick={(e) => e.stopPropagation()}
+                                    className="absolute right-0 top-full mt-1 z-50 bg-white border border-slate-200 rounded-xl p-1.5 shadow-2xl w-56 text-left animate-in fade-in zoom-in-95 text-slate-800"
+                                  >
+                                    <div className="px-2.5 py-1 text-[10px] font-black uppercase tracking-wider text-slate-400 border-b border-slate-100 mb-1 flex items-center justify-between">
+                                      <span>Canal de Envío Manual</span>
+                                      <button 
+                                        type="button"
+                                        onClick={() => setActiveActionDropdownId(null)}
+                                        className="text-slate-400 hover:text-slate-600"
+                                      >
+                                        <X className="w-3 h-3" />
+                                      </button>
+                                    </div>
+
+                                    {/* Opción 1: Solo WhatsApp */}
+                                    <button
+                                      type="button"
+                                      onClick={() => handleProcessIndividual(a, 'whatsapp')}
+                                      className="w-full flex items-center gap-2 px-2.5 py-2 rounded-lg text-xs font-semibold text-slate-700 hover:bg-emerald-50 hover:text-emerald-800 transition-colors text-left cursor-pointer group"
+                                    >
+                                      <div className="w-6 h-6 rounded-md bg-emerald-100 flex items-center justify-center shrink-0 group-hover:bg-emerald-500 group-hover:text-white transition-colors">
+                                        <MessageCircle className="w-3.5 h-3.5 text-emerald-700 group-hover:text-white" />
+                                      </div>
+                                      <div className="flex flex-col">
+                                        <span className="font-bold text-slate-900">📱 Solo WhatsApp</span>
+                                        <span className="text-[10px] text-slate-500 font-normal">Disparar Agente IA</span>
+                                      </div>
+                                    </button>
+
+                                    {/* Opción 2: Solo Correo */}
+                                    <button
+                                      type="button"
+                                      onClick={() => handleProcessIndividual(a, 'email')}
+                                      className="w-full flex items-center gap-2 px-2.5 py-2 rounded-lg text-xs font-semibold text-slate-700 hover:bg-blue-50 hover:text-blue-800 transition-colors text-left cursor-pointer group"
+                                    >
+                                      <div className="w-6 h-6 rounded-md bg-blue-100 flex items-center justify-center shrink-0 group-hover:bg-blue-600 group-hover:text-white transition-colors">
+                                        <Mail className="w-3.5 h-3.5 text-blue-600 group-hover:text-white" />
+                                      </div>
+                                      <div className="flex flex-col">
+                                        <span className="font-bold text-slate-900">✉️ Solo Correo</span>
+                                        <span className="text-[10px] text-slate-500 font-normal">Enviar plantilla vinculada</span>
+                                      </div>
+                                    </button>
+
+                                    {/* Opción 3: Ambos Canales */}
+                                    <button
+                                      type="button"
+                                      onClick={() => handleProcessIndividual(a, 'ambos')}
+                                      className="w-full flex items-center gap-2 px-2.5 py-2 rounded-lg text-xs font-semibold text-slate-700 hover:bg-purple-50 hover:text-purple-800 transition-colors text-left cursor-pointer group border-t border-slate-100 mt-1 pt-1.5"
+                                    >
+                                      <div className="w-6 h-6 rounded-md bg-purple-100 flex items-center justify-center shrink-0 group-hover:bg-purple-600 group-hover:text-white transition-colors">
+                                        <Zap className="w-3.5 h-3.5 text-purple-600 group-hover:text-white" />
+                                      </div>
+                                      <div className="flex flex-col">
+                                        <span className="font-bold text-slate-900">📲✉️ Ambos Canales</span>
+                                        <span className="text-[10px] text-slate-500 font-normal">WhatsApp + Correo</span>
+                                      </div>
+                                    </button>
+                                  </div>
                                 )}
-                                <span>
-                                  {processingAstId === a.id 
-                                    ? 'Enviando...' 
-                                    : a.notas && (a.notas.includes('❌') || a.notas.includes('⚠️'))
-                                    ? 'Reintentar Envío'
-                                    : 'IA + Correo'}
-                                </span>
-                              </button>
+                              </div>
 
                               <button
                                 type="button"
@@ -4503,34 +4670,100 @@ export default function EventManagerTab({ onUseAsCampaign }: EventManagerTabProp
                               {formattedCreatedAt}
                             </td>
                             <td className="py-3 px-3 text-center">
-                              <button
-                                type="button"
-                                onClick={() => handleProcessIndividual(a)}
-                                disabled={processingAstId === a.id}
-                                className={`inline-flex items-center gap-1 px-2 py-1 rounded-lg text-[11px] font-bold transition-all shadow-2xs cursor-pointer active:scale-95 ${
-                                  a.notas && (a.notas.includes('❌') || a.notas.includes('⚠️'))
-                                    ? 'bg-rose-50 hover:bg-rose-600 text-rose-900 hover:text-white border border-rose-300'
-                                    : (!a.estado || a.estado === 'pendiente')
-                                    ? 'bg-amber-50 hover:bg-amber-600 text-amber-900 hover:text-white border border-amber-300'
-                                    : 'bg-slate-50 hover:bg-slate-700 text-slate-700 hover:text-white border border-slate-200'
-                                }`}
-                                title="Procesar / Reintentar envío"
-                              >
-                                {processingAstId === a.id ? (
-                                  <Loader2 className="w-3 h-3 animate-spin" />
-                                ) : a.notas && (a.notas.includes('❌') || a.notas.includes('⚠️')) ? (
-                                  <RefreshCw className="w-3 h-3 text-rose-700" />
-                                ) : (
-                                  <Zap className="w-3 h-3 text-amber-700" />
+                              <div className="relative inline-flex items-center rounded-lg shadow-2xs">
+                                <button
+                                  type="button"
+                                  onClick={() => handleProcessIndividual(a, 'ambos')}
+                                  disabled={processingAstId === a.id}
+                                  className={`inline-flex items-center gap-1 px-2 py-1 rounded-l-lg text-[11px] font-bold transition-all cursor-pointer active:scale-95 ${
+                                    a.notas && (a.notas.includes('❌') || a.notas.includes('⚠️'))
+                                      ? 'bg-rose-50 hover:bg-rose-600 text-rose-900 hover:text-white border border-rose-300'
+                                      : (!a.estado || a.estado === 'pendiente')
+                                      ? 'bg-amber-50 hover:bg-amber-600 text-amber-900 hover:text-white border border-amber-300'
+                                      : 'bg-slate-50 hover:bg-slate-700 text-slate-700 hover:text-white border border-slate-200'
+                                  }`}
+                                  title="Enviar por Ambos canales (WhatsApp + Correo)"
+                                >
+                                  {processingAstId === a.id ? (
+                                    <Loader2 className="w-3 h-3 animate-spin" />
+                                  ) : a.notas && (a.notas.includes('❌') || a.notas.includes('⚠️')) ? (
+                                    <RefreshCw className="w-3 h-3 text-rose-700" />
+                                  ) : (
+                                    <Zap className="w-3 h-3 text-amber-700" />
+                                  )}
+                                  <span>
+                                    {processingAstId === a.id 
+                                      ? 'Enviando...' 
+                                      : a.notas && (a.notas.includes('❌') || a.notas.includes('⚠️'))
+                                      ? 'Reintentar'
+                                      : 'IA + Correo'}
+                                  </span>
+                                </button>
+
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setActiveActionDropdownId(activeActionDropdownId === a.id ? null : a.id);
+                                  }}
+                                  disabled={processingAstId === a.id}
+                                  className={`px-1 py-1 rounded-r-lg border-l-0 text-[11px] font-bold transition-all cursor-pointer ${
+                                    a.notas && (a.notas.includes('❌') || a.notas.includes('⚠️'))
+                                      ? 'bg-rose-100 hover:bg-rose-200 text-rose-900 border border-rose-300'
+                                      : (!a.estado || a.estado === 'pendiente')
+                                      ? 'bg-amber-100 hover:bg-amber-200 text-amber-900 border border-amber-300'
+                                      : 'bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200'
+                                  }`}
+                                  title="Elegir canal de envío: Solo WhatsApp, Solo Correo o Ambos"
+                                >
+                                  <ChevronDown className="w-3 h-3" />
+                                </button>
+
+                                {activeActionDropdownId === a.id && (
+                                  <div 
+                                    onClick={(e) => e.stopPropagation()}
+                                    className="absolute right-0 top-full mt-1 z-50 bg-white border border-slate-200 rounded-xl p-1.5 shadow-2xl w-52 text-left animate-in fade-in zoom-in-95 text-slate-800"
+                                  >
+                                    <div className="px-2 py-0.5 text-[9.5px] font-black uppercase tracking-wider text-slate-400 border-b border-slate-100 mb-1 flex items-center justify-between">
+                                      <span>Canal de Envío</span>
+                                      <button 
+                                        type="button"
+                                        onClick={() => setActiveActionDropdownId(null)}
+                                        className="text-slate-400 hover:text-slate-600"
+                                      >
+                                        <X className="w-3 h-3" />
+                                      </button>
+                                    </div>
+
+                                    <button
+                                      type="button"
+                                      onClick={() => handleProcessIndividual(a, 'whatsapp')}
+                                      className="w-full flex items-center gap-2 px-2 py-1.5 rounded-lg text-[11px] font-semibold text-slate-700 hover:bg-emerald-50 hover:text-emerald-800 transition-colors text-left cursor-pointer group"
+                                    >
+                                      <MessageCircle className="w-3.5 h-3.5 text-emerald-600" />
+                                      <span>📱 Solo WhatsApp</span>
+                                    </button>
+
+                                    <button
+                                      type="button"
+                                      onClick={() => handleProcessIndividual(a, 'email')}
+                                      className="w-full flex items-center gap-2 px-2 py-1.5 rounded-lg text-[11px] font-semibold text-slate-700 hover:bg-blue-50 hover:text-blue-800 transition-colors text-left cursor-pointer group"
+                                    >
+                                      <Mail className="w-3.5 h-3.5 text-blue-600" />
+                                      <span>✉️ Solo Correo</span>
+                                    </button>
+
+                                    <button
+                                      type="button"
+                                      onClick={() => handleProcessIndividual(a, 'ambos')}
+                                      className="w-full flex items-center gap-2 px-2 py-1.5 rounded-lg text-[11px] font-semibold text-slate-700 hover:bg-purple-50 hover:text-purple-800 transition-colors text-left cursor-pointer group border-t border-slate-100 mt-1 pt-1"
+                                    >
+                                      <Zap className="w-3.5 h-3.5 text-purple-600" />
+                                      <span>📲✉️ Ambos Canales</span>
+                                    </button>
+                                  </div>
                                 )}
-                                <span>
-                                  {processingAstId === a.id 
-                                    ? 'Enviando...' 
-                                    : a.notas && (a.notas.includes('❌') || a.notas.includes('⚠️'))
-                                    ? 'Reintentar'
-                                    : 'IA + Correo'}
-                                </span>
-                              </button>
+                              </div>
                             </td>
                           </tr>
                         );
